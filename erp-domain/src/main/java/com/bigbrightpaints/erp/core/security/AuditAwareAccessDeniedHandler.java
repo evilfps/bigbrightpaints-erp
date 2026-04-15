@@ -11,11 +11,12 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +25,8 @@ import jakarta.servlet.http.HttpServletResponse;
 public class AuditAwareAccessDeniedHandler implements AccessDeniedHandler {
 
   public static final String ACCESS_DENIED_AUDIT_REASON = "security-access-denied-handler";
+  public static final String ROLE_MUTATION_DENIED_AUDIT_REASON =
+      "ROLE_MUTATION_REQUIRES_SUPER_ADMIN";
 
   private final AuditService auditService;
   private final ObjectMapper objectMapper;
@@ -49,10 +52,16 @@ public class AuditAwareAccessDeniedHandler implements AccessDeniedHandler {
 
     if (!AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)) {
       Map<String, String> metadata = new HashMap<>();
-      metadata.put("reason", ACCESS_DENIED_AUDIT_REASON);
       metadata.put("traceId", traceId);
       metadata.put("deniedPath", request.getRequestURI());
       metadata.put("deniedMethod", request.getMethod());
+      if (isSuperadminRoleMutationRequest(request)) {
+        metadata.put("reason", ROLE_MUTATION_DENIED_AUDIT_REASON);
+        RequestBodyCachingFilter.resolveRequestedRole(request, objectMapper)
+            .ifPresent(targetRole -> metadata.put("targetRole", targetRole));
+      } else {
+        metadata.put("reason", ACCESS_DENIED_AUDIT_REASON);
+      }
       String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
       metadata.put("actor", actor);
       String tenantScope = AccessDeniedAuditMarker.resolveTenantScope(request);
@@ -72,5 +81,9 @@ public class AuditAwareAccessDeniedHandler implements AccessDeniedHandler {
     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     objectMapper.writeValue(response.getWriter(), body);
+  }
+
+  private boolean isSuperadminRoleMutationRequest(HttpServletRequest request) {
+    return RequestBodyCachingFilter.isSuperadminRoleMutationRequest(request);
   }
 }

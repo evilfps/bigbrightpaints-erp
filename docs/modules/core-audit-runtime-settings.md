@@ -306,7 +306,7 @@ These settings affect the entire platform and are managed through `SystemSetting
 | `mail.send-password-reset` | (config) | Whether to send password-reset emails |
 | `auth.platform.code` | `PLATFORM` | Super-admin platform scope code |
 
-These are managed via `AdminSettingsController` (`/api/v1/admin/settings`) and require `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`.
+These are managed via `AdminSettingsController` (`/api/v1/superadmin/settings`) and require `ROLE_SUPER_ADMIN`.
 
 #### Tenant-Scoped Settings (company-ID-qualified keys)
 

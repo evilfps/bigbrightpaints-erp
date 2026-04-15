@@ -279,6 +279,22 @@ public class AuthControllerIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(retiredProfileResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
+    ResponseEntity<Map> retiredAdminSettingsResponse =
+        rest.exchange(
+            "/api/v1/admin/settings",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(accessToken)),
+            Map.class);
+    assertThat(retiredAdminSettingsResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> retiredAdminRolesResponse =
+        rest.exchange(
+            "/api/v1/admin/roles",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(accessToken)),
+            Map.class);
+    assertThat(retiredAdminRolesResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
     ResponseEntity<Map> blockedAdminResponse =
         rest.exchange(
             "/api/v1/admin/users",

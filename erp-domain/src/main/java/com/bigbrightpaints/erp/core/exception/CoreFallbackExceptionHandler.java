@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.core.exception;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,10 +30,12 @@ import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.security.AuditAwareAccessDeniedHandler;
 import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
+import com.bigbrightpaints.erp.core.security.RequestBodyCachingFilter;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.MfaChallengeResponse;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -41,6 +44,16 @@ import jakarta.servlet.http.HttpServletRequest;
 public class CoreFallbackExceptionHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(CoreFallbackExceptionHandler.class);
+  private final ObjectMapper objectMapper;
+
+  public CoreFallbackExceptionHandler() {
+    this(new ObjectMapper());
+  }
+
+  @Autowired
+  public CoreFallbackExceptionHandler(ObjectMapper objectMapper) {
+    this.objectMapper = objectMapper;
+  }
 
   @Autowired(required = false)
   @Nullable
@@ -132,10 +145,16 @@ public class CoreFallbackExceptionHandler {
     logger.warn("Access denied [{}]", traceId);
     if (auditService != null && !AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)) {
       Map<String, String> metadata = new HashMap<>();
-      metadata.put("reason", AuditAwareAccessDeniedHandler.ACCESS_DENIED_AUDIT_REASON);
       metadata.put("traceId", traceId);
       metadata.put("deniedPath", request.getRequestURI());
       metadata.put("deniedMethod", request.getMethod());
+      if (isSuperadminRoleMutationRequest(request)) {
+        metadata.put("reason", AuditAwareAccessDeniedHandler.ROLE_MUTATION_DENIED_AUDIT_REASON);
+        RequestBodyCachingFilter.resolveRequestedRole(request, objectMapper)
+            .ifPresent(role -> metadata.put("targetRole", role));
+      } else {
+        metadata.put("reason", AuditAwareAccessDeniedHandler.ACCESS_DENIED_AUDIT_REASON);
+      }
       String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
       metadata.put("actor", actor);
       String tenantScope = AccessDeniedAuditMarker.resolveTenantScope(request);
@@ -159,6 +178,10 @@ public class CoreFallbackExceptionHandler {
     data.put("message", userMessage);
     data.put("traceId", traceId);
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(userMessage, data));
+  }
+
+  private boolean isSuperadminRoleMutationRequest(HttpServletRequest request) {
+    return RequestBodyCachingFilter.isSuperadminRoleMutationRequest(request);
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)

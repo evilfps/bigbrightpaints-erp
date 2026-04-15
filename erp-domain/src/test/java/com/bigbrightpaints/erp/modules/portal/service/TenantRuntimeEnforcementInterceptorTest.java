@@ -44,7 +44,8 @@ class TenantRuntimeEnforcementInterceptorTest {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
             companyContextService, tenantRuntimeRequestAdmissionService);
-    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings");
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("GET", "/api/v1/superadmin/settings");
 
     boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 

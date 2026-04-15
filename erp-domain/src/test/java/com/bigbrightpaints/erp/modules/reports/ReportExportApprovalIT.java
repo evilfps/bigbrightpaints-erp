@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequestRepository;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
@@ -38,6 +39,7 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
   private static final String ACCOUNTING_EMAIL = "export-accounting@bbp.com";
   private static final String ACCOUNTING_PEER_EMAIL = "export-accounting-peer@bbp.com";
   private static final String PASSWORD = "Export123!";
+  private static final String PLATFORM_SCOPE = AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE;
 
   @Autowired private TestRestTemplate rest;
 
@@ -58,6 +60,12 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         "Export Super Admin",
         COMPANY_CODE,
         List.of("ROLE_SUPER_ADMIN"));
+    dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        PASSWORD,
+        "Export Platform Super Admin",
+        PLATFORM_SCOPE,
+        List.of("ROLE_SUPER_ADMIN"));
     accountingUser =
         dataSeeder.ensureUser(
             ACCOUNTING_EMAIL,
@@ -76,11 +84,11 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
   @Test
   void exportRequest_and_adminApproval_flow_enforcesDownloadGate() {
-    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL);
+    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL);
     ResponseEntity<Map> enableGate =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of("exportApprovalRequired", true), jsonHeaders(superAdminHeaders)),
@@ -117,8 +125,7 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
     Map<?, ?> pendingData = (Map<?, ?>) pendingResponse.getBody().get("data");
     assertThat(pendingData).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> exportRequests =
-        (List<Map<String, Object>>) pendingData.get("items");
+    List<Map<String, Object>> exportRequests = (List<Map<String, Object>>) pendingData.get("items");
     assertThat(exportRequests)
         .anySatisfy(
             row -> {
@@ -234,10 +241,10 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
   @Test
   void exportDownload_bypassesApprovalWhenSettingDisabled() {
-    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL);
+    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     ResponseEntity<Map> settingResponse =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of("exportApprovalRequired", false), jsonHeaders(superAdminHeaders)),
@@ -276,10 +283,10 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
   @Test
   void exportDownload_requiresRequestOwnershipAfterApproval() {
-    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL);
+    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     ResponseEntity<Map> enableGate =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of("exportApprovalRequired", true), jsonHeaders(superAdminHeaders)),
@@ -371,18 +378,22 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
   }
 
   private HttpHeaders authHeaders(String email) {
+    return authHeaders(email, COMPANY_CODE);
+  }
+
+  private HttpHeaders authHeaders(String email, String companyCode) {
     Map<String, Object> payload =
         Map.of(
             "email", email,
             "password", PASSWORD,
-            "companyCode", COMPANY_CODE);
+            "companyCode", companyCode);
     ResponseEntity<Map> login = rest.postForEntity("/api/v1/auth/login", payload, Map.class);
     assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(login.getBody()).isNotNull();
 
     HttpHeaders headers = new HttpHeaders();
     headers.setBearerAuth((String) login.getBody().get("accessToken"));
-    headers.set("X-Company-Code", COMPANY_CODE);
+    headers.set("X-Company-Code", companyCode);
     return headers;
   }
 

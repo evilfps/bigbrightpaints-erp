@@ -380,7 +380,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(
             (Boolean)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    filter, "isPlatformScopedRequestAllowed", "/api/v1/admin/settings"))
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/superadmin/settings"))
         .isTrue();
     assertThat(
             (Boolean)

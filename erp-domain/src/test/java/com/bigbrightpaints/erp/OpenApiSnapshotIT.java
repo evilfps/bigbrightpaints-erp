@@ -94,18 +94,44 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
 
     assertOperationContract(
         root,
-        "/api/v1/admin/settings",
+        "/api/v1/superadmin/settings",
         "get",
         null,
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
     assertOperationContract(
         root,
-        "/api/v1/admin/settings",
+        "/api/v1/superadmin/settings",
         "put",
         "#/components/schemas/SystemSettingsUpdateRequest",
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/roles",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseListRoleDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/roles",
+        "post",
+        "#/components/schemas/CreateRoleRequest",
+        "200",
+        "#/components/schemas/ApiResponseRoleDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/roles/{roleKey}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseRoleDto");
+    assertOperationMissing(root, "/api/v1/admin/settings", "get");
+    assertOperationMissing(root, "/api/v1/admin/settings", "put");
+    assertOperationMissing(root, "/api/v1/admin/roles", "get");
+    assertOperationMissing(root, "/api/v1/admin/roles", "post");
+    assertOperationMissing(root, "/api/v1/admin/roles/{roleKey}", "get");
     assertOperationContract(
         root,
         "/api/v1/admin/approvals",
@@ -344,7 +370,12 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationContract(
         root, "/api/v1/admin/users/{id}/mfa/disable", "patch", null, "204", null);
     assertOperationContract(
-        root, "/api/v1/admin/users/{id}", "get", null, "200", "#/components/schemas/ApiResponseUserDto");
+        root,
+        "/api/v1/admin/users/{id}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseUserDto");
     assertOperationContract(
         root,
         "/api/v1/admin/users/{id}",

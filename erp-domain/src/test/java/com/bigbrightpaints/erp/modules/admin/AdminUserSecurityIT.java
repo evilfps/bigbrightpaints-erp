@@ -29,6 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -42,6 +43,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
   private static final String ADMIN_PASSWORD = "Admin123!";
   private static final String SUPER_ADMIN_EMAIL = "super-admin-sec@bbp.com";
   private static final String SUPER_ADMIN_PASSWORD = "SuperAdmin123!";
+  private static final String PLATFORM_SCOPE = AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE;
   private static final String DEALER_EMAIL = "dealer-sec@bbp.com";
   private static final String DEALER_PASSWORD = "Dealer123!";
 
@@ -60,10 +62,16 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         ADMIN_EMAIL, ADMIN_PASSWORD, "Security Admin", COMPANY, List.of("ROLE_ADMIN"));
     tenantSuperAdminUser =
         dataSeeder.ensureUser(
+            SUPER_ADMIN_EMAIL,
+            SUPER_ADMIN_PASSWORD,
+            "Security Super Admin",
+            COMPANY,
+            List.of("ROLE_SUPER_ADMIN"));
+    dataSeeder.ensureUser(
         SUPER_ADMIN_EMAIL,
         SUPER_ADMIN_PASSWORD,
-        "Security Super Admin",
-        COMPANY,
+        "Security Platform Super Admin",
+        PLATFORM_SCOPE,
         List.of("ROLE_SUPER_ADMIN"));
     dataSeeder.ensureUser(
         DEALER_EMAIL, DEALER_PASSWORD, "Security Dealer", COMPANY, List.of("ROLE_DEALER"));
@@ -540,10 +548,12 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> users = (List<Map<String, Object>>) response.getBody().get("data");
     assertThat(users).isNotEmpty();
-    assertThat(users).noneMatch(row -> ADMIN_EMAIL.equalsIgnoreCase(String.valueOf(row.get("email"))));
+    assertThat(users)
+        .noneMatch(row -> ADMIN_EMAIL.equalsIgnoreCase(String.valueOf(row.get("email"))));
     assertThat(users)
         .noneMatch(row -> SUPER_ADMIN_EMAIL.equalsIgnoreCase(String.valueOf(row.get("email"))));
-    assertThat(users).anyMatch(row -> DEALER_EMAIL.equalsIgnoreCase(String.valueOf(row.get("email"))));
+    assertThat(users)
+        .anyMatch(row -> DEALER_EMAIL.equalsIgnoreCase(String.valueOf(row.get("email"))));
   }
 
   @Test
@@ -708,7 +718,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(Map.of("exportApprovalRequired", true), headers),
             Map.class);
@@ -718,15 +728,15 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
   @Test
   void super_admin_can_update_global_system_settings() {
-    String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
+    String token = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, PLATFORM_SCOPE);
     HttpHeaders headers = new HttpHeaders();
     headers.setBearerAuth(token);
     headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set("X-Company-Code", COMPANY);
+    headers.set("X-Company-Code", PLATFORM_SCOPE);
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(Map.of("exportApprovalRequired", true), headers),
             Map.class);
@@ -797,7 +807,8 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
   }
 
   @SuppressWarnings("unchecked")
-  private Map<String, Object> assertPlatformOnlyAccessDeniedAndReturn(ResponseEntity<Map> response) {
+  private Map<String, Object> assertPlatformOnlyAccessDeniedAndReturn(
+      ResponseEntity<Map> response) {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().get("success")).isEqualTo(Boolean.FALSE);

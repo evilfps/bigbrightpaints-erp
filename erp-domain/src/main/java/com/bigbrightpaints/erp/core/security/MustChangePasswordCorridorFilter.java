@@ -85,7 +85,7 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
     if (!StringUtils.hasText(normalizedPath)) {
       return false;
     }
-    if (RETIRED_AUTH_SURFACES.contains(normalizedPath)) {
+    if (RETIRED_AUTH_SURFACES.contains(normalizedPath) || isRetiredAdminHostPath(normalizedPath)) {
       return true;
     }
 
@@ -97,6 +97,10 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
       return MUTATING_CORRIDOR_PATHS.contains(normalizedPath);
     }
     return false;
+  }
+
+  private boolean isRetiredAdminHostPath(String normalizedPath) {
+    return RetiredTenantAdminHostPaths.matchesNormalizedPath(normalizedPath);
   }
 
   private String resolveApplicationPath(HttpServletRequest request) {

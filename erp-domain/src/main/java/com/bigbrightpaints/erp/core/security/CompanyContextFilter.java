@@ -133,6 +133,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
     try {
       String runtimePath = normalizePath(resolveApplicationPath(request));
+      if (isRetiredAdminHostPath(runtimePath)) {
+        // Retired host paths are intentionally unresolved by handlers and should return 404
+        // consistently, independent of auth/company-context binding.
+        filterChain.doFilter(request, response);
+        return;
+      }
       if (isPublicPasswordResetRequest(runtimePath, request.getMethod())) {
         filterChain.doFilter(request, response);
         return;
@@ -196,6 +202,13 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         requestedCompany = null;
       }
       String companyCode = normalizeCompanyCode(requestedCompany);
+      if (hasSuperAdminAuthority
+          && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
+          && !authScopeService.isPlatformScope(companyCode)) {
+        writeAccessDenied(
+            response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
+        return;
+      }
       if (hasSuperAdminAuthority && authScopeService.isPlatformScope(companyCode)) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
           writeAccessDenied(
@@ -625,13 +638,29 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     if (normalizedPath.equals("/api/v1/companies")) {
       return true;
     }
-    if (normalizedPath.equals("/api/v1/admin/settings")) {
+    if (isRetiredAdminHostPath(normalizedPath)) {
+      // Let retired admin hosts fall through to dispatcher 404 uniformly.
       return true;
     }
     return normalizedPath.equals("/api/v1/auth")
         || normalizedPath.startsWith("/api/v1/auth/")
         || normalizedPath.equals("/api/v1/superadmin")
         || normalizedPath.startsWith("/api/v1/superadmin/");
+  }
+
+  private boolean isRetiredAdminHostPath(String normalizedPath) {
+    return RetiredTenantAdminHostPaths.matchesNormalizedPath(normalizedPath);
+  }
+
+  private boolean isSuperadminPlatformScopeOnlyHostPath(String path) {
+    String normalizedPath = normalizePath(path);
+    if (!StringUtils.hasText(normalizedPath)) {
+      return false;
+    }
+    return normalizedPath.equals("/api/v1/superadmin/settings")
+        || normalizedPath.startsWith("/api/v1/superadmin/settings/")
+        || normalizedPath.equals("/api/v1/superadmin/roles")
+        || normalizedPath.startsWith("/api/v1/superadmin/roles/");
   }
 
   private String normalizeMethod(String method) {

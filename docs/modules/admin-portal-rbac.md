@@ -18,7 +18,7 @@ This packet is the canonical backend ownership map for tenant-admin, portal, and
 | --- | --- |
 | `admin` | Tenant-admin dashboard, users, approval inbox/decisions, tenant-admin audit feed, admin support host, self-settings, tenant changelog reads |
 | `portal` | Shared internal read models (`/api/v1/portal/**`), including legacy admin insights reads plus accounting-owned internal support host |
-| `rbac` | Platform role catalog APIs and role synchronization (`/api/v1/admin/roles/**`) |
+| `rbac` | Platform role catalog APIs and role synchronization (`/api/v1/superadmin/roles/**`) |
 | `company` | Tenant lifecycle, module gating, limits, support recovery, platform dashboard (`/api/v1/superadmin/**`) |
 
 ## Actor Boundaries
@@ -109,8 +109,8 @@ Origin-specific rules:
 
 ### AdminSettingsController
 
-- `GET /api/v1/admin/settings` (`ROLE_ADMIN`)
-- `PUT /api/v1/admin/settings` (`ROLE_SUPER_ADMIN`)
+- `GET /api/v1/superadmin/settings` (`ROLE_SUPER_ADMIN`)
+- `PUT /api/v1/superadmin/settings` (`ROLE_SUPER_ADMIN`)
 
 Notes:
 
@@ -149,8 +149,8 @@ Publishing remains superadmin-only:
 
 ### RBAC host
 
-- `/api/v1/admin/roles`
-- `/api/v1/admin/roles/{roleKey}`
+- `/api/v1/superadmin/roles`
+- `/api/v1/superadmin/roles/{roleKey}`
 
 The role host is still present for platform role catalog operations, but it is not part of tenant-admin product UX.
 

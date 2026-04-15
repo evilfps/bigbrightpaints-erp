@@ -2,10 +2,10 @@
 
 > ⚠️ **REFERENCE ONLY**: This inventory is retained for review and governance cross-reference, but it is not the canonical API truth. Use repo-root `openapi.json`, [docs/frontend-api/README.md](frontend-api/README.md), and the module/flow packets linked from [docs/INDEX.md](INDEX.md) as the primary contract surfaces.
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-16
 
 Source: `openapi.json`
-Updated: 2026-04-15
+Updated: 2026-04-16
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -19,7 +19,7 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `560ffdab26953398b3f48b2a6b91c2e02d1fa7876d945ee0d5ad6914fb55e60a`)
+- OpenAPI snapshot: `openapi.json` (sha256 `a859f0fa6104cc92b42805adc6071042d5705c93324cbdb0227d51d7ad3cbfcb`)
 - OpenAPI total paths: `276`
 - OpenAPI total operations: `330`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
@@ -123,10 +123,10 @@ Portal scope guardrail:
 - `POST` `/api/v1/admin/approvals/{originType}/{id}/decisions`
 - `GET` `/api/v1/admin/audit/events`
 - `GET` `/api/v1/admin/dashboard`
-- `GET, POST` `/api/v1/admin/roles`
-- `GET` `/api/v1/admin/roles/{roleKey}`
+- `GET, POST` `/api/v1/superadmin/roles`
+- `GET` `/api/v1/superadmin/roles/{roleKey}`
 - `GET` `/api/v1/admin/self/settings`
-- `GET, PUT` `/api/v1/admin/settings`
+- `GET, PUT` `/api/v1/superadmin/settings`
 - `GET, POST` `/api/v1/admin/support/tickets`
 - `GET` `/api/v1/admin/support/tickets/{ticketId}`
 - `GET, POST` `/api/v1/admin/users`

@@ -807,7 +807,7 @@ Allow administrators to provision user accounts, assign roles, and manage the fu
 |-------|------|----------|------------|
 | `enabled` | Boolean | Yes (`@NotNull`) | true or false |
 
-#### CreateRoleRequest (`POST /api/v1/admin/roles`)
+#### CreateRoleRequest (`POST /api/v1/superadmin/roles`)
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
@@ -1082,28 +1082,28 @@ All user management operations produce audit events via `AuditService`:
 #### API Endpoints
 
 ##### AdminUserController (`/api/v1/admin/users`)
-All endpoints require `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` (class-level `@PreAuthorize`).
+All endpoints require `ROLE_ADMIN` tenant-admin authority and explicitly block `ROLE_SUPER_ADMIN`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/admin/users` | ADMIN, SUPER_ADMIN | List all users in current tenant |
-| `POST` | `/api/v1/admin/users` | ADMIN, SUPER_ADMIN | Create new user |
-| `PUT` | `/api/v1/admin/users/{id}` | ADMIN, SUPER_ADMIN | Update user (name, company, roles, enabled) |
-| `PUT` | `/api/v1/admin/users/{id}/status` | ADMIN, SUPER_ADMIN | Enable/disable user |
-| `PATCH` | `/api/v1/admin/users/{id}/suspend` | ADMIN, SUPER_ADMIN | Suspend user |
-| `PATCH` | `/api/v1/admin/users/{id}/unsuspend` | ADMIN, SUPER_ADMIN | Unsuspend user |
-| `PATCH` | `/api/v1/admin/users/{id}/mfa/disable` | ADMIN, SUPER_ADMIN | Disable MFA for user |
-| `POST` | `/api/v1/admin/users/{id}/force-reset-password` | ADMIN, SUPER_ADMIN | Force password reset |
-| `DELETE` | `/api/v1/admin/users/{id}` | ADMIN, SUPER_ADMIN | Delete user permanently |
+| `GET` | `/api/v1/admin/users` | ADMIN (tenant-admin only) | List all users in current tenant |
+| `POST` | `/api/v1/admin/users` | ADMIN (tenant-admin only) | Create new user |
+| `PUT` | `/api/v1/admin/users/{id}` | ADMIN (tenant-admin only) | Update user (name, company, roles, enabled) |
+| `PUT` | `/api/v1/admin/users/{id}/status` | ADMIN (tenant-admin only) | Enable/disable user |
+| `PATCH` | `/api/v1/admin/users/{id}/suspend` | ADMIN (tenant-admin only) | Suspend user |
+| `PATCH` | `/api/v1/admin/users/{id}/unsuspend` | ADMIN (tenant-admin only) | Unsuspend user |
+| `PATCH` | `/api/v1/admin/users/{id}/mfa/disable` | ADMIN (tenant-admin only) | Disable MFA for user |
+| `POST` | `/api/v1/admin/users/{id}/force-reset-password` | ADMIN (tenant-admin only) | Force password reset |
+| `DELETE` | `/api/v1/admin/users/{id}` | ADMIN (tenant-admin only) | Delete user permanently |
 
-##### RoleController (`/api/v1/admin/roles`)
-All endpoints require `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`.
+##### RoleController (`/api/v1/superadmin/roles`)
+All endpoints require `ROLE_SUPER_ADMIN`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/admin/roles` | ADMIN, SUPER_ADMIN | List all platform roles (non-SUPER_ADMIN sees all except ROLE_SUPER_ADMIN) |
-| `GET` | `/api/v1/admin/roles/{roleKey}` | ADMIN, SUPER_ADMIN | Get single role by name (auto-prefixes "ROLE_") |
-| `POST` | `/api/v1/admin/roles` | ADMIN, SUPER_ADMIN | Create/update role with permissions (SUPER_ADMIN only for ADMIN/SUPER_ADMIN roles) |
+| `GET` | `/api/v1/superadmin/roles` | SUPER_ADMIN | List all platform roles |
+| `GET` | `/api/v1/superadmin/roles/{roleKey}` | SUPER_ADMIN | Get single role by name (auto-prefixes "ROLE_") |
+| `POST` | `/api/v1/superadmin/roles` | SUPER_ADMIN | Create/update role with permissions |
 
 #### Key Services
 
@@ -1859,4 +1859,3 @@ purchasing module (supplier master)
 | 12 | Catalog import is CSV-only and idempotent | ✅ Pass |
 
 ---
-

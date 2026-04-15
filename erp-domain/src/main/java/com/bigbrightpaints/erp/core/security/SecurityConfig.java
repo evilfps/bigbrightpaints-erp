@@ -34,8 +34,10 @@ public class SecurityConfig {
   private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+  private final RequestBodyCachingFilter requestBodyCachingFilter;
   private final CompanyContextFilter companyContextFilter;
   private final MustChangePasswordCorridorFilter mustChangePasswordCorridorFilter;
+  private final AuditAwareAccessDeniedHandler auditAwareAccessDeniedHandler;
   private final UserAccountDetailsService userDetailsService;
   private final Environment environment;
   private final boolean swaggerPublic;
@@ -43,14 +45,18 @@ public class SecurityConfig {
   @Autowired
   public SecurityConfig(
       JwtAuthenticationFilter jwtAuthenticationFilter,
+      RequestBodyCachingFilter requestBodyCachingFilter,
       CompanyContextFilter companyContextFilter,
       MustChangePasswordCorridorFilter mustChangePasswordCorridorFilter,
+      AuditAwareAccessDeniedHandler auditAwareAccessDeniedHandler,
       UserAccountDetailsService userDetailsService,
       @Autowired(required = false) Environment environment,
       @Value("${erp.security.swagger-public:false}") boolean swaggerPublic) {
     this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    this.requestBodyCachingFilter = requestBodyCachingFilter;
     this.companyContextFilter = companyContextFilter;
     this.mustChangePasswordCorridorFilter = mustChangePasswordCorridorFilter;
+    this.auditAwareAccessDeniedHandler = auditAwareAccessDeniedHandler;
     this.userDetailsService = userDetailsService;
     this.environment = environment;
     this.swaggerPublic = swaggerPublic;
@@ -58,14 +64,18 @@ public class SecurityConfig {
 
   SecurityConfig(
       JwtAuthenticationFilter jwtAuthenticationFilter,
+      RequestBodyCachingFilter requestBodyCachingFilter,
       CompanyContextFilter companyContextFilter,
       MustChangePasswordCorridorFilter mustChangePasswordCorridorFilter,
+      AuditAwareAccessDeniedHandler auditAwareAccessDeniedHandler,
       UserAccountDetailsService userDetailsService,
       boolean swaggerPublic) {
     this(
         jwtAuthenticationFilter,
+        requestBodyCachingFilter,
         companyContextFilter,
         mustChangePasswordCorridorFilter,
+        auditAwareAccessDeniedHandler,
         userDetailsService,
         null,
         swaggerPublic);
@@ -86,6 +96,8 @@ public class SecurityConfig {
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
         .logout(AbstractHttpConfigurer::disable)
+        .exceptionHandling(
+            exception -> exception.accessDeniedHandler(auditAwareAccessDeniedHandler))
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
@@ -98,6 +110,9 @@ public class SecurityConfig {
                       "/api/v1/auth/refresh-token",
                       "/api/v1/auth/password/forgot",
                       "/api/v1/auth/password/reset")
+                  .permitAll()
+                  // Keep retired tenant-admin hosts unresolved (dispatcher 404) for every caller.
+                  .requestMatchers(RetiredTenantAdminHostPaths.requestMatchers())
                   .permitAll();
               if (isSwaggerAllowed()) {
                 registry
@@ -111,7 +126,8 @@ public class SecurityConfig {
                   .authenticated();
             })
         .userDetailsService(userDetailsService)
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterBefore(requestBodyCachingFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(jwtAuthenticationFilter, RequestBodyCachingFilter.class)
         .addFilterAfter(companyContextFilter, JwtAuthenticationFilter.class)
         .addFilterAfter(mustChangePasswordCorridorFilter, CompanyContextFilter.class);
     return http.build();

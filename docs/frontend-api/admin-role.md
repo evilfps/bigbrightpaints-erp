@@ -18,6 +18,7 @@ Last reviewed: 2026-04-15
 | Approval inbox | `GET /api/v1/admin/approvals` | — | `ApiResponse<AdminApprovalInboxResponse>` | `ROLE_ADMIN` |
 | Approval decision | `POST /api/v1/admin/approvals/{originType}/{id}/decisions` | `AdminApprovalDecisionRequest` | `ApiResponse<AdminApprovalItemDto>` | `ROLE_ADMIN` |
 | User list | `GET /api/v1/admin/users` | — | `ApiResponse<List<UserDto>>` | `ROLE_ADMIN` |
+| User detail | `GET /api/v1/admin/users/{id}` | — | `ApiResponse<UserDto>` | `ROLE_ADMIN` |
 | User create | `POST /api/v1/admin/users` | `CreateUserRequest` | `ApiResponse<UserDto>` | `ROLE_ADMIN` |
 | User update | `PUT /api/v1/admin/users/{id}` | `UpdateUserRequest` | `ApiResponse<UserDto>` | `ROLE_ADMIN` |
 | User status | `PUT /api/v1/admin/users/{userId}/status` | `UpdateUserStatusRequest` | `ApiResponse<UserDto>` | `ROLE_ADMIN` |
@@ -43,7 +44,7 @@ Last reviewed: 2026-04-15
 
 ## Explicit exclusions from tenant-admin product
 
-- `/api/v1/admin/roles/**` (RBAC catalog host)
-- `/api/v1/admin/settings` and `PUT /api/v1/admin/settings` (governance/system settings host)
+- `/api/v1/superadmin/roles/**` (RBAC catalog host)
+- `/api/v1/superadmin/settings` (governance/system settings host)
 - `/api/v1/superadmin/notify` (control-plane utility host)
 - `/api/v1/superadmin/**` (control-plane ownership)

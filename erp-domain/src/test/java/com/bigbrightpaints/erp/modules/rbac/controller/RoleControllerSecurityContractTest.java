@@ -21,13 +21,14 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 class RoleControllerSecurityContractTest {
 
   @Test
-  void createRole_usesRoleMutationGuardAtControllerBoundary() throws Exception {
+  void roleController_is_superadmin_only_at_boundary() throws Exception {
     Method method = RoleController.class.getMethod("createRole", CreateRoleRequest.class);
+    PreAuthorize classAnnotation = RoleController.class.getAnnotation(PreAuthorize.class);
+    PreAuthorize methodAnnotation = method.getAnnotation(PreAuthorize.class);
 
-    PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
-
-    assertThat(annotation).isNotNull();
-    assertThat(annotation.value()).isEqualTo("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')");
+    assertThat(classAnnotation).isNotNull();
+    assertThat(classAnnotation.value()).isEqualTo("hasAuthority('ROLE_SUPER_ADMIN')");
+    assertThat(methodAnnotation).isNull();
   }
 
   @Test

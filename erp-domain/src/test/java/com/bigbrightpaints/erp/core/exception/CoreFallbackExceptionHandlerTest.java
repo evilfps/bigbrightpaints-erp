@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -15,7 +16,6 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
@@ -66,8 +66,9 @@ class CoreFallbackExceptionHandlerTest {
             new UsernamePasswordAuthenticationToken(
                 "admin.user", "N/A", List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
     CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
-    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings");
-    request.setRequestURI("/api/v1/admin/settings");
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("GET", "/api/v1/superadmin/settings");
+    request.setRequestURI("/api/v1/superadmin/settings");
 
     ResponseEntity<ApiResponse<Map<String, Object>>> response =
         handler.handleAccessDenied(new AccessDeniedException("denied"), request);
@@ -192,8 +193,9 @@ class CoreFallbackExceptionHandlerTest {
   @Test
   void handleAuthSecurityContract_preservesExplicitStatusAndDetails() {
     CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
-    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings");
-    request.setRequestURI("/api/v1/admin/settings");
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("GET", "/api/v1/superadmin/settings");
+    request.setRequestURI("/api/v1/superadmin/settings");
     AuthSecurityContractException ex =
         new AuthSecurityContractException(HttpStatus.FORBIDDEN, "AUTH_SCOPE_DENIED", "Scope denied")
             .withDetail("scope", "admin");

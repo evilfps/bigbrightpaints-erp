@@ -17,19 +17,12 @@ import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
-import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
-import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.company.service.ModuleGatingService;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/v1/admin")
+@RequestMapping("/api/v1/superadmin/settings")
 public class AdminSettingsController {
 
   private static final String AUDIT_NOT_REQUESTED = "<not_requested>";
@@ -39,72 +32,26 @@ public class AdminSettingsController {
   private final AuditService auditService;
 
   @Autowired
-  public AdminSettingsController(SystemSettingsService systemSettingsService, AuditService auditService) {
+  public AdminSettingsController(
+      SystemSettingsService systemSettingsService, AuditService auditService) {
     this.systemSettingsService = systemSettingsService;
     this.auditService = auditService;
   }
 
-  // Backward-compatible constructor shape retained for existing test scaffolds.
-  public AdminSettingsController(
-      SystemSettingsService systemSettingsService,
-      com.bigbrightpaints.erp.core.notification.EmailService emailService,
-      CompanyContextService companyContextService,
-      TenantRuntimePolicyService tenantRuntimePolicyService,
-      ExportApprovalService exportApprovalService,
-      CreditRequestRepository creditRequestRepository,
-      CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository,
-      PayrollRunRepository payrollRunRepository,
-      ModuleGatingService moduleGatingService) {
-    this(systemSettingsService, null);
-  }
-
-  // Backward-compatible constructor shape retained for existing test scaffolds.
-  public AdminSettingsController(
-      SystemSettingsService systemSettingsService,
-      com.bigbrightpaints.erp.core.notification.EmailService emailService,
-      CompanyContextService companyContextService,
-      TenantRuntimePolicyService tenantRuntimePolicyService,
-      ExportApprovalService exportApprovalService,
-      CreditRequestRepository creditRequestRepository,
-      CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository,
-      com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository
-          periodCloseRequestRepository,
-      PayrollRunRepository payrollRunRepository,
-      AuditService auditService,
-      ModuleGatingService moduleGatingService) {
-    this(systemSettingsService, auditService);
-  }
-
-  @GetMapping("/settings")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
+  @GetMapping
+  @PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
   public ApiResponse<SystemSettingsDto> getSettings() {
     return ApiResponse.success("Settings fetched", systemSettingsService.snapshot());
   }
 
-  @PutMapping("/settings")
+  @PutMapping
   @PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
   public ApiResponse<SystemSettingsDto> updateSettings(
       @Valid @RequestBody SystemSettingsUpdateRequest request) {
     SystemSettingsDto before = systemSettingsService.snapshot();
-    requireSuperAdminForPeriodLockEnforcedChange(before, request);
     SystemSettingsDto dto = systemSettingsService.update(request);
     recordSettingsUpdateAudit(before, request, dto);
     return ApiResponse.success("Settings updated", dto);
-  }
-
-  private void requireSuperAdminForPeriodLockEnforcedChange(
-      SystemSettingsDto before, SystemSettingsUpdateRequest request) {
-    if (request == null || request.periodLockEnforced() == null || before == null) {
-      return;
-    }
-    if (before.periodLockEnforced() == request.periodLockEnforced()) {
-      return;
-    }
-    if (!isSuperAdminActor()) {
-      throw new com.bigbrightpaints.erp.core.exception.ApplicationException(
-          com.bigbrightpaints.erp.core.exception.ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
-          "SUPER_ADMIN authority required to change period lock enforcement");
-    }
   }
 
   private void recordSettingsUpdateAudit(
@@ -150,20 +97,5 @@ public class AdminSettingsController {
 
   private String auditRequestedPlatformAuthCode() {
     return AUDIT_REDACTED;
-  }
-
-  private boolean isSuperAdminActor() {
-    org.springframework.security.core.Authentication authentication =
-        org.springframework.security.core.context.SecurityContextHolder.getContext()
-            .getAuthentication();
-    if (authentication == null || !authentication.isAuthenticated()) {
-      return false;
-    }
-    if (authentication.getAuthorities() == null) {
-      return false;
-    }
-    return authentication.getAuthorities().stream()
-        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-        .anyMatch(authority -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(authority));
   }
 }

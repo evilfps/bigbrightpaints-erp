@@ -44,7 +44,7 @@ This review is based on static inspection of the Spring Boot backend under `erp-
 | portal | `/api/v1/portal`, `/api/v1/portal/support/tickets` | `modules/portal/controller/PortalInsightsController.java`, `PortalSupportTicketController.java` |
 | production | `/api/v1/catalog` | `modules/production/controller/CatalogController.java` |
 | purchasing | `/api/v1/purchasing`, `/api/v1/purchasing/raw-material-purchases`, `/api/v1/suppliers` | `modules/purchasing/controller/PurchasingWorkflowController.java`, `RawMaterialPurchaseController.java`, `SupplierController.java` |
-| rbac | `/api/v1/admin/roles` | `modules/rbac/controller/RoleController.java` |
+| rbac | `/api/v1/superadmin/roles` | `modules/rbac/controller/RoleController.java` |
 | reports | `/api/v1/reports/**`, export routes under `/api/v1/exports/**` | `modules/reports/controller/ReportController.java` |
 | sales | `/api/v1/dealers`, `/api/v1/dealer-portal`, `/api/v1/dealer-portal/support/tickets`, `/api/v1/credit/override-requests`, plus `/api/v1/sales/**` routes | `modules/sales/controller/DealerController.java`, `DealerPortalController.java`, `DealerPortalSupportTicketController.java`, `CreditLimitOverrideController.java`, `SalesController.java` |
 | demo | `/api/v1/demo` | `modules/demo/controller/DemoController.java` |
