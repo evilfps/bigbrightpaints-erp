@@ -19,9 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditLog;
-import com.bigbrightpaints.erp.core.audit.AuditStatus;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalInboxResponse;
@@ -261,23 +259,7 @@ public class AdminDashboardService {
         && actorProtection.evidence() == ActorProtectionEvidence.PUBLIC_ID) {
       return false;
     }
-    if (isDeniedSuperAdminAttemptByTenantActorShape(auditLog)) {
-      return false;
-    }
     return true;
-  }
-
-  private boolean isDeniedSuperAdminAttemptByTenantActorShape(AuditLog auditLog) {
-    if (auditLog == null) {
-      return false;
-    }
-    if (auditLog.getEventType() != AuditEvent.ACCESS_DENIED) {
-      return false;
-    }
-    if (auditLog.getStatus() != AuditStatus.FAILURE) {
-      return false;
-    }
-    return parsePublicId(auditLog.getUserId()) != null;
   }
 
   private ActorProtectionResolution resolveActorProtectionState(

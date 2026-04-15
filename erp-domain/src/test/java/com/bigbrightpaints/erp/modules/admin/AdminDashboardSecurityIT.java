@@ -220,6 +220,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
   @Test
   void dashboard_keeps_non_privileged_superadmin_path_attempt_visible() {
     Long companyId = tenantCompanyId();
+    String nonPrivilegedProbePath = "/api/v1/superadmin/tenants/" + companyId + "/limits";
     String accountingUserId =
         userAccountRepository
             .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
@@ -231,7 +232,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         companyId,
         ACCOUNTING_EMAIL,
         accountingUserId,
-        "/api/v1/superadmin/tenants/" + companyId + "/limits",
+        nonPrivilegedProbePath,
         LocalDateTime.now().plusHours(8));
 
     ResponseEntity<Map> adminResponse =
@@ -250,33 +251,33 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
     assertThat(recentActivity).isNotNull();
     assertThat(recentActivity)
-        .extracting(item -> String.valueOf(item.get("actor")).trim().toLowerCase())
-        .contains(ACCOUNTING_EMAIL.toLowerCase());
+        .extracting(item -> String.valueOf(item.get("details")))
+        .contains("PUT " + nonPrivilegedProbePath);
   }
 
   @Test
-  void dashboard_keeps_deleted_non_privileged_denied_superadmin_attempt_visible() {
+  void dashboard_hides_deleted_privileged_superadmin_path_attempt() {
     Long companyId = tenantCompanyId();
-    String deniedProbePath =
-        "/api/v1/superadmin/tenants/" + companyId + "/limits/deleted-actor-probe";
-    String accountingUserId =
+    String deletedPrivilegedProbePath =
+        "/api/v1/superadmin/tenants/" + companyId + "/limits/deleted-privileged-probe";
+    String privilegedUserId =
         userAccountRepository
-            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(SUPER_ADMIN_EMAIL, COMPANY_CODE)
             .orElseThrow()
             .getPublicId()
             .toString();
 
     writeAuditLog(
         companyId,
-        ACCOUNTING_EMAIL,
-        accountingUserId,
-        deniedProbePath,
+        SUPER_ADMIN_EMAIL,
+        privilegedUserId,
+        deletedPrivilegedProbePath,
         LocalDateTime.now().plusHours(9),
         AuditEvent.ACCESS_DENIED,
         AuditStatus.FAILURE);
 
     userAccountRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(SUPER_ADMIN_EMAIL, COMPANY_CODE)
         .ifPresent(userAccountRepository::delete);
 
     ResponseEntity<Map> adminResponse =
@@ -296,7 +297,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     assertThat(recentActivity).isNotNull();
     assertThat(recentActivity)
         .extracting(item -> String.valueOf(item.get("details")))
-        .contains("PUT " + deniedProbePath);
+        .doesNotContain("PUT " + deletedPrivilegedProbePath);
   }
 
   @Test
