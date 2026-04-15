@@ -55,7 +55,7 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             company.getId(),
             AuditEvent.USER_UPDATED,
             day.atTime(9, 1),
-            log -> log.setRequestPath("/api/v1/admin/settings"));
+            log -> log.setRequestPath("/api/v1/admin/users"));
     AuditLog accountingPath =
         saveAuditLog(
             company.getId(),
@@ -268,6 +268,12 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             AuditEvent.CONFIGURATION_CHANGED,
             absentDay.atTime(9, 2),
             log -> log.setRequestPath("/api/v1/admin/settings/preferences"));
+    AuditLog adminRoles =
+        saveAuditLog(
+            tenantA.getId(),
+            AuditEvent.ACCESS_DENIED,
+            absentDay.atTime(9, 2, 30),
+            log -> log.setRequestPath("/api/v1/admin/roles"));
     AuditLog targetCompany =
         saveAuditLog(
             tenantB.getId(),
@@ -289,11 +295,16 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
 
     assertThat(sourceIds(absentPlatformFeed))
         .containsExactlyInAnyOrder(
-            nullCompany.getId(), superadmin.getId(), adminSettings.getId(), targetCompany.getId());
+            nullCompany.getId(),
+            superadmin.getId(),
+            adminSettings.getId(),
+            adminRoles.getId(),
+            targetCompany.getId());
     assertThat(companyCodesBySourceId(absentPlatformFeed))
         .containsEntry(nullCompany.getId(), null)
         .containsEntry(superadmin.getId(), tenantA.getCode())
         .containsEntry(adminSettings.getId(), tenantA.getCode())
+        .containsEntry(adminRoles.getId(), tenantA.getCode())
         .containsEntry(targetCompany.getId(), "TENANT-B");
 
     Company platformCompany = dataSeeder.ensureCompany(platformCode, "Platform Company");

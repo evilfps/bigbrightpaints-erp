@@ -7,11 +7,13 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
@@ -21,7 +23,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
+import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
+import com.bigbrightpaints.erp.core.security.AuditAwareAccessDeniedHandler;
+import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.MfaChallengeResponse;
@@ -34,6 +41,10 @@ import jakarta.servlet.http.HttpServletRequest;
 public class CoreFallbackExceptionHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(CoreFallbackExceptionHandler.class);
+
+  @Autowired(required = false)
+  @Nullable
+  private AuditService auditService;
 
   @ExceptionHandler(CreditLimitExceededException.class)
   public ResponseEntity<ApiResponse<Map<String, Object>>> handleCreditLimitExceeded(
@@ -119,6 +130,24 @@ public class CoreFallbackExceptionHandler {
       AccessDeniedException ex, HttpServletRequest request) {
     String traceId = UUID.randomUUID().toString();
     logger.warn("Access denied [{}]", traceId);
+    if (auditService != null && !AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)) {
+      Map<String, String> metadata = new HashMap<>();
+      metadata.put("reason", AuditAwareAccessDeniedHandler.ACCESS_DENIED_AUDIT_REASON);
+      metadata.put("traceId", traceId);
+      metadata.put("deniedPath", request.getRequestURI());
+      metadata.put("deniedMethod", request.getMethod());
+      String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
+      metadata.put("actor", actor);
+      String tenantScope = AccessDeniedAuditMarker.resolveTenantScope(request);
+      if (StringUtils.hasText(tenantScope)) {
+        metadata.put("tenantScope", tenantScope);
+      }
+      auditService.logAuthFailure(
+          AuditEvent.ACCESS_DENIED,
+          actor,
+          tenantScope,
+          metadata);
+    }
     String userMessage =
         PortalRoleActionMatrix.resolveAccessDeniedMessage(
             SecurityContextHolder.getContext().getAuthentication(), request);

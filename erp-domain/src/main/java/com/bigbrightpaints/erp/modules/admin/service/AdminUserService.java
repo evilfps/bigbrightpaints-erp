@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -714,6 +715,7 @@ public class AdminUserService {
         actor,
         actorCompany != null ? actorCompany.getCode() : null,
         metadata);
+    AccessDeniedAuditMarker.markCurrentRequestAudited();
   }
 
   private String resolveAuditActor() {

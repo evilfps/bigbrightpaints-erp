@@ -518,6 +518,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     && "ROLE_ADMIN".equalsIgnoreCase(log.getMetadata().get("targetRole")));
     assertThat(denied.getMetadata()).containsEntry("actor", ADMIN_EMAIL);
     assertThat(denied.getMetadata().get("tenantScope")).contains(TENANT_A);
+    assertNoAuditEvent(
+        AuditEvent.ACCESS_DENIED,
+        log ->
+            ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                && "security-access-denied-handler".equals(log.getMetadata().get("reason"))
+                && "/api/v1/admin/users".equals(log.getMetadata().get("deniedPath")));
   }
 
   @Test
@@ -808,7 +814,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> denied =
         rest.exchange(
-            "/api/v1/admin/roles",
+            "/api/v1/superadmin/roles",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -819,18 +825,69 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             Map.class);
 
     assertForbiddenFromRoleMutationGuard(denied);
-    Map<String, Object> after = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
-    assertThat(extractPermissionCodes(after)).isEqualTo(beforePermissions);
-
     AuditLog deniedAudit =
         awaitAuditEvent(
             AuditEvent.ACCESS_DENIED,
             log ->
                 ROLE_GUARD_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
-                    && "shared-role-permission-mutation-requires-super-admin"
+                    && "security-access-denied-handler"
                         .equals(log.getMetadata().get("reason"))
-                    && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath")));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", ROLE_GUARD_ADMIN_EMAIL);
     assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+    Map<String, Object> after = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+    assertThat(extractPermissionCodes(after)).isEqualTo(beforePermissions);
+  }
+
+  @Test
+  void tenant_admin_denied_role_mutation_audit_keeps_tenant_scope_without_company_header()
+      throws InterruptedException {
+    String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> denied =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name", "ROLE_FACTORY",
+                    "description", "Tenant mutation attempt without company header",
+                    "permissions", factoryRolePermissionCodes()),
+                jsonHeaders(adminToken, null)),
+            Map.class);
+
+    assertForbiddenFromRoleMutationGuard(denied);
+    AuditLog deniedAudit =
+        awaitAuditEvent(
+            AuditEvent.ACCESS_DENIED,
+            log ->
+                ROLE_GUARD_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                    && "security-access-denied-handler"
+                        .equals(log.getMetadata().get("reason"))
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath")));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", ROLE_GUARD_ADMIN_EMAIL);
+    assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+  }
+
+  @Test
+  void retired_admin_settings_and_roles_hosts_are_not_exposed() {
+    String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> legacySettings =
+        rest.exchange(
+            "/api/v1/admin/settings",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+            Map.class);
+    ResponseEntity<Map> legacyRoles =
+        rest.exchange(
+            "/api/v1/admin/roles",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+            Map.class);
+
+    assertThat(legacySettings.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(legacyRoles.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
@@ -843,7 +900,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/roles",
+            "/api/v1/superadmin/roles",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -1211,7 +1268,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   private Map<String, Object> fetchRoleData(String token, String companyCode, String roleKey) {
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/roles/" + roleKey,
+            "/api/v1/superadmin/roles/" + roleKey,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(token, companyCode)),
             Map.class);
@@ -1385,14 +1442,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
       throws InterruptedException {
     for (int i = 0; i < 80; i++) {
       entityManager.clear();
-      List<AuditLog> logs =
-          entityManager
-              .createQuery(
-                  "select distinct al from AuditLog al left join fetch al.metadata where"
-                      + " al.eventType = :eventType order by al.timestamp desc",
-                  AuditLog.class)
-              .setParameter("eventType", eventType)
-              .getResultList();
+      List<AuditLog> logs = findAuditLogs(eventType);
       for (AuditLog log : logs) {
         if (matcher.test(log)) {
           return log;
@@ -1402,5 +1452,29 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
     fail("Audit event %s not found with expected metadata", eventType);
     return null;
+  }
+
+  private void assertNoAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher)
+      throws InterruptedException {
+    for (int i = 0; i < 40; i++) {
+      entityManager.clear();
+      List<AuditLog> logs = findAuditLogs(eventType);
+      for (AuditLog log : logs) {
+        if (matcher.test(log)) {
+          fail("Unexpected audit event %s with duplicate metadata", eventType);
+        }
+      }
+      Thread.sleep(100);
+    }
+  }
+
+  private List<AuditLog> findAuditLogs(AuditEvent eventType) {
+    return entityManager
+        .createQuery(
+            "select distinct al from AuditLog al left join fetch al.metadata where"
+                + " al.eventType = :eventType order by al.timestamp desc",
+            AuditLog.class)
+        .setParameter("eventType", eventType)
+        .getResultList();
   }
 }
