@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.audit.AuditStatus;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalInboxResponse;
@@ -245,36 +247,59 @@ public class AdminDashboardService {
     if (auditLog == null) {
       return false;
     }
-    ActorProtectionState actorProtectionState =
+    ActorProtectionResolution actorProtection =
         resolveActorProtectionState(
             auditLog, tenantActorProtectionByEmail, actorProtectionByPublicIdCache);
-    if (actorProtectionState == ActorProtectionState.PROTECTED) {
+    if (!isSuperAdminControlPlanePath(auditLog.getRequestPath())) {
+      return actorProtection.state() == ActorProtectionState.PROTECTED;
+    }
+
+    if (actorProtection.state() == ActorProtectionState.PROTECTED) {
       return true;
     }
-    if (actorProtectionState == ActorProtectionState.UNKNOWN
-        && isSuperAdminControlPlanePath(auditLog.getRequestPath())) {
-      return true;
+    if (actorProtection.state() == ActorProtectionState.NOT_PROTECTED
+        && actorProtection.evidence() == ActorProtectionEvidence.PUBLIC_ID) {
+      return false;
     }
-    return false;
+    if (isDeniedSuperAdminAttemptByTenantActorShape(auditLog)) {
+      return false;
+    }
+    return true;
   }
 
-  private ActorProtectionState resolveActorProtectionState(
+  private boolean isDeniedSuperAdminAttemptByTenantActorShape(AuditLog auditLog) {
+    if (auditLog == null) {
+      return false;
+    }
+    if (auditLog.getEventType() != AuditEvent.ACCESS_DENIED) {
+      return false;
+    }
+    if (auditLog.getStatus() != AuditStatus.FAILURE) {
+      return false;
+    }
+    return parsePublicId(auditLog.getUserId()) != null;
+  }
+
+  private ActorProtectionResolution resolveActorProtectionState(
       AuditLog auditLog,
       Map<String, Boolean> tenantActorProtectionByEmail,
       Map<UUID, ActorProtectionState> actorProtectionByPublicIdCache) {
     UUID actorPublicId = parsePublicId(auditLog.getUserId());
     if (actorPublicId != null && actorProtectionByPublicIdCache.containsKey(actorPublicId)) {
-      return actorProtectionByPublicIdCache.get(actorPublicId);
+      return new ActorProtectionResolution(
+          actorProtectionByPublicIdCache.get(actorPublicId), ActorProtectionEvidence.PUBLIC_ID);
     }
     String actorKey = normalizeActorKey(auditLog.getUsername());
     if (StringUtils.hasText(actorKey)
         && tenantActorProtectionByEmail != null
         && tenantActorProtectionByEmail.containsKey(actorKey)) {
-      return Boolean.TRUE.equals(tenantActorProtectionByEmail.get(actorKey))
-          ? ActorProtectionState.PROTECTED
-          : ActorProtectionState.NOT_PROTECTED;
+      return new ActorProtectionResolution(
+          Boolean.TRUE.equals(tenantActorProtectionByEmail.get(actorKey))
+              ? ActorProtectionState.PROTECTED
+              : ActorProtectionState.NOT_PROTECTED,
+          ActorProtectionEvidence.EMAIL);
     }
-    return ActorProtectionState.UNKNOWN;
+    return new ActorProtectionResolution(ActorProtectionState.UNKNOWN, ActorProtectionEvidence.NONE);
   }
 
   private boolean isSuperAdminControlPlanePath(String requestPath) {
@@ -319,4 +344,13 @@ public class AdminDashboardService {
     NOT_PROTECTED,
     UNKNOWN
   }
+
+  private enum ActorProtectionEvidence {
+    PUBLIC_ID,
+    EMAIL,
+    NONE
+  }
+
+  private record ActorProtectionResolution(
+      ActorProtectionState state, ActorProtectionEvidence evidence) {}
 }

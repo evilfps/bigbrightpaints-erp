@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
+import com.bigbrightpaints.erp.core.audit.AuditStatus;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -253,6 +254,86 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         .contains(ACCOUNTING_EMAIL.toLowerCase());
   }
 
+  @Test
+  void dashboard_keeps_deleted_non_privileged_denied_superadmin_attempt_visible() {
+    Long companyId = tenantCompanyId();
+    String deniedProbePath =
+        "/api/v1/superadmin/tenants/" + companyId + "/limits/deleted-actor-probe";
+    String accountingUserId =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
+            .orElseThrow()
+            .getPublicId()
+            .toString();
+
+    writeAuditLog(
+        companyId,
+        ACCOUNTING_EMAIL,
+        accountingUserId,
+        deniedProbePath,
+        LocalDateTime.now().plusHours(9),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
+        .ifPresent(userAccountRepository::delete);
+
+    ResponseEntity<Map> adminResponse =
+        rest.exchange(
+            ErpApiRoutes.ADMIN_DASHBOARD,
+            HttpMethod.GET,
+            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
+            Map.class);
+    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(adminResponse.getBody()).isNotNull();
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
+    assertThat(data).isNotNull();
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    assertThat(recentActivity).isNotNull();
+    assertThat(recentActivity)
+        .extracting(item -> String.valueOf(item.get("details")))
+        .contains("PUT " + deniedProbePath);
+  }
+
+  @Test
+  void dashboard_hides_superadmin_path_row_when_actor_id_is_unparseable() {
+    Long companyId = tenantCompanyId();
+    String unparseableProbePath =
+        "/api/v1/superadmin/tenants/" + companyId + "/limits/unparseable-id-probe";
+
+    writeAuditLog(
+        companyId,
+        ACCOUNTING_EMAIL,
+        "not-a-uuid",
+        unparseableProbePath,
+        LocalDateTime.now().plusHours(10),
+        AuditEvent.CONFIGURATION_CHANGED,
+        AuditStatus.SUCCESS);
+
+    ResponseEntity<Map> adminResponse =
+        rest.exchange(
+            ErpApiRoutes.ADMIN_DASHBOARD,
+            HttpMethod.GET,
+            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
+            Map.class);
+    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(adminResponse.getBody()).isNotNull();
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
+    assertThat(data).isNotNull();
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    assertThat(recentActivity).isNotNull();
+    assertThat(recentActivity)
+        .extracting(item -> String.valueOf(item.get("details")))
+        .doesNotContain("PUT " + unparseableProbePath);
+  }
+
   private HttpHeaders headersFor(String email) {
     return headersFor(email, COMPANY_CODE);
   }
@@ -282,14 +363,33 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
 
   private void writeAuditLog(
       Long companyId, String actorEmail, String actorUserId, String requestPath, LocalDateTime timestamp) {
+    writeAuditLog(
+        companyId,
+        actorEmail,
+        actorUserId,
+        requestPath,
+        timestamp,
+        AuditEvent.CONFIGURATION_CHANGED,
+        AuditStatus.SUCCESS);
+  }
+
+  private void writeAuditLog(
+      Long companyId,
+      String actorEmail,
+      String actorUserId,
+      String requestPath,
+      LocalDateTime timestamp,
+      AuditEvent eventType,
+      AuditStatus status) {
     AuditLog auditLog = new AuditLog();
-    auditLog.setEventType(AuditEvent.CONFIGURATION_CHANGED);
+    auditLog.setEventType(eventType);
     auditLog.setTimestamp(timestamp);
     auditLog.setCompanyId(companyId);
     auditLog.setUsername(actorEmail);
     auditLog.setUserId(actorUserId);
     auditLog.setRequestMethod("PUT");
     auditLog.setRequestPath(requestPath);
+    auditLog.setStatus(status);
     auditLogRepository.save(auditLog);
   }
 }
