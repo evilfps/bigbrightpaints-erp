@@ -47,8 +47,11 @@ import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
@@ -176,6 +179,152 @@ class SalesCoreEngineCoverageTest {
     assertThat(command.entityType()).isEqualTo("SALES_ORDER");
     assertThat(command.entityId()).isEqualTo("100");
     assertThat(command.referenceNumber()).isEqualTo("SO-100");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void normalizePendingDispatchLines_returnsProvidedLinesOrKeepsExplicitSlipRequestsUntouched()
+      throws Exception {
+    Method method =
+        SalesCoreEngine.class.getDeclaredMethod(
+            "normalizePendingDispatchLines",
+            List.class,
+            PackagingSlip.class,
+            Long.class,
+            FinishedGoodsService.InventoryReservationResult.class,
+            Long.class);
+    method.setAccessible(true);
+
+    List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine> provided =
+        List.of(
+            new com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine(
+                11L, 21L, BigDecimal.ONE, null, null, null, null, null));
+
+    Object providedResult = method.invoke(engine, provided, null, null, null, 1L);
+    Object explicitSlipResult =
+        method.invoke(
+            engine,
+            null,
+            null,
+            55L,
+            new FinishedGoodsService.InventoryReservationResult(null, List.of()),
+            1L);
+
+    assertThat((List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
+                providedResult)
+        .isEqualTo(provided);
+    assertThat(explicitSlipResult).isNull();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void normalizePendingDispatchLines_synthesizesFullCoverageForAutoReservedSlip() throws Exception {
+    Method method =
+        SalesCoreEngine.class.getDeclaredMethod(
+            "normalizePendingDispatchLines",
+            List.class,
+            PackagingSlip.class,
+            Long.class,
+            FinishedGoodsService.InventoryReservationResult.class,
+            Long.class);
+    method.setAccessible(true);
+
+    PackagingSlip slip = new PackagingSlip();
+    ReflectionTestUtils.setField(slip, "id", 77L);
+    PackagingSlipLine slipLine = new PackagingSlipLine();
+    ReflectionTestUtils.setField(slipLine, "id", 701L);
+    slipLine.setPackagingSlip(slip);
+    slipLine.setQuantity(BigDecimal.TEN);
+    slip.getLines().add(slipLine);
+
+    List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine> synthesized =
+        (List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
+            method.invoke(
+                engine,
+                null,
+                slip,
+                null,
+                new FinishedGoodsService.InventoryReservationResult(
+                    new PackagingSlipDto(
+                        77L,
+                        null,
+                        1L,
+                        "SO-1",
+                        null,
+                        "PS-77",
+                        "RESERVED",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null),
+                    List.of()),
+                1L);
+
+    assertThat(synthesized).hasSize(1);
+    assertThat(synthesized.get(0).lineId()).isEqualTo(701L);
+    assertThat(synthesized.get(0).shipQty()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void buildFullDispatchLines_andResolveDispatchLineQuantity_coverFallbackBranches() throws Exception {
+    Method buildMethod =
+        SalesCoreEngine.class.getDeclaredMethod("buildFullDispatchLines", PackagingSlip.class);
+    buildMethod.setAccessible(true);
+    Method qtyMethod =
+        SalesCoreEngine.class.getDeclaredMethod(
+            "resolveDispatchLineQuantity", PackagingSlipLine.class);
+    qtyMethod.setAccessible(true);
+
+    PackagingSlip slip = new PackagingSlip();
+
+    PackagingSlipLine qtyLine = new PackagingSlipLine();
+    ReflectionTestUtils.setField(qtyLine, "id", 801L);
+    qtyLine.setPackagingSlip(slip);
+    qtyLine.setQuantity(new BigDecimal("2"));
+    FinishedGoodBatch qtyBatch = new FinishedGoodBatch();
+    ReflectionTestUtils.setField(qtyBatch, "id", 901L);
+    qtyLine.setFinishedGoodBatch(qtyBatch);
+    slip.getLines().add(qtyLine);
+
+    PackagingSlipLine orderedLine = new PackagingSlipLine();
+    ReflectionTestUtils.setField(orderedLine, "id", 802L);
+    orderedLine.setPackagingSlip(slip);
+    orderedLine.setOrderedQuantity(new BigDecimal("3"));
+    slip.getLines().add(orderedLine);
+
+    PackagingSlipLine zeroLine = new PackagingSlipLine();
+    ReflectionTestUtils.setField(zeroLine, "id", 803L);
+    zeroLine.setPackagingSlip(slip);
+    slip.getLines().add(zeroLine);
+
+    PackagingSlipLine filteredLine = new PackagingSlipLine();
+    filteredLine.setPackagingSlip(slip);
+    filteredLine.setQuantity(new BigDecimal("4"));
+    slip.getLines().add(filteredLine);
+    slip.getLines().add(null);
+
+    List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine> lines =
+        (List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
+            buildMethod.invoke(engine, slip);
+
+    assertThat(lines).hasSize(3);
+    assertThat(lines.get(0).batchId()).isEqualTo(901L);
+    assertThat(lines.get(0).shipQty()).isEqualByComparingTo("2");
+    assertThat(lines.get(1).shipQty()).isEqualByComparingTo("3");
+    assertThat(lines.get(2).shipQty()).isEqualByComparingTo("0");
+    assertThat((BigDecimal) qtyMethod.invoke(engine, new Object[] {null}))
+        .isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test

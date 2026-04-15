@@ -2553,11 +2553,11 @@ public class SalesCoreEngine {
     }
     SalesOrder order = requireOrderForUpdate(company, salesOrderId);
     List<PackagingSlip> orderSlips = findOrderSlips(company, salesOrderId, true);
+    FinishedGoodsService.InventoryReservationResult reservationResult = null;
     if (orderSlips.isEmpty() && referencedSlip != null) {
       orderSlips = List.of(referencedSlip);
     }
     if (orderSlips.isEmpty()) {
-      FinishedGoodsService.InventoryReservationResult reservationResult = null;
       if (requestedSlipId == null) {
         assertDispatchAutoReservationAllowed(order);
         reservationResult = finishedGoodsService.reserveForOrder(order);
@@ -2618,12 +2618,25 @@ public class SalesCoreEngine {
           invoiceRepository.findByCompanyAndId(company, slip.getInvoiceId()).orElse(null);
     }
 
+    boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
+    List<DispatchConfirmRequest.DispatchLine> normalizedRequestLines = request.lines();
+    if (!alreadyDispatched) {
+      normalizedRequestLines =
+          normalizePendingDispatchLines(
+              request.lines(), slip, requestedSlipId, reservationResult, order.getId());
+      validatePendingDispatchLineCoverage(normalizedRequestLines, slip);
+    }
+
     // Map request lines by slip line id for pricing/qty overrides
     Map<Long, DispatchConfirmRequest.DispatchLine> lineOverrides = new HashMap<>();
-    if (request.lines() != null) {
-      for (DispatchConfirmRequest.DispatchLine line : request.lines()) {
+    if (normalizedRequestLines != null) {
+      for (DispatchConfirmRequest.DispatchLine line : normalizedRequestLines) {
         if (line.lineId() != null) {
-          lineOverrides.put(line.lineId(), line);
+          DispatchConfirmRequest.DispatchLine previous = lineOverrides.put(line.lineId(), line);
+          if (previous != null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Duplicate dispatch confirmation for line " + line.lineId());
+          }
         }
       }
     }
@@ -2642,7 +2655,6 @@ public class SalesCoreEngine {
 
     boolean orderTaxInclusive = order.isGstInclusive();
     Map<String, BigDecimal> minPriceBySku = new HashMap<>();
-    boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
     boolean hasCreditException =
         Boolean.TRUE.equals(request.adminOverrideCreditLimit()) && !alreadyDispatched;
     boolean hasDispatchException = hasRequestedOverrides || hasCreditException;
@@ -3773,6 +3785,109 @@ public class SalesCoreEngine {
       return DISPATCH_REASON_CODE_LINE_OVERRIDE;
     }
     return DISPATCH_REASON_CODE_COMPOSITE_OVERRIDE;
+  }
+
+  private void validatePendingDispatchLineCoverage(
+      List<DispatchConfirmRequest.DispatchLine> requestLines, PackagingSlip slip) {
+    List<PackagingSlipLine> slipLines =
+        slip != null && slip.getLines() != null
+            ? slip.getLines().stream().filter(Objects::nonNull).toList()
+            : List.of();
+    Set<Long> expectedLineIds =
+        slipLines.stream()
+            .map(PackagingSlipLine::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    if (expectedLineIds.isEmpty()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Packing slip has no dispatchable lines");
+    }
+    if (requestLines == null || requestLines.isEmpty()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Dispatch confirmations must include every slip line");
+    }
+
+    Set<Long> providedLineIds = new java.util.HashSet<>();
+    for (DispatchConfirmRequest.DispatchLine line : requestLines) {
+      if (line == null || line.lineId() == null) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Dispatch confirmation lineId is required");
+      }
+      if (!providedLineIds.add(line.lineId())) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Duplicate dispatch confirmation for line " + line.lineId());
+      }
+    }
+
+    if (providedLineIds.equals(expectedLineIds)) {
+      return;
+    }
+
+    Set<Long> missingLineIds = new java.util.HashSet<>(expectedLineIds);
+    missingLineIds.removeAll(providedLineIds);
+    Set<Long> unexpectedLineIds = new java.util.HashSet<>(providedLineIds);
+    unexpectedLineIds.removeAll(expectedLineIds);
+    throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Dispatch confirmations must exactly match slip lines")
+        .withDetail("packingSlipId", slip != null ? slip.getId() : null)
+        .withDetail("missingLineIds", missingLineIds)
+        .withDetail("unexpectedLineIds", unexpectedLineIds);
+  }
+
+  private List<DispatchConfirmRequest.DispatchLine> normalizePendingDispatchLines(
+      List<DispatchConfirmRequest.DispatchLine> requestLines,
+      PackagingSlip slip,
+      Long requestedSlipId,
+      FinishedGoodsService.InventoryReservationResult reservationResult,
+      Long salesOrderId) {
+    if (requestLines != null && !requestLines.isEmpty()) {
+      return requestLines;
+    }
+    if (requestedSlipId != null || reservationResult == null) {
+      return requestLines;
+    }
+    List<DispatchConfirmRequest.DispatchLine> fullSlipLines = buildFullDispatchLines(slip);
+    if (!fullSlipLines.isEmpty()) {
+      log.info(
+          "Synthesized full dispatch confirmations for auto-reserved order {} and slip {}",
+          salesOrderId,
+          slip != null ? slip.getId() : null);
+    }
+    return fullSlipLines;
+  }
+
+  private List<DispatchConfirmRequest.DispatchLine> buildFullDispatchLines(PackagingSlip slip) {
+    if (slip == null || slip.getLines() == null) {
+      return List.of();
+    }
+    return slip.getLines().stream()
+        .filter(Objects::nonNull)
+        .filter(line -> line.getId() != null)
+        .map(
+            line ->
+                new DispatchConfirmRequest.DispatchLine(
+                    line.getId(),
+                    line.getFinishedGoodBatch() != null ? line.getFinishedGoodBatch().getId() : null,
+                    resolveDispatchLineQuantity(line),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null))
+        .toList();
+  }
+
+  private BigDecimal resolveDispatchLineQuantity(PackagingSlipLine line) {
+    if (line == null) {
+      return BigDecimal.ZERO;
+    }
+    if (line.getQuantity() != null) {
+      return line.getQuantity();
+    }
+    if (line.getOrderedQuantity() != null) {
+      return line.getOrderedQuantity();
+    }
+    return BigDecimal.ZERO;
   }
 
   private boolean isDispatchOverrideApplied(DispatchConfirmRequest.DispatchLine line) {

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.DispatchPosting;
@@ -135,9 +137,7 @@ public class SalesFulfillmentService {
         log.info("Reserved inventory for order {}", orderNumber);
       }
 
-      DispatchConfirmRequest dispatchRequest =
-          new DispatchConfirmRequest(
-              slipId, slipId != null ? null : orderId, null, null, null, Boolean.FALSE, null, null);
+      DispatchConfirmRequest dispatchRequest = buildDispatchConfirmRequest(order, slipId);
       var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
       List<DispatchPosting> dispatches =
           dispatchResponse.cogsPostings().stream()
@@ -216,6 +216,61 @@ public class SalesFulfillmentService {
     return options;
   }
 
+  private DispatchConfirmRequest buildDispatchConfirmRequest(SalesOrder order, Long requestedSlipId) {
+    PackagingSlip slip = resolveDispatchSlip(order, requestedSlipId);
+    List<DispatchConfirmRequest.DispatchLine> lines =
+        slip != null ? buildFullDispatchLines(slip) : null;
+    Long packingSlipId = slip != null ? slip.getId() : requestedSlipId;
+    Long orderId = slip != null || requestedSlipId != null ? null : order.getId();
+    return new DispatchConfirmRequest(
+        packingSlipId, orderId, lines, null, null, Boolean.FALSE, null, null);
+  }
+
+  private PackagingSlip resolveDispatchSlip(SalesOrder order, Long requestedSlipId) {
+    if (order == null || order.getCompany() == null) {
+      return null;
+    }
+    if (requestedSlipId != null) {
+      return packagingSlipRepository.findByIdAndCompany(requestedSlipId, order.getCompany()).orElse(null);
+    }
+    List<PackagingSlip> orderSlips =
+        packagingSlipRepository.findAllByCompanyAndSalesOrderId(order.getCompany(), order.getId());
+    List<PackagingSlip> activeSlips =
+        orderSlips.stream()
+            .filter(Objects::nonNull)
+            .filter(slip -> !"CANCELLED".equalsIgnoreCase(slip.getStatus()))
+            .toList();
+    return activeSlips.size() == 1 ? activeSlips.get(0) : null;
+  }
+
+  private List<DispatchConfirmRequest.DispatchLine> buildFullDispatchLines(PackagingSlip slip) {
+    return slip.getLines().stream()
+        .filter(Objects::nonNull)
+        .filter(line -> line.getId() != null)
+        .map(
+            line ->
+                new DispatchConfirmRequest.DispatchLine(
+                    line.getId(),
+                    line.getFinishedGoodBatch() != null ? line.getFinishedGoodBatch().getId() : null,
+                    resolveFullDispatchQuantity(line),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null))
+        .toList();
+  }
+
+  private BigDecimal resolveFullDispatchQuantity(PackagingSlipLine line) {
+    if (line.getQuantity() != null) {
+      return line.getQuantity();
+    }
+    if (line.getOrderedQuantity() != null) {
+      return line.getOrderedQuantity();
+    }
+    return BigDecimal.ZERO;
+  }
+
   private List<Long> resolveSlipCogsJournalIds(Long packingSlipId, SalesOrder order) {
     if (packingSlipId == null || order == null || order.getCompany() == null) {
       return List.of();
@@ -246,9 +301,7 @@ public class SalesFulfillmentService {
   @Transactional
   public DispatchResult dispatchOrder(Long orderId) {
     SalesOrder order = salesService.getOrderWithItems(orderId);
-    var response =
-        salesService.confirmDispatch(
-            new DispatchConfirmRequest(null, orderId, null, null, null, Boolean.FALSE, null, null));
+    var response = salesService.confirmDispatch(buildDispatchConfirmRequest(order, null));
     List<DispatchPosting> dispatches =
         response.cogsPostings().stream()
             .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))

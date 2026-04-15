@@ -35,7 +35,7 @@ require_regex_match() {
     return
   fi
   if command -v perl >/dev/null 2>&1; then
-    perl -ne 'BEGIN { $pattern = shift @ARGV; $found = 0 } if (/$pattern/) { $found = 1; exit 0 } END { exit($found ? 0 : 1) }' "$pattern" "$file" || fail "$message"
+    perl -ne 'BEGIN { $pattern = shift @ARGV; $found = 0 } if (m{$pattern}) { $found = 1; exit 0 } END { exit($found ? 0 : 1) }' "$pattern" "$file" || fail "$message"
     return
   fi
   grep -Eq -- "$pattern" "$file" || fail "$message"

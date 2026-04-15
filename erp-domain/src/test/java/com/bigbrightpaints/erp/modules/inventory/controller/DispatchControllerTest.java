@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -25,6 +27,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
@@ -227,6 +231,46 @@ class DispatchControllerTest {
     assertThatThrownBy(() -> controller.confirmDispatch(missingChallan, () -> "factory.user"))
         .hasMessageContaining(PortalRoleActionMatrix.challanReferenceRequiredMessage());
     verifyNoInteractions(salesDispatchReconciliationService);
+  }
+
+  @Test
+  void confirmDispatch_propagatesOmittedLineRejectionWithoutLoadingFinalView() {
+    DispatchController controller =
+        new DispatchController(
+            finishedGoodsService, salesDispatchReconciliationService, deliveryChallanPdfService);
+    setAuthentication("ROLE_FACTORY", "dispatch.confirm");
+
+    DispatchConfirmationRequest request =
+        new DispatchConfirmationRequest(
+            17L,
+            List.of(new DispatchConfirmationRequest.LineConfirmation(170L, BigDecimal.ONE, null)),
+            "Dispatch notes",
+            null,
+            null,
+            "FastMove Logistics",
+            null,
+            "MH12AB1717",
+            "LR-1717");
+    when(finishedGoodsService.getPackagingSlip(17L))
+        .thenReturn(packagingSlip(17L, "PS-17", "READY", 17L, 18L, List.of(), null, null, null, null));
+
+    ApplicationException rejection =
+        new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Dispatch confirmations must exactly match slip lines")
+            .withDetail("packingSlipId", 17L)
+            .withDetail("missingLineIds", List.of(171L))
+            .withDetail("unexpectedLineIds", List.of());
+    doThrow(rejection)
+        .when(salesDispatchReconciliationService)
+        .confirmDispatch(org.mockito.ArgumentMatchers.any());
+
+    assertThatThrownBy(() -> controller.confirmDispatch(request, () -> "factory.user"))
+        .isSameAs(rejection)
+        .hasMessageContaining("Dispatch confirmations must exactly match slip lines");
+
+    verify(salesDispatchReconciliationService).confirmDispatch(org.mockito.ArgumentMatchers.any());
+    verify(finishedGoodsService, never()).getDispatchConfirmation(17L);
   }
 
   @Test

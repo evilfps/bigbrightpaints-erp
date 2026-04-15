@@ -10,6 +10,7 @@ import static org.mockito.Mockito.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,6 +64,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
@@ -1039,7 +1041,17 @@ class SalesServiceTest {
     when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
 
     DispatchConfirmRequest request =
-        new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+        new DispatchConfirmRequest(
+            55L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    99L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
 
     assertThrows(CreditLimitExceededException.class, () -> salesService.confirmDispatch(request));
   }
@@ -1123,7 +1135,16 @@ class SalesServiceTest {
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
-            55L, null, List.of(), null, "admin", Boolean.TRUE, "Approved credit exception", 801L);
+            55L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    99L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.TRUE,
+            "Approved credit exception",
+            801L);
     DispatchConfirmResponse response = salesService.confirmDispatch(request);
 
     assertEquals(55L, response.packingSlipId());
@@ -1137,6 +1158,339 @@ class SalesServiceTest {
     verify(companyAccountingSettingsService, never()).requireTaxAccounts();
     verify(creditLimitOverrideService)
         .isOverrideApproved(eq(801L), eq(company), eq(dealer), eq(slip), eq(order), any());
+  }
+
+  @Test
+  void confirmDispatchRejectsOmittedSlipLines() {
+    Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
+    Account receivable = new Account();
+    receivable.setName("AR");
+    setField(receivable, "id", 900L);
+    dealer.setReceivableAccount(receivable);
+
+    SalesOrder order = new SalesOrder();
+    setField(order, "id", 10L);
+    order.setCompany(company);
+    order.setDealer(dealer);
+    order.setOrderNumber("SO-10");
+    order.setStatus("READY_TO_SHIP");
+    order.setTotalAmount(BigDecimal.valueOf(300));
+
+    SalesOrderItem firstItem = new SalesOrderItem();
+    setField(firstItem, "id", 1L);
+    firstItem.setSalesOrder(order);
+    firstItem.setProductCode("SKU-A");
+    firstItem.setDescription("First line");
+    firstItem.setQuantity(BigDecimal.ONE);
+    firstItem.setUnitPrice(BigDecimal.valueOf(100));
+    firstItem.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(firstItem);
+
+    SalesOrderItem secondItem = new SalesOrderItem();
+    setField(secondItem, "id", 2L);
+    secondItem.setSalesOrder(order);
+    secondItem.setProductCode("SKU-B");
+    secondItem.setDescription("Second line");
+    secondItem.setQuantity(BigDecimal.ONE);
+    secondItem.setUnitPrice(BigDecimal.valueOf(200));
+    secondItem.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(secondItem);
+
+    FinishedGood firstGood = buildFinishedGood("SKU-A");
+    firstGood.setCurrentStock(BigDecimal.ONE);
+    firstGood.setRevenueAccountId(3L);
+    FinishedGood secondGood = buildFinishedGood("SKU-B");
+    secondGood.setCurrentStock(BigDecimal.ONE);
+    secondGood.setRevenueAccountId(3L);
+
+    FinishedGoodBatch firstBatch = new FinishedGoodBatch();
+    firstBatch.setFinishedGood(firstGood);
+    firstBatch.setBatchCode("B-1");
+    firstBatch.setQuantityTotal(BigDecimal.ONE);
+    firstBatch.setQuantityAvailable(BigDecimal.ONE);
+    firstBatch.setUnitCost(BigDecimal.ZERO);
+
+    FinishedGoodBatch secondBatch = new FinishedGoodBatch();
+    secondBatch.setFinishedGood(secondGood);
+    secondBatch.setBatchCode("B-2");
+    secondBatch.setQuantityTotal(BigDecimal.ONE);
+    secondBatch.setQuantityAvailable(BigDecimal.ONE);
+    secondBatch.setUnitCost(BigDecimal.ZERO);
+
+    PackagingSlip slip = new PackagingSlip();
+    setField(slip, "id", 55L);
+    slip.setCompany(company);
+    slip.setSalesOrder(order);
+    slip.setSlipNumber("PS-55");
+    slip.setStatus("PENDING");
+
+    PackagingSlipLine firstSlipLine = new PackagingSlipLine();
+    setField(firstSlipLine, "id", 101L);
+    firstSlipLine.setPackagingSlip(slip);
+    firstSlipLine.setFinishedGoodBatch(firstBatch);
+    firstSlipLine.setOrderedQuantity(BigDecimal.ONE);
+    firstSlipLine.setQuantity(BigDecimal.ONE);
+    firstSlipLine.setUnitCost(BigDecimal.ZERO);
+    slip.getLines().add(firstSlipLine);
+
+    PackagingSlipLine secondSlipLine = new PackagingSlipLine();
+    setField(secondSlipLine, "id", 102L);
+    secondSlipLine.setPackagingSlip(slip);
+    secondSlipLine.setFinishedGoodBatch(secondBatch);
+    secondSlipLine.setOrderedQuantity(BigDecimal.ONE);
+    secondSlipLine.setQuantity(BigDecimal.ONE);
+    secondSlipLine.setUnitCost(BigDecimal.ZERO);
+    slip.getLines().add(secondSlipLine);
+
+    when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
+        .thenReturn(Optional.of(slip));
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+        .thenReturn(List.of(slip));
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
+        .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
+    when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
+    when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class)))
+        .thenAnswer(
+            invocation -> {
+              Invoice invoice = invocation.getArgument(0);
+              setField(invoice, "id", 777L);
+              return invoice;
+            });
+    when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(
+            55L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    101L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+
+    assertTrue(ex.getMessage().contains("Dispatch confirmations must exactly match slip lines"));
+    verify(finishedGoodsService, never()).confirmDispatch(any(), any());
+    verify(invoiceRepository, never()).save(any(Invoice.class));
+  }
+
+  @Test
+  void confirmDispatchRejectsMissingLinePayloadForPendingSlip() {
+    PendingDispatchFixture fixture = pendingDispatchFixture("SKU-MISSING", 65L, 201L);
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(65L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+
+    assertTrue(ex.getMessage().contains("Dispatch confirmations must include every slip line"));
+    verify(finishedGoodsService, never()).confirmDispatch(any(), any());
+  }
+
+  @Test
+  void confirmDispatchRejectsSlipWithoutDispatchableLines() {
+    PendingDispatchFixture fixture = pendingDispatchFixture("SKU-NO-LINES", 66L, 202L);
+    fixture.slip().getLines().clear();
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(
+            66L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    202L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+
+    assertTrue(ex.getMessage().contains("Packing slip has no dispatchable lines"));
+    verify(finishedGoodsService, never()).confirmDispatch(any(), any());
+  }
+
+  @Test
+  void confirmDispatchRejectsPendingLineWithoutLineId() {
+    PendingDispatchFixture fixture = pendingDispatchFixture("SKU-NO-ID", 67L, 203L);
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(
+            67L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    null, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+
+    assertTrue(ex.getMessage().contains("Dispatch confirmation lineId is required"));
+    verify(finishedGoodsService, never()).confirmDispatch(any(), any());
+  }
+
+  @Test
+  void confirmDispatchRejectsDuplicatePendingLineIds() {
+    PendingDispatchFixture fixture = pendingDispatchFixture("SKU-DUP", 68L, 204L);
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(
+            68L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    204L, null, BigDecimal.ONE, null, null, null, null, null),
+                new DispatchConfirmRequest.DispatchLine(
+                    204L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+
+    assertTrue(ex.getMessage().contains("Duplicate dispatch confirmation for line 204"));
+    verify(finishedGoodsService, never()).confirmDispatch(any(), any());
+  }
+
+  @Test
+  void confirmDispatchAllowsOrderScopedAutoReservationWithoutExplicitLines() {
+    Dealer dealer = dealerWithCreditLimit(142L, BigDecimal.valueOf(1000));
+    Account receivable = new Account();
+    receivable.setName("AR");
+    setField(receivable, "id", 1042L);
+    dealer.setReceivableAccount(receivable);
+
+    SalesOrder order = new SalesOrder();
+    setField(order, "id", 10L);
+    order.setCompany(company);
+    order.setDealer(dealer);
+    order.setOrderNumber("SO-AUTO-10");
+    order.setStatus("READY_TO_SHIP");
+    order.setTotalAmount(BigDecimal.valueOf(100));
+
+    SalesOrderItem item = new SalesOrderItem();
+    setField(item, "id", 401L);
+    item.setSalesOrder(order);
+    item.setProductCode("SKU-AUTO");
+    item.setDescription("Auto-reserved line");
+    item.setQuantity(BigDecimal.ONE);
+    item.setUnitPrice(BigDecimal.valueOf(100));
+    item.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(item);
+
+    FinishedGood finishedGood = buildFinishedGood("SKU-AUTO");
+    finishedGood.setCurrentStock(BigDecimal.ONE);
+    finishedGood.setRevenueAccountId(3L);
+    finishedGood.setDiscountAccountId(4L);
+    finishedGood.setValuationAccountId(11L);
+    finishedGood.setCogsAccountId(12L);
+
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    setField(batch, "id", 740L);
+    batch.setFinishedGood(finishedGood);
+    batch.setBatchCode("B-AUTO");
+    batch.setQuantityTotal(BigDecimal.ONE);
+    batch.setQuantityAvailable(BigDecimal.ONE);
+    batch.setUnitCost(BigDecimal.ZERO);
+
+    PackagingSlip slip = new PackagingSlip();
+    setField(slip, "id", 70L);
+    slip.setCompany(company);
+    slip.setSalesOrder(order);
+    slip.setSlipNumber("PS-AUTO-70");
+    slip.setStatus("RESERVED");
+
+    PackagingSlipLine slipLine = new PackagingSlipLine();
+    setField(slipLine, "id", 205L);
+    slipLine.setPackagingSlip(slip);
+    slipLine.setFinishedGoodBatch(batch);
+    slipLine.setQuantity(BigDecimal.ONE);
+    slipLine.setOrderedQuantity(BigDecimal.ONE);
+    slipLine.setUnitCost(BigDecimal.ZERO);
+    slip.getLines().add(slipLine);
+
+    PackagingSlipDto reservedSlip =
+        new PackagingSlipDto(
+            70L,
+            UUID.randomUUID(),
+            order.getId(),
+            order.getOrderNumber(),
+            "Dealer Auto",
+            "PS-AUTO-70",
+            "RESERVED",
+            Instant.now(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of());
+
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+        .thenReturn(List.of(), List.of(slip));
+    when(finishedGoodsService.reserveForOrder(order))
+        .thenReturn(new FinishedGoodsService.InventoryReservationResult(reservedSlip, List.of()));
+    when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
+        .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
+    when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-AUTO-70");
+    when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class)))
+        .thenAnswer(
+            invocation -> {
+              Invoice invoice = invocation.getArgument(0);
+              setField(invoice, "id", 880L);
+              return invoice;
+            });
+    when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(packagingSlipRepository.save(ArgumentMatchers.any(PackagingSlip.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
+
+    DispatchConfirmResponse response =
+        salesService.confirmDispatch(
+            new DispatchConfirmRequest(
+                null, 10L, null, null, "admin", Boolean.FALSE, null, null));
+
+    assertEquals(70L, response.packingSlipId());
+    assertEquals(10L, response.salesOrderId());
+    assertEquals(880L, response.finalInvoiceId());
+    verify(finishedGoodsService).reserveForOrder(order);
+    ArgumentCaptor<com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest>
+        dispatchCaptor =
+            ArgumentCaptor.forClass(
+                com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest.class);
+    verify(finishedGoodsService).confirmDispatch(dispatchCaptor.capture(), eq("admin"));
+    assertEquals(70L, dispatchCaptor.getValue().packagingSlipId());
+    assertEquals(1, dispatchCaptor.getValue().lines().size());
+    assertEquals(205L, dispatchCaptor.getValue().lines().get(0).lineId());
+    assertEquals(
+        0,
+        BigDecimal.ONE.compareTo(dispatchCaptor.getValue().lines().get(0).shippedQuantity()));
   }
 
   @Test
@@ -1391,7 +1745,16 @@ class SalesServiceTest {
             () ->
                 salesService.confirmDispatch(
                     new DispatchConfirmRequest(
-                        55L, null, List.of(), null, "admin", Boolean.TRUE, null, 901L)));
+                        55L,
+                        null,
+                        List.of(
+                            new DispatchConfirmRequest.DispatchLine(
+                                99L, null, BigDecimal.ONE, null, null, null, null, null)),
+                        null,
+                        "admin",
+                        Boolean.TRUE,
+                        null,
+                        901L)));
 
     assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
     assertTrue(ex.getMessage().contains("adminOverrideCreditLimit"));
@@ -1596,7 +1959,16 @@ class SalesServiceTest {
             () ->
                 salesService.confirmDispatch(
                     new DispatchConfirmRequest(
-                        55L, null, List.of(), null, "admin", Boolean.FALSE, null, null)));
+                        55L,
+                        null,
+                        List.of(
+                            new DispatchConfirmRequest.DispatchLine(
+                                99L, null, BigDecimal.ONE, null, null, null, null, null)),
+                        null,
+                        "admin",
+                        Boolean.FALSE,
+                        null,
+                        null)));
 
     assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
     verify(companyAccountingSettingsService, never()).requireTaxAccounts();
@@ -1718,7 +2090,16 @@ class SalesServiceTest {
     DispatchConfirmResponse response =
         salesService.confirmDispatch(
             new DispatchConfirmRequest(
-                55L, null, List.of(), null, "admin", Boolean.FALSE, null, null));
+                55L,
+                null,
+                List.of(
+                    new DispatchConfirmRequest.DispatchLine(
+                        99L, null, BigDecimal.ONE, null, null, null, null, null)),
+                null,
+                "admin",
+                Boolean.FALSE,
+                null,
+                null));
 
     assertEquals(501L, response.arJournalEntryId());
     assertEquals(777L, response.finalInvoiceId());
@@ -1812,7 +2193,17 @@ class SalesServiceTest {
     when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.valueOf(50));
 
     DispatchConfirmRequest request =
-        new DispatchConfirmRequest(56L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+        new DispatchConfirmRequest(
+            56L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    100L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
 
     assertThrows(CreditLimitExceededException.class, () -> salesService.confirmDispatch(request));
   }
@@ -3014,7 +3405,17 @@ class SalesServiceTest {
     when(accountRepository.findById(ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
 
     DispatchConfirmRequest request =
-        new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+        new DispatchConfirmRequest(
+            55L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    99L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
     salesService.confirmDispatch(request);
 
     verify(accountingFacade, times(1))
@@ -3111,7 +3512,17 @@ class SalesServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     DispatchConfirmRequest request =
-        new DispatchConfirmRequest(55L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+        new DispatchConfirmRequest(
+            55L,
+            null,
+            List.of(
+                new DispatchConfirmRequest.DispatchLine(
+                    99L, null, BigDecimal.ONE, null, null, null, null, null)),
+            null,
+            "admin",
+            Boolean.FALSE,
+            null,
+            null);
     salesService.confirmDispatch(request);
 
     verify(accountingFacade, times(1))
@@ -4736,6 +5147,75 @@ class SalesServiceTest {
     batch.setUnitCost(BigDecimal.ONE);
     return batch;
   }
+
+  private PendingDispatchFixture pendingDispatchFixture(String sku, long slipId, long lineId) {
+    Dealer dealer = dealerWithCreditLimit(42L + slipId, BigDecimal.valueOf(1000));
+    Account receivable = new Account();
+    receivable.setName("AR");
+    setField(receivable, "id", 900L + slipId);
+    dealer.setReceivableAccount(receivable);
+
+    SalesOrder order = new SalesOrder();
+    setField(order, "id", 10L);
+    order.setCompany(company);
+    order.setDealer(dealer);
+    order.setOrderNumber("SO-" + slipId);
+    order.setStatus("READY_TO_SHIP");
+
+    SalesOrderItem item = new SalesOrderItem();
+    setField(item, "id", 1L);
+    item.setSalesOrder(order);
+    item.setProductCode(sku);
+    item.setDescription("Desc");
+    item.setQuantity(BigDecimal.ONE);
+    item.setUnitPrice(BigDecimal.valueOf(100));
+    item.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(item);
+
+    FinishedGood finishedGood = buildFinishedGood(sku);
+    finishedGood.setCurrentStock(BigDecimal.ONE);
+    finishedGood.setRevenueAccountId(3L);
+    finishedGood.setDiscountAccountId(4L);
+    finishedGood.setValuationAccountId(11L);
+    finishedGood.setCogsAccountId(12L);
+
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    setField(batch, "id", 700L + slipId);
+    batch.setFinishedGood(finishedGood);
+    batch.setBatchCode("B-" + slipId);
+    batch.setQuantityTotal(BigDecimal.ONE);
+    batch.setQuantityAvailable(BigDecimal.ONE);
+    batch.setUnitCost(BigDecimal.ZERO);
+
+    PackagingSlip slip = new PackagingSlip();
+    setField(slip, "id", slipId);
+    slip.setCompany(company);
+    slip.setSalesOrder(order);
+    slip.setSlipNumber("PS-" + slipId);
+    slip.setStatus("RESERVED");
+
+    PackagingSlipLine slipLine = new PackagingSlipLine();
+    setField(slipLine, "id", lineId);
+    slipLine.setPackagingSlip(slip);
+    slipLine.setFinishedGoodBatch(batch);
+    slipLine.setQuantity(BigDecimal.ONE);
+    slipLine.setOrderedQuantity(BigDecimal.ONE);
+    slipLine.setUnitCost(BigDecimal.ZERO);
+    slip.getLines().add(slipLine);
+
+    when(packagingSlipRepository.findAndLockByIdAndCompany(slipId, company))
+        .thenReturn(Optional.of(slip));
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+        .thenReturn(List.of(slip));
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
+        .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
+
+    return new PendingDispatchFixture(order, slip);
+  }
+
+  private record PendingDispatchFixture(SalesOrder order, PackagingSlip slip) {}
 
   private void setField(Object target, String name, Object value) {
     try {
