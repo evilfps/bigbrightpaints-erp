@@ -2618,12 +2618,21 @@ public class SalesCoreEngine {
           invoiceRepository.findByCompanyAndId(company, slip.getInvoiceId()).orElse(null);
     }
 
+    boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
+    if (!alreadyDispatched) {
+      validatePendingDispatchLineCoverage(request.lines(), slip);
+    }
+
     // Map request lines by slip line id for pricing/qty overrides
     Map<Long, DispatchConfirmRequest.DispatchLine> lineOverrides = new HashMap<>();
     if (request.lines() != null) {
       for (DispatchConfirmRequest.DispatchLine line : request.lines()) {
         if (line.lineId() != null) {
-          lineOverrides.put(line.lineId(), line);
+          DispatchConfirmRequest.DispatchLine previous = lineOverrides.put(line.lineId(), line);
+          if (previous != null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Duplicate dispatch confirmation for line " + line.lineId());
+          }
         }
       }
     }
@@ -2642,7 +2651,6 @@ public class SalesCoreEngine {
 
     boolean orderTaxInclusive = order.isGstInclusive();
     Map<String, BigDecimal> minPriceBySku = new HashMap<>();
-    boolean alreadyDispatched = "DISPATCHED".equalsIgnoreCase(slip.getStatus());
     boolean hasCreditException =
         Boolean.TRUE.equals(request.adminOverrideCreditLimit()) && !alreadyDispatched;
     boolean hasDispatchException = hasRequestedOverrides || hasCreditException;
@@ -3773,6 +3781,53 @@ public class SalesCoreEngine {
       return DISPATCH_REASON_CODE_LINE_OVERRIDE;
     }
     return DISPATCH_REASON_CODE_COMPOSITE_OVERRIDE;
+  }
+
+  private void validatePendingDispatchLineCoverage(
+      List<DispatchConfirmRequest.DispatchLine> requestLines, PackagingSlip slip) {
+    List<PackagingSlipLine> slipLines =
+        slip != null && slip.getLines() != null
+            ? slip.getLines().stream().filter(Objects::nonNull).toList()
+            : List.of();
+    Set<Long> expectedLineIds =
+        slipLines.stream()
+            .map(PackagingSlipLine::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    if (expectedLineIds.isEmpty()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Packing slip has no dispatchable lines");
+    }
+    if (requestLines == null || requestLines.isEmpty()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Dispatch confirmations must include every slip line");
+    }
+
+    Set<Long> providedLineIds = new java.util.HashSet<>();
+    for (DispatchConfirmRequest.DispatchLine line : requestLines) {
+      if (line == null || line.lineId() == null) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Dispatch confirmation lineId is required");
+      }
+      if (!providedLineIds.add(line.lineId())) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Duplicate dispatch confirmation for line " + line.lineId());
+      }
+    }
+
+    if (providedLineIds.equals(expectedLineIds)) {
+      return;
+    }
+
+    Set<Long> missingLineIds = new java.util.HashSet<>(expectedLineIds);
+    missingLineIds.removeAll(providedLineIds);
+    Set<Long> unexpectedLineIds = new java.util.HashSet<>(providedLineIds);
+    unexpectedLineIds.removeAll(expectedLineIds);
+    throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Dispatch confirmations must exactly match slip lines")
+        .withDetail("packingSlipId", slip != null ? slip.getId() : null)
+        .withDetail("missingLineIds", missingLineIds)
+        .withDetail("unexpectedLineIds", unexpectedLineIds);
   }
 
   private boolean isDispatchOverrideApplied(DispatchConfirmRequest.DispatchLine line) {
