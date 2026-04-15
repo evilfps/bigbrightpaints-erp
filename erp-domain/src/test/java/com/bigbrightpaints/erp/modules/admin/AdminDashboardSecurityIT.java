@@ -35,6 +35,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
   private static final String ROOT_COMPANY_CODE = "ROOT";
   private static final String PASSWORD = "AdminDash123!";
   private static final String ADMIN_EMAIL = "dashboard-admin@bbp.com";
+  private static final String SECONDARY_ADMIN_EMAIL = "dashboard-secondary-admin@bbp.com";
   private static final String ACCOUNTING_EMAIL = "dashboard-accounting@bbp.com";
   private static final String SUPER_ADMIN_EMAIL = "dashboard-superadmin@bbp.com";
   private static final String ROOT_SUPER_ADMIN_EMAIL = "dashboard-root-superadmin@bbp.com";
@@ -47,6 +48,12 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUpUsers() {
     dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Dashboard Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+    dataSeeder.ensureUser(
+        SECONDARY_ADMIN_EMAIL,
+        PASSWORD,
+        "Dashboard Secondary Admin",
+        COMPANY_CODE,
+        List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
         ACCOUNTING_EMAIL,
         PASSWORD,
@@ -177,6 +184,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     LocalDateTime anchor = LocalDateTime.now().plusHours(6);
     String hiddenPath = "/api/v1/superadmin/tenants/" + companyId + "/limits";
     String visiblePath = "/api/v1/accounting/journal-entries";
+    String accountingUserId = publicIdFor(ACCOUNTING_EMAIL);
 
     for (int i = 0; i < 55; i++) {
       writeAuditLog(
@@ -190,7 +198,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
       writeAuditLog(
           companyId,
           ACCOUNTING_EMAIL,
-          UUID.randomUUID().toString(),
+          accountingUserId,
           visiblePath,
           anchor.minusMinutes(55L + i));
     }
@@ -221,12 +229,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
   void dashboard_keeps_non_privileged_superadmin_path_attempt_visible() {
     Long companyId = tenantCompanyId();
     String nonPrivilegedProbePath = "/api/v1/superadmin/tenants/" + companyId + "/limits";
-    String accountingUserId =
-        userAccountRepository
-            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
-            .orElseThrow()
-            .getPublicId()
-            .toString();
+    String accountingUserId = publicIdFor(ACCOUNTING_EMAIL);
 
     writeAuditLog(
         companyId,
@@ -235,24 +238,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         nonPrivilegedProbePath,
         LocalDateTime.now().plusHours(8));
 
-    ResponseEntity<Map> adminResponse =
-        rest.exchange(
-            ErpApiRoutes.ADMIN_DASHBOARD,
-            HttpMethod.GET,
-            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
-            Map.class);
-    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(adminResponse.getBody()).isNotNull();
-
-    @SuppressWarnings("unchecked")
-    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
-    assertThat(data).isNotNull();
-    @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
-    assertThat(recentActivity).isNotNull();
-    assertThat(recentActivity)
-        .extracting(item -> String.valueOf(item.get("details")))
-        .contains("PUT " + nonPrivilegedProbePath);
+    assertDetailsContains(recentActivityForAdmin(), nonPrivilegedProbePath);
   }
 
   @Test
@@ -260,12 +246,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     Long companyId = tenantCompanyId();
     String deletedPrivilegedProbePath =
         "/api/v1/superadmin/tenants/" + companyId + "/limits/deleted-privileged-probe";
-    String privilegedUserId =
-        userAccountRepository
-            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(SUPER_ADMIN_EMAIL, COMPANY_CODE)
-            .orElseThrow()
-            .getPublicId()
-            .toString();
+    String privilegedUserId = publicIdFor(SUPER_ADMIN_EMAIL);
 
     writeAuditLog(
         companyId,
@@ -276,28 +257,150 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         AuditEvent.ACCESS_DENIED,
         AuditStatus.FAILURE);
 
-    userAccountRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(SUPER_ADMIN_EMAIL, COMPANY_CODE)
-        .ifPresent(userAccountRepository::delete);
+    deleteUserIfPresent(SUPER_ADMIN_EMAIL);
 
-    ResponseEntity<Map> adminResponse =
-        rest.exchange(
-            ErpApiRoutes.ADMIN_DASHBOARD,
-            HttpMethod.GET,
-            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
-            Map.class);
-    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(adminResponse.getBody()).isNotNull();
+    assertDetailsDoesNotContain(recentActivityForAdmin(), deletedPrivilegedProbePath);
+  }
 
-    @SuppressWarnings("unchecked")
-    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
-    assertThat(data).isNotNull();
-    @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
-    assertThat(recentActivity).isNotNull();
-    assertThat(recentActivity)
-        .extracting(item -> String.valueOf(item.get("details")))
-        .doesNotContain("PUT " + deletedPrivilegedProbePath);
+  @Test
+  void dashboard_hides_deleted_superadmin_actor_on_admin_path_attempt() {
+    Long companyId = tenantCompanyId();
+    String deletedSuperadminActorOnAdminPathProbe =
+        "/api/v1/admin/users/deleted-privileged-nonsuperadmin-probe";
+    String privilegedUserId = publicIdFor(SUPER_ADMIN_EMAIL);
+
+    writeAuditLog(
+        companyId,
+        SUPER_ADMIN_EMAIL,
+        privilegedUserId,
+        deletedSuperadminActorOnAdminPathProbe,
+        LocalDateTime.now().plusHours(9),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    deleteUserIfPresent(SUPER_ADMIN_EMAIL);
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), deletedSuperadminActorOnAdminPathProbe);
+  }
+
+  @Test
+  void dashboard_hides_deleted_superadmin_actor_on_admin_path_attempt_after_email_reuse() {
+    Long companyId = tenantCompanyId();
+    String deletedSuperadminActorOnAdminPathProbe =
+        "/api/v1/admin/users/deleted-privileged-nonsuperadmin-email-reuse-probe";
+    String privilegedUserId = publicIdFor(SUPER_ADMIN_EMAIL);
+
+    writeAuditLog(
+        companyId,
+        SUPER_ADMIN_EMAIL,
+        privilegedUserId,
+        deletedSuperadminActorOnAdminPathProbe,
+        LocalDateTime.now().plusHours(10),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    deleteUserIfPresent(SUPER_ADMIN_EMAIL);
+
+    dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        PASSWORD,
+        "Reused Non Privileged User",
+        COMPANY_CODE,
+        List.of("ROLE_ACCOUNTING"));
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), deletedSuperadminActorOnAdminPathProbe);
+  }
+
+  @Test
+  void dashboard_hides_unparseable_superadmin_actor_on_admin_path_after_email_reuse() {
+    Long companyId = tenantCompanyId();
+    String unparseableSuperadminProbePath =
+        "/api/v1/admin/users/unparseable-superadmin-email-reuse-probe";
+
+    writeAuditLog(
+        companyId,
+        SUPER_ADMIN_EMAIL,
+        "not-a-uuid",
+        unparseableSuperadminProbePath,
+        LocalDateTime.now().plusHours(11),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    deleteUserIfPresent(SUPER_ADMIN_EMAIL);
+    dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        PASSWORD,
+        "Reused Superadmin Email As Accounting",
+        COMPANY_CODE,
+        List.of("ROLE_ACCOUNTING"));
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), unparseableSuperadminProbePath);
+  }
+
+  @Test
+  void dashboard_hides_deleted_admin_actor_on_admin_path_attempt_after_email_reuse() {
+    Long companyId = tenantCompanyId();
+    String deletedAdminRoleProbePath = "/api/v1/admin/users/deleted-admin-role-email-reuse-probe";
+    String secondaryAdminUserId = publicIdFor(SECONDARY_ADMIN_EMAIL);
+
+    writeAuditLog(
+        companyId,
+        SECONDARY_ADMIN_EMAIL,
+        secondaryAdminUserId,
+        deletedAdminRoleProbePath,
+        LocalDateTime.now().plusHours(11),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    deleteUserIfPresent(SECONDARY_ADMIN_EMAIL);
+
+    dataSeeder.ensureUser(
+        SECONDARY_ADMIN_EMAIL,
+        PASSWORD,
+        "Reused Secondary Admin Email",
+        COMPANY_CODE,
+        List.of("ROLE_ACCOUNTING"));
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), deletedAdminRoleProbePath);
+  }
+
+  @Test
+  void dashboard_hides_deleted_non_privileged_non_superadmin_path_attempt_fail_closed() {
+    Long companyId = tenantCompanyId();
+    String deletedNonPrivilegedProbePath =
+        "/api/v1/admin/users/deleted-non-privileged-nonsuperadmin-probe";
+    String accountingUserId = publicIdFor(ACCOUNTING_EMAIL);
+
+    writeAuditLog(
+        companyId,
+        ACCOUNTING_EMAIL,
+        accountingUserId,
+        deletedNonPrivilegedProbePath,
+        LocalDateTime.now().plusHours(11),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    deleteUserIfPresent(ACCOUNTING_EMAIL);
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), deletedNonPrivilegedProbePath);
+  }
+
+  @Test
+  void dashboard_hides_admin_path_row_when_actor_id_is_unparseable_for_non_protected_actor() {
+    Long companyId = tenantCompanyId();
+    String unparseableNonProtectedProbePath =
+        "/api/v1/admin/users/unparseable-nonprotected-actor-probe";
+
+    writeAuditLog(
+        companyId,
+        ACCOUNTING_EMAIL,
+        "not-a-uuid",
+        unparseableNonProtectedProbePath,
+        LocalDateTime.now().plusHours(12),
+        AuditEvent.ACCESS_DENIED,
+        AuditStatus.FAILURE);
+
+    assertDetailsDoesNotContain(recentActivityForAdmin(), unparseableNonProtectedProbePath);
   }
 
   @Test
@@ -315,24 +418,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         AuditEvent.CONFIGURATION_CHANGED,
         AuditStatus.SUCCESS);
 
-    ResponseEntity<Map> adminResponse =
-        rest.exchange(
-            ErpApiRoutes.ADMIN_DASHBOARD,
-            HttpMethod.GET,
-            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
-            Map.class);
-    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(adminResponse.getBody()).isNotNull();
-
-    @SuppressWarnings("unchecked")
-    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
-    assertThat(data).isNotNull();
-    @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
-    assertThat(recentActivity).isNotNull();
-    assertThat(recentActivity)
-        .extracting(item -> String.valueOf(item.get("details")))
-        .doesNotContain("PUT " + unparseableProbePath);
+    assertDetailsDoesNotContain(recentActivityForAdmin(), unparseableProbePath);
   }
 
   private HttpHeaders headersFor(String email) {
@@ -360,6 +446,51 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
 
   private Long tenantCompanyId() {
     return companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+  }
+
+  private String publicIdFor(String email) {
+    return userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, COMPANY_CODE)
+        .orElseThrow()
+        .getPublicId()
+        .toString();
+  }
+
+  private void deleteUserIfPresent(String email) {
+    userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, COMPANY_CODE)
+        .ifPresent(userAccountRepository::delete);
+  }
+
+  private List<Map<String, Object>> recentActivityForAdmin() {
+    ResponseEntity<Map> adminResponse =
+        rest.exchange(
+            ErpApiRoutes.ADMIN_DASHBOARD,
+            HttpMethod.GET,
+            new HttpEntity<>(headersFor(ADMIN_EMAIL)),
+            Map.class);
+    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(adminResponse.getBody()).isNotNull();
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
+    assertThat(data).isNotNull();
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    assertThat(recentActivity).isNotNull();
+    return recentActivity;
+  }
+
+  private void assertDetailsContains(List<Map<String, Object>> recentActivity, String requestPath) {
+    assertThat(recentActivity)
+        .extracting(item -> String.valueOf(item.get("details")))
+        .contains("PUT " + requestPath);
+  }
+
+  private void assertDetailsDoesNotContain(List<Map<String, Object>> recentActivity, String requestPath) {
+    assertThat(recentActivity)
+        .extracting(item -> String.valueOf(item.get("details")))
+        .doesNotContain("PUT " + requestPath);
   }
 
   private void writeAuditLog(

@@ -249,7 +249,9 @@ public class AdminDashboardService {
         resolveActorProtectionState(
             auditLog, tenantActorProtectionByEmail, actorProtectionByPublicIdCache);
     if (!isSuperAdminControlPlanePath(auditLog.getRequestPath())) {
-      return actorProtection.state() == ActorProtectionState.PROTECTED;
+      // Fail closed unless immutable actor identity proves this row is non-protected.
+      return !(actorProtection.state() == ActorProtectionState.NOT_PROTECTED
+          && actorProtection.evidence() == ActorProtectionEvidence.PUBLIC_ID);
     }
 
     if (actorProtection.state() == ActorProtectionState.PROTECTED) {
