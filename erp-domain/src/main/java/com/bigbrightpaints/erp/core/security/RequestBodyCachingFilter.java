@@ -62,9 +62,6 @@ public class RequestBodyCachingFilter extends OncePerRequestFilter {
     ContentCachingRequestWrapper cachedRequest =
         WebUtils.getNativeRequest(request, ContentCachingRequestWrapper.class);
     if (cachedRequest != null) {
-      if (isOverflowMarked(cachedRequest)) {
-        return Optional.empty();
-      }
       byte[] cachedBody = cachedRequest.getContentAsByteArray();
       if (cachedBody.length > ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES) {
         return Optional.empty();
