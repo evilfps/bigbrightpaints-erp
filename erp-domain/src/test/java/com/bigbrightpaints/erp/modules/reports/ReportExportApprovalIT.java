@@ -118,7 +118,7 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
     assertThat(pendingData).isNotNull();
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> exportRequests =
-        (List<Map<String, Object>>) pendingData.get("exportRequests");
+        (List<Map<String, Object>>) pendingData.get("items");
     assertThat(exportRequests)
         .anySatisfy(
             row -> {
@@ -135,24 +135,7 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(accountingHeaders),
             Map.class);
-    assertThat(accountingInboxResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(accountingInboxResponse.getBody()).isNotNull();
-    Map<?, ?> accountingInboxData = (Map<?, ?>) accountingInboxResponse.getBody().get("data");
-    assertThat(accountingInboxData).isNotNull();
-    @SuppressWarnings("unchecked")
-    List<Map<String, Object>> accountingExportRequests =
-        (List<Map<String, Object>>) accountingInboxData.get("exportRequests");
-    assertThat(accountingExportRequests)
-        .anySatisfy(
-            row -> {
-              assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
-              assertThat(row.get("reportType")).isEqualTo("TRIAL-BALANCE");
-              assertThat(String.valueOf(row.get("summary"))).contains("report TRIAL-BALANCE");
-              assertThat(String.valueOf(row.get("summary"))).doesNotContain(ACCOUNTING_EMAIL);
-              assertThat(row.containsKey("parameters")).isFalse();
-              assertThat(row.containsKey("requesterEmail")).isFalse();
-              assertThat(row.containsKey("requesterUserId")).isFalse();
-            });
+    assertThat(accountingInboxResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> downloadBeforeApproval =
         rest.exchange(
@@ -164,9 +147,9 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> approveResponse =
         rest.exchange(
-            "/api/v1/admin/exports/" + requestId.longValue() + "/approve",
-            HttpMethod.PUT,
-            new HttpEntity<>(adminHeaders),
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + requestId.longValue() + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), jsonHeaders(adminHeaders)),
             Map.class);
     assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -232,17 +215,19 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> approveResponse =
         rest.exchange(
-            "/api/v1/admin/exports/" + request.getId() + "/approve",
-            HttpMethod.PUT,
-            new HttpEntity<>(superAdminHeaders),
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + request.getId() + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), jsonHeaders(superAdminHeaders)),
             Map.class);
     assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> rejectResponse =
         rest.exchange(
-            "/api/v1/admin/exports/" + request.getId() + "/reject",
-            HttpMethod.PUT,
-            new HttpEntity<>(Map.of("reason", "forbidden"), jsonHeaders(superAdminHeaders)),
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + request.getId() + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of("decision", "REJECT", "reason", "forbidden"),
+                jsonHeaders(superAdminHeaders)),
             Map.class);
     assertThat(rejectResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
@@ -320,9 +305,9 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL);
     ResponseEntity<Map> approveResponse =
         rest.exchange(
-            "/api/v1/admin/exports/" + requestId.longValue() + "/approve",
-            HttpMethod.PUT,
-            new HttpEntity<>(adminHeaders),
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + requestId.longValue() + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), jsonHeaders(adminHeaders)),
             Map.class);
     assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -355,7 +340,7 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
     assertThat(approvals.getBody()).isNotNull();
     Map<?, ?> data = (Map<?, ?>) approvals.getBody().get("data");
     assertThat(data).isNotNull();
-    Object exportRequests = data.get("exportRequests");
+    Object exportRequests = data.get("items");
     assertThat(exportRequests).isInstanceOf(List.class);
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> rows = (List<Map<String, Object>>) exportRequests;

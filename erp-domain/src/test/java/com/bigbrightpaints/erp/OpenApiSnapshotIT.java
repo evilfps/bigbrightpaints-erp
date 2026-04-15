@@ -112,21 +112,14 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "get",
         null,
         "200",
-        "#/components/schemas/ApiResponseAdminApprovalsResponse");
+        "#/components/schemas/ApiResponseAdminApprovalInboxResponse");
     assertOperationContract(
         root,
-        "/api/v1/admin/exports/{requestId}/approve",
-        "put",
-        null,
+        "/api/v1/admin/approvals/{originType}/{id}/decisions",
+        "post",
+        "#/components/schemas/AdminApprovalDecisionRequest",
         "200",
-        "#/components/schemas/ApiResponseExportRequestDto");
-    assertOperationContract(
-        root,
-        "/api/v1/admin/exports/{requestId}/reject",
-        "put",
-        "#/components/schemas/ExportRequestDecisionRequest",
-        "200",
-        "#/components/schemas/ApiResponseExportRequestDto");
+        "#/components/schemas/ApiResponseAdminApprovalItemDto");
     assertOperationMissing(root, "/api/v1/admin/exports/pending", "get");
     assertOperationContract(
         root,
