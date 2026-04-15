@@ -3,9 +3,16 @@ package com.bigbrightpaints.erp.core.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 class RequestBodyCachingFilterTest {
 
@@ -51,5 +58,29 @@ class RequestBodyCachingFilterTest {
     assertThat(RequestBodyCachingFilter.resolveBoundedRequestBody(request))
         .isPresent()
         .contains(payload.getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void resolveRequestedRole_returnsEmptyWhenWrappedRequestBodyOverflowed() throws Exception {
+    String payload =
+        "{\"name\":\"ROLE_FACTORY\"}"
+            + " ".repeat(RequestBodyCachingFilter.ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES + 64);
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/superadmin/roles");
+    request.setRequestURI("/api/v1/superadmin/roles");
+    request.setContent(payload.getBytes(StandardCharsets.UTF_8));
+
+    RequestBodyCachingFilter filter = new RequestBodyCachingFilter();
+    AtomicReference<Optional<String>> resolvedRole = new AtomicReference<>(Optional.empty());
+    filter.doFilter(
+        request,
+        new MockHttpServletResponse(),
+        (wrappedRequest, ignoredResponse) -> {
+          wrappedRequest.getInputStream().readAllBytes();
+          resolvedRole.set(
+              RequestBodyCachingFilter.resolveRequestedRole(
+                  (HttpServletRequest) wrappedRequest, new ObjectMapper()));
+        });
+
+    assertThat(resolvedRole.get()).isEmpty();
   }
 }

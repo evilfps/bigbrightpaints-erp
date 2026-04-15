@@ -23,6 +23,8 @@ import jakarta.servlet.http.HttpServletResponse;
 public class RequestBodyCachingFilter extends OncePerRequestFilter {
 
   private static final String SUPERADMIN_ROLE_MUTATION_PATH = "/api/v1/superadmin/roles";
+  private static final String ROLE_MUTATION_BODY_OVERFLOW_ATTRIBUTE =
+      RequestBodyCachingFilter.class.getName() + ".roleMutationBodyOverflow";
   public static final int ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES = 2048;
 
   @Override
@@ -34,7 +36,8 @@ public class RequestBodyCachingFilter extends OncePerRequestFilter {
       return;
     }
     ContentCachingRequestWrapper wrapper =
-        new ContentCachingRequestWrapper(request, ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES);
+        new RoleMutationContentCachingRequestWrapper(
+            request, ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES);
     filterChain.doFilter(wrapper, response);
   }
 
@@ -53,9 +56,15 @@ public class RequestBodyCachingFilter extends OncePerRequestFilter {
     if (request == null) {
       return Optional.empty();
     }
+    if (isOverflowMarked(request)) {
+      return Optional.empty();
+    }
     ContentCachingRequestWrapper cachedRequest =
         WebUtils.getNativeRequest(request, ContentCachingRequestWrapper.class);
     if (cachedRequest != null) {
+      if (isOverflowMarked(cachedRequest)) {
+        return Optional.empty();
+      }
       byte[] cachedBody = cachedRequest.getContentAsByteArray();
       if (cachedBody.length > ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES) {
         return Optional.empty();
@@ -136,5 +145,23 @@ public class RequestBodyCachingFilter extends OncePerRequestFilter {
       normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
     }
     return normalizedPath;
+  }
+
+  private static boolean isOverflowMarked(HttpServletRequest request) {
+    return Boolean.TRUE.equals(request.getAttribute(ROLE_MUTATION_BODY_OVERFLOW_ATTRIBUTE));
+  }
+
+  private static final class RoleMutationContentCachingRequestWrapper
+      extends ContentCachingRequestWrapper {
+
+    private RoleMutationContentCachingRequestWrapper(
+        HttpServletRequest request, int contentCacheLimit) {
+      super(request, contentCacheLimit);
+    }
+
+    @Override
+    protected void handleContentOverflow(int contentCacheLimit) {
+      setAttribute(ROLE_MUTATION_BODY_OVERFLOW_ATTRIBUTE, Boolean.TRUE);
+    }
   }
 }
