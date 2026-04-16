@@ -20,6 +20,7 @@
 7. Documentation realignment for frontend portal contracts.
 8. Dashboard approval-summary performance optimization (counts-only path).
 9. Regression fix to align pending count semantics with inbox (`upper(trim(status))='PENDING'`).
+10. Database index hardening for normalized pending-status lookups (`V183`) to keep dashboard/inbox queries performant.
 
 ### Security/control-plane posture already enforced
 
@@ -128,6 +129,9 @@
 - Latest regression-fix slice validation:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
   - Result: pass (exit 0).
+- Policy and governance gates for high-risk/migration surfaces:
+  - `bash ci/check-codex-review-guidelines.sh` -> pass
+  - `bash ci/check-enterprise-policy.sh` -> pass
 - Existing branch docs also capture broader gate contracts and evidence paths:
   - `docs/flows/tenant-admin-management.md`
   - `docs/approvals/R2-CHECKPOINT.md`
