@@ -27,6 +27,30 @@ class RequestBodyCachingFilterTest {
   }
 
   @Test
+  void roleMutationPathMatcher_supportsServletPathAndPathInfo() {
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/placeholder");
+    request.setServletPath("/api/v1/superadmin");
+    request.setPathInfo("/roles");
+    request.setRequestURI("/ignored/by/servlet-path-info");
+
+    assertThat(RequestBodyCachingFilter.isSuperadminRoleMutationRequest(request)).isTrue();
+  }
+
+  @Test
+  void roleMutationPathMatcher_supportsMatrixParamAndTrailingSlashVariants() {
+    MockHttpServletRequest matrixRequest =
+        new MockHttpServletRequest("POST", "/api/v1/superadmin/roles;v=1");
+    matrixRequest.setRequestURI("/api/v1/superadmin/roles;v=1");
+    MockHttpServletRequest trailingSlashRequest =
+        new MockHttpServletRequest("POST", "/api/v1/superadmin/roles/");
+    trailingSlashRequest.setRequestURI("/api/v1/superadmin/roles/");
+
+    assertThat(RequestBodyCachingFilter.isSuperadminRoleMutationRequest(matrixRequest)).isTrue();
+    assertThat(RequestBodyCachingFilter.isSuperadminRoleMutationRequest(trailingSlashRequest))
+        .isTrue();
+  }
+
+  @Test
   void roleMutationPathMatcher_rejectsNonMutationPaths() {
     MockHttpServletRequest request =
         new MockHttpServletRequest("POST", "/api/v1/superadmin/settings");

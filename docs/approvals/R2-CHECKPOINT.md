@@ -59,6 +59,10 @@ Last reviewed: 2026-04-16
 - Re-evaluate if: scope expands into broader auth, company-control-plane, or migration-path changes.
 
 ## Verification Evidence
+- Scope-to-evidence mapping:
+  - tenant-admin role allowlist + escalation denial contract: commit `5fe768a5d` and targeted tests `AdminUserServiceTest`, `AuthTenantAuthorityIT#admin_cannot_create_tenant_admin_user+tenant_admin_can_still_create_non_privileged_user`
+  - platform-only superadmin host deny (`settings`, `roles`, `notify`): `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml` testcase `tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts`
+  - denied role-mutation body extraction fail-closed: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
 - Commands run:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=RequestBodyCachingFilterTest,CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT#tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts test`
   - `bash ci/check-codex-review-guidelines.sh`

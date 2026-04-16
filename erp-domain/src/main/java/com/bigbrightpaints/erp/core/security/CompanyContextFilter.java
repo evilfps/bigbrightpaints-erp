@@ -202,14 +202,16 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         requestedCompany = null;
       }
       String companyCode = normalizeCompanyCode(requestedCompany);
+      boolean superAdminPlatformScope =
+          hasSuperAdminAuthority && authScopeService.isPlatformScope(companyCode);
       if (hasSuperAdminAuthority
           && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
-          && !authScopeService.isPlatformScope(companyCode)) {
+          && !superAdminPlatformScope) {
         writeAccessDenied(
             response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
-      if (hasSuperAdminAuthority && authScopeService.isPlatformScope(companyCode)) {
+      if (superAdminPlatformScope) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
           writeAccessDenied(
               response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);

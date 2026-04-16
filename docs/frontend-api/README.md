@@ -31,7 +31,7 @@ This folder defines canonical frontend contracts for:
 ### Portal Placement
 
 - **superadmin:** platform control-plane routes (`/api/v1/superadmin/**`); tenant-scoped superadmin sessions are denied on platform-only hosts (`settings`, `roles`, `notify`), while tenant-targeted control routes remain tenant-scoped.
-- **tenant-admin:** canonical `/api/v1/admin/**` product surfaces (`dashboard`, `users`, `approvals`, `support`, `self-settings`, `audit`) plus `/api/v1/changelog`; legacy admin insight reads `/api/v1/portal/dashboard|operations|workforce` are still live until backend retirement.
+- **tenant-admin:** canonical `/api/v1/admin/**` product surfaces (`/dashboard`, `/users`, `/approvals`, `/support`, `/self/settings`, `/audit`) plus `/api/v1/changelog`; legacy admin insight reads `/api/v1/portal/dashboard|operations|workforce` are still live until backend retirement.
 - **accounting:** COA, journals, reconciliation, period close, reports.
 - **sales:** dealer master, sales orders, commercial credit escalation.
 - **factory:** production, packing, dispatch confirmation.

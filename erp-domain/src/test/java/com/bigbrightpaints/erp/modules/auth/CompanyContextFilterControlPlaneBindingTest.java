@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -434,6 +435,25 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
     verify(filterChain, never()).doFilter(request, response);
     verifyNoInteractions(companyService);
+  }
+
+  @Test
+  void superAdminPlatformScopeOnlyHost_checkInvokesPlatformScopeLookupOncePerRequest()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+    when(authScopeService.isPlatformScope("TENANT-A")).thenReturn(false);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/superadmin/settings");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    request.addHeader("X-Company-Code", "TENANT-A");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+    verify(authScopeService, times(1)).isPlatformScope("TENANT-A");
+    verify(filterChain, never()).doFilter(request, response);
   }
 
   @Test
