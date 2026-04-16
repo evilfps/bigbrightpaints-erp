@@ -68,14 +68,14 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void portalCreate_persistsAndReturnsApiEnvelope() {
+  void adminCreate_persistsAndReturnsApiEnvelope() {
     String token = login(ADMIN_A_EMAIL, TENANT_A);
     HttpHeaders headers = authHeaders(token, TENANT_A);
 
     String subject = "Portal support create flow " + System.nanoTime();
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/portal/support/tickets",
+            "/api/v1/admin/support/tickets",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -148,16 +148,16 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
     seedTicket(TENANT_A, DEALER_B_EMAIL, dealerPeerSubject);
     seedTicket(TENANT_B, ADMIN_B_EMAIL, foreignSubject);
 
-    ResponseEntity<Map> portalAdminResponse =
+    ResponseEntity<Map> adminSupportResponse =
         rest.exchange(
-            "/api/v1/portal/support/tickets",
+            "/api/v1/admin/support/tickets",
             HttpMethod.GET,
             new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
-    assertThat(portalAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Set<String> portalAdminSubjects = subjectsFromListResponse(portalAdminResponse);
-    assertThat(portalAdminSubjects).contains(adminSubject, dealerOwnSubject, dealerPeerSubject);
-    assertThat(portalAdminSubjects).doesNotContain(foreignSubject);
+    assertThat(adminSupportResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Set<String> adminSubjects = subjectsFromListResponse(adminSupportResponse);
+    assertThat(adminSubjects).contains(adminSubject, dealerOwnSubject, dealerPeerSubject);
+    assertThat(adminSubjects).doesNotContain(foreignSubject);
 
     ResponseEntity<Map> dealerResponse =
         rest.exchange(
@@ -170,13 +170,13 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
     assertThat(dealerSubjects).contains(dealerOwnSubject);
     assertThat(dealerSubjects).doesNotContain(adminSubject, dealerPeerSubject, foreignSubject);
 
-    ResponseEntity<Map> portalDealerDenied =
+    ResponseEntity<Map> adminSupportDealerDenied =
         rest.exchange(
-            "/api/v1/portal/support/tickets",
+            "/api/v1/admin/support/tickets",
             HttpMethod.GET,
             new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
-    assertThat(portalDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(adminSupportDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> dealerPortalAdminDenied =
         rest.exchange(
@@ -185,6 +185,14 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
             new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
     assertThat(dealerPortalAdminDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> portalAdminDenied =
+        rest.exchange(
+            "/api/v1/portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalAdminDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> retiredSharedAdmin =
         rest.exchange(
@@ -244,29 +252,29 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(dealerForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
-    ResponseEntity<Map> portalAdminResponse =
+    ResponseEntity<Map> adminSupportResponse =
         rest.exchange(
-            "/api/v1/portal/support/tickets/" + dealerOwnTicket,
+            "/api/v1/admin/support/tickets/" + dealerOwnTicket,
             HttpMethod.GET,
             new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
-    assertThat(portalAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(adminSupportResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    ResponseEntity<Map> portalForeignDenied =
+    ResponseEntity<Map> adminSupportForeignDenied =
         rest.exchange(
-            "/api/v1/portal/support/tickets/" + foreignTicket,
+            "/api/v1/admin/support/tickets/" + foreignTicket,
             HttpMethod.GET,
             new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
-    assertThat(portalForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(adminSupportForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
-    ResponseEntity<Map> portalDealerDenied =
+    ResponseEntity<Map> adminSupportDealerDenied =
         rest.exchange(
-            "/api/v1/portal/support/tickets/" + dealerOwnTicket,
+            "/api/v1/admin/support/tickets/" + dealerOwnTicket,
             HttpMethod.GET,
             new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
             Map.class);
-    assertThat(portalDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(adminSupportDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> dealerPortalAdminDenied =
         rest.exchange(
@@ -287,6 +295,19 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
 
   @Test
   void createEndpoints_denyCrossHostRolesAndSuperAdminTenantWorkflowAccess() {
+    ResponseEntity<Map> dealerOnAdminSupportResponse =
+        rest.exchange(
+            "/api/v1/admin/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", "dealer-on-admin-support-" + System.nanoTime(),
+                    "description", "Dealer must not post admin support tickets"),
+                authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerOnAdminSupportResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
     ResponseEntity<Map> dealerOnPortalResponse =
         rest.exchange(
             "/api/v1/portal/support/tickets",
@@ -341,7 +362,7 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/portal/support/tickets",
+            "/api/v1/admin/support/tickets",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(

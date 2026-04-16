@@ -112,7 +112,7 @@ public class PasswordResetService {
     logTenantContextIgnoredIfPresent("forgot_password", correlationId);
     String normalizedEmail = normalizeEmail(email);
     String scopeCode = authScopeService.requireScopeCode(companyCode);
-    enforceResetRateLimit("forgot_password", normalizedEmail, scopeCode, correlationId);
+    enforceResetRateLimit("forgot_password", normalizedEmail, scopeCode, correlationId, null);
     UserAccount user =
         userAccountRepository
             .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, scopeCode)
@@ -133,13 +133,13 @@ public class PasswordResetService {
     logTenantContextIgnoredIfPresent("admin_force_reset", correlationId);
     String scopeCode = authScopeService.requireScopeCode(targetUser.getAuthScopeCode());
     if (!targetUser.isEnabled()) {
-      auditResetFailure(
-          "admin_force_reset", correlationId, scopeCode, targetUser.getEmail(), "user_disabled");
+      auditResetFailure("admin_force_reset", correlationId, scopeCode, targetUser, "user_disabled");
       throw new ApplicationException(
           ErrorCode.AUTH_ACCOUNT_DISABLED, ErrorCode.AUTH_ACCOUNT_DISABLED.getDefaultMessage());
     }
     String normalizedEmail = normalizeEmail(targetUser.getEmail());
-    enforceResetRateLimit("admin_force_reset", normalizedEmail, scopeCode, correlationId);
+    enforceResetRateLimit(
+        "admin_force_reset", normalizedEmail, scopeCode, correlationId, targetUser);
     if (dispatchResetEmail(targetUser, correlationId, "admin_force_reset")) {
       String safeCorrelationId = sanitizeForPlainTextLog(correlationId);
       String safeMaskedEmail = sanitizeForPlainTextLog(obfuscateEmail(targetUser.getEmail()));
@@ -173,14 +173,14 @@ public class PasswordResetService {
           "reset_password",
           correlationId,
           authScopeService.requireScopeCode(user.getAuthScopeCode()),
-          user.getEmail(),
+          user,
           "user_disabled");
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "User account is disabled");
     }
     String scopeCode = authScopeService.requireScopeCode(user.getAuthScopeCode());
     enforceResetRateLimit(
-        "reset_password", normalizeEmail(user.getEmail()), scopeCode, correlationId);
+        "reset_password", normalizeEmail(user.getEmail()), scopeCode, correlationId, user);
     passwordService.resetPassword(user, newPassword, confirmPassword);
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
@@ -235,8 +235,7 @@ public class PasswordResetService {
       cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
       String safeCorrelationId = sanitizeForPlainTextLog(correlationId);
       String safeExceptionClass = sanitizeExceptionClass(ex);
-      auditResetFailure(
-          operation, correlationId, user.getAuthScopeCode(), user.getEmail(), "delivery_failed");
+      auditResetFailure(operation, correlationId, user.getAuthScopeCode(), user, "delivery_failed");
       log.warn(
           "event=password_reset.{}.failed policy={} correlationId={} email={}"
               + " outcome=delivery_failed exceptionClass={}",
@@ -389,13 +388,21 @@ public class PasswordResetService {
   }
 
   private void enforceResetRateLimit(
-      String operation, String normalizedEmail, String scopeCode, String correlationId) {
+      String operation,
+      String normalizedEmail,
+      String scopeCode,
+      String correlationId,
+      UserAccount subject) {
     String rateLimitKey =
         RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
     if (securityMonitoringService.checkRateLimit(rateLimitKey)) {
       return;
     }
-    auditResetFailure(operation, correlationId, scopeCode, normalizedEmail, "rate_limited");
+    if (subject != null) {
+      auditResetFailure(operation, correlationId, scopeCode, subject, "rate_limited");
+    } else {
+      auditResetFailure(operation, correlationId, scopeCode, normalizedEmail, "rate_limited");
+    }
     throw new ApplicationException(
             ErrorCode.SYSTEM_RATE_LIMIT_EXCEEDED, "Password reset rate limit exceeded")
         .withDetail("companyCode", scopeCode);
@@ -407,7 +414,7 @@ public class PasswordResetService {
         AuditEvent.PASSWORD_RESET_REQUESTED,
         user.getEmail(),
         scopeCode,
-        resetAuditMetadata(operation, correlationId, scopeCode, "email_dispatched"));
+        resetAuditMetadata(operation, correlationId, scopeCode, "email_dispatched", user));
   }
 
   private void auditResetCompleted(UserAccount user, String scopeCode, String correlationId) {
@@ -415,7 +422,7 @@ public class PasswordResetService {
         AuditEvent.PASSWORD_RESET_COMPLETED,
         user.getEmail(),
         scopeCode,
-        resetAuditMetadata("reset_password", correlationId, scopeCode, "password_updated"));
+        resetAuditMetadata("reset_password", correlationId, scopeCode, "password_updated", user));
   }
 
   private void auditResetFailure(
@@ -427,6 +434,21 @@ public class PasswordResetService {
         normalizeEmail(email),
         scopeCode,
         resetAuditMetadata(operation, correlationId, scopeCode, outcome));
+  }
+
+  private void auditResetFailure(
+      String operation,
+      String correlationId,
+      String scopeCode,
+      UserAccount subject,
+      String outcome) {
+    auditService.logAuthFailure(
+        "reset_password".equals(operation)
+            ? AuditEvent.PASSWORD_RESET_COMPLETED
+            : AuditEvent.PASSWORD_RESET_REQUESTED,
+        subject != null ? normalizeEmail(subject.getEmail()) : null,
+        scopeCode,
+        resetAuditMetadata(operation, correlationId, scopeCode, outcome, subject));
   }
 
   private ApplicationException invalidOrExpiredResetToken(String correlationId) {
@@ -446,6 +468,20 @@ public class PasswordResetService {
     metadata.put("outcome", outcome);
     if (StringUtils.hasText(scopeCode)) {
       metadata.put("companyCode", scopeCode);
+    }
+    return metadata;
+  }
+
+  private java.util.Map<String, String> resetAuditMetadata(
+      String operation,
+      String correlationId,
+      String scopeCode,
+      String outcome,
+      UserAccount subject) {
+    java.util.Map<String, String> metadata =
+        resetAuditMetadata(operation, correlationId, scopeCode, outcome);
+    if (subject != null && subject.getPublicId() != null) {
+      metadata.put("subjectPublicId", subject.getPublicId().toString());
     }
     return metadata;
   }

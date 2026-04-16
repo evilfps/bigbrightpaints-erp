@@ -282,7 +282,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/journals"))
         .isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/audit/events")).isTrue();
-    assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
+    assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/superadmin/settings")).isFalse();
     assertThat(
             invokeHasTenantRuntimePolicyControlAuthority(
                 "/api/v1/superadmin/tenants/77/limits", "PUT"))

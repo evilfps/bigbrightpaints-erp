@@ -14,7 +14,14 @@ public interface CreditRequestRepository extends JpaRepository<CreditRequest, Lo
 
   List<CreditRequest> findByCompanyAndStatusOrderByCreatedAtDesc(Company company, String status);
 
-  long countByCompanyAndStatusIgnoreCase(Company company, String status);
+  @Query(
+      """
+      select count(request)
+      from CreditRequest request
+      where request.company = :company
+        and upper(trim(request.status)) = 'PENDING'
+      """)
+  long countPendingByCompany(@Param("company") Company company);
 
   @Query(
       """

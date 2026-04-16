@@ -32,6 +32,11 @@ public class AdminUserController {
     return ResponseEntity.ok(ApiResponse.success(adminUserService.listUsers()));
   }
 
+  @GetMapping("/{id}")
+  public ResponseEntity<ApiResponse<UserDto>> get(@PathVariable Long id) {
+    return ResponseEntity.ok(ApiResponse.success(adminUserService.getUser(id)));
+  }
+
   @PostMapping
   public ResponseEntity<ApiResponse<UserDto>> create(
       @Valid @RequestBody CreateUserRequest request) {

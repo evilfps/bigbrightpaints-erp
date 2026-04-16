@@ -24,6 +24,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
+import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 
@@ -123,6 +125,54 @@ class AuditServiceTest {
     assertThat(saved.getUserId()).isEqualTo("alice");
     assertThat(saved.getCompanyId()).isEqualTo(88L);
     assertThat(saved.getMetadata()).containsEntry("authChannel", "password");
+  }
+
+  @Test
+  void logAuthSuccess_withAuthenticatedPrincipalPrefersImmutablePublicIdForUserId() {
+    Company company = companyWithId(88L, "COMP-A");
+    when(companyRepository.findByCodeIgnoreCase("COMP-A")).thenReturn(Optional.of(company));
+    UserAccount authenticatedUser =
+        new UserAccount("actor@bbp.com", "COMP-A", "hash", "Authenticated Actor");
+
+    SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+    securityContext.setAuthentication(
+        new UsernamePasswordAuthenticationToken(
+            new UserPrincipal(authenticatedUser), "n/a", java.util.List.of()));
+    SecurityContextHolder.setContext(securityContext);
+
+    auditService.logAuthSuccess(
+        AuditEvent.LOGIN_SUCCESS, "actor@bbp.com", "COMP-A", Map.of("authChannel", "password"));
+
+    ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+    verify(auditLogRepository).save(auditCaptor.capture());
+    AuditLog saved = auditCaptor.getValue();
+    assertThat(saved.getUsername()).isEqualTo("actor@bbp.com");
+    assertThat(saved.getUserId()).isEqualTo(authenticatedUser.getPublicId().toString());
+    assertThat(saved.getCompanyId()).isEqualTo(88L);
+  }
+
+  @Test
+  void logAuthSuccess_withDifferentOverrideAndAuthenticatedPrincipalKeepsOverrideIdentity() {
+    Company company = companyWithId(88L, "COMP-A");
+    when(companyRepository.findByCodeIgnoreCase("COMP-A")).thenReturn(Optional.of(company));
+    UserAccount authenticatedUser =
+        new UserAccount("principal@bbp.com", "COMP-A", "hash", "Authenticated Actor");
+
+    SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+    securityContext.setAuthentication(
+        new UsernamePasswordAuthenticationToken(
+            new UserPrincipal(authenticatedUser), "n/a", java.util.List.of()));
+    SecurityContextHolder.setContext(securityContext);
+
+    auditService.logAuthSuccess(
+        AuditEvent.LOGIN_SUCCESS, "override@bbp.com", "COMP-A", Map.of("authChannel", "password"));
+
+    ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+    verify(auditLogRepository).save(auditCaptor.capture());
+    AuditLog saved = auditCaptor.getValue();
+    assertThat(saved.getUsername()).isEqualTo("override@bbp.com");
+    assertThat(saved.getUserId()).isEqualTo("override@bbp.com");
+    assertThat(saved.getCompanyId()).isEqualTo(88L);
   }
 
   @Test

@@ -85,7 +85,7 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
     if (!StringUtils.hasText(normalizedPath)) {
       return false;
     }
-    if (RETIRED_AUTH_SURFACES.contains(normalizedPath)) {
+    if (RETIRED_AUTH_SURFACES.contains(normalizedPath) || isRetiredAdminHostPath(normalizedPath)) {
       return true;
     }
 
@@ -99,9 +99,28 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
     return false;
   }
 
+  private boolean isRetiredAdminHostPath(String normalizedPath) {
+    return RetiredTenantAdminHostPaths.matchesNormalizedPath(normalizedPath);
+  }
+
   private String resolveApplicationPath(HttpServletRequest request) {
     if (request == null) {
       return null;
+    }
+    String servletPath = request.getServletPath();
+    if (StringUtils.hasText(servletPath)) {
+      StringBuilder combined = new StringBuilder(servletPath.trim());
+      String pathInfo = request.getPathInfo();
+      if (StringUtils.hasText(pathInfo)) {
+        String normalizedPathInfo = pathInfo.trim();
+        if (!normalizedPathInfo.startsWith("/") && combined.length() > 0) {
+          combined.append('/');
+        }
+        combined.append(normalizedPathInfo);
+      }
+      if (combined.length() > 0) {
+        return combined.toString();
+      }
     }
     String requestUri = request.getRequestURI();
     if (!StringUtils.hasText(requestUri)) {
@@ -126,6 +145,18 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
       return path;
     }
     String normalizedPath = path.trim();
+    String[] segments = normalizedPath.split("/", -1);
+    StringBuilder sanitizedPath = new StringBuilder(normalizedPath.length());
+    for (int i = 0; i < segments.length; i++) {
+      if (i > 0) {
+        sanitizedPath.append('/');
+      }
+      String segment = segments[i];
+      int matrixParamIndex = segment.indexOf(';');
+      sanitizedPath.append(
+          matrixParamIndex >= 0 ? segment.substring(0, matrixParamIndex) : segment);
+    }
+    normalizedPath = sanitizedPath.toString();
     while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
       normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
     }

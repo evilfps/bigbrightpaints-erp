@@ -1,30 +1,47 @@
 # Role Boundaries
 
+Last reviewed: 2026-04-15
+
 ## Primary access
 
-- Frontend shell owner: `ROLE_ADMIN`
-- Canonical user lifecycle backend: `/api/v1/admin/users/**`
-- Canonical approval inbox backend: `GET /api/v1/admin/approvals`
+- Frontend shell owner: `ROLE_ADMIN`.
+- Tenant-admin product contracts live under `/api/v1/admin/**` (tenant workflows only).
+- Approval actions are tenant-admin only via `POST /api/v1/admin/approvals/{originType}/{id}/decisions`.
 
 ## Hard boundaries
 
-- Do not expose `ROLE_SUPER_ADMIN` anywhere in this portal.
-- Do not expose tenant lifecycle, limit, module, or support-recovery actions here.
-- Do not expose accounting-only journal or period-close actions here.
-- Do not expose factory or dealer navigation here.
+- Do not expose `ROLE_SUPER_ADMIN` anywhere in tenant-admin shell UX.
+- Do not expose control-plane tenant mutation (`/api/v1/superadmin/**`) here.
+- Do not expose role creation or role catalog mutation in tenant-admin UX.
+- Do not expose accounting, factory, dealer, or platform-specific navigation in this shell.
 
-## Shared-data caveats
+## User role assignment boundaries
 
-- `GET /api/v1/admin/approvals` can include non-export approval types. Tenant-admin screens in this folder only own export-approval decisions.
-- Accounting callers can appear in backend approval or support payloads, but they
-  must not land in the tenant-admin shell or see tenant-admin navigation chrome.
-- Export-approval action UI belongs to tenant-admin only, even when the backend
-  payload includes accounting-origin data.
-- `PortalSupportTicketController` allows admin or accounting callers at the
-  backend. In this portal, support ticket authoring, detail, and follow-up UX is
-  admin-owned only.
+Tenant-admin user create/update forms must allow only:
+
+- `ROLE_ACCOUNTING`
+- `ROLE_FACTORY`
+- `ROLE_SALES`
+- `ROLE_DEALER`
+
+Must reject:
+
+- `ROLE_ADMIN`
+- `ROLE_SUPER_ADMIN`
+- unknown/custom roles
+
+Tenant-admin user-management scope also excludes acting on users that currently hold:
+
+- `ROLE_ADMIN`
+- `ROLE_SUPER_ADMIN`
+
+## Support ownership boundaries
+
+- Tenant-admin internal support host: `/api/v1/admin/support/tickets/**`.
+- `/api/v1/portal/support/tickets/**` is accounting-hosted and must not back tenant-admin screens.
+- Dealer support remains under `/api/v1/dealer-portal/support/tickets/**`.
 
 ## UI implications
 
-- Gate route access with `GET /api/v1/auth/me`, not with cached role assumptions.
-- If a shared component is reused in another portal, do not let that leak tenant-admin shell chrome or privileged buttons.
+- Gate access from live `GET /api/v1/auth/me` data, not cached assumptions.
+- If a component is shared with other portals, do not leak tenant-admin shell chrome or decision actions outside this portal.

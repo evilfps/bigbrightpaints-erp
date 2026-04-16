@@ -12,6 +12,8 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +23,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
@@ -94,7 +98,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           "/api/v1/dispatch");
   private static final Set<String> SUPER_ADMIN_TENANT_ADMIN_WORKFLOW_PREFIXES =
       Set.of(
+          "/api/v1/admin/dashboard",
           "/api/v1/admin/approvals",
+          "/api/v1/admin/self",
+          "/api/v1/admin/support",
           "/api/v1/admin/exports",
           "/api/v1/admin/notify",
           "/api/v1/admin/users");
@@ -110,6 +117,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   private final CompanyService companyService;
   private final AuthScopeService authScopeService;
   private final ObjectMapper objectMapper;
+
+  @Autowired(required = false)
+  @Nullable
+  private AuditService auditService;
 
   public CompanyContextFilter(
       TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService,
@@ -130,6 +141,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
     try {
       String runtimePath = normalizePath(resolveApplicationPath(request));
+      if (isRetiredAdminHostPath(runtimePath)) {
+        // Retired host paths are intentionally unresolved by handlers and should return 404
+        // consistently, independent of auth/company-context binding.
+        filterChain.doFilter(request, response);
+        return;
+      }
       if (isPublicPasswordResetRequest(runtimePath, request.getMethod())) {
         filterChain.doFilter(request, response);
         return;
@@ -147,6 +164,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         return;
       }
       if (hasSuperAdminAuthority && isTenantBusinessRequestBlockedForSuperAdmin(runtimePath)) {
+        auditSuperAdminPlatformOnlyDenied(request, runtimePath);
         writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
@@ -193,8 +211,19 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         requestedCompany = null;
       }
       String companyCode = normalizeCompanyCode(requestedCompany);
-      if (hasSuperAdminAuthority && authScopeService.isPlatformScope(companyCode)) {
+      boolean superAdminPlatformScope =
+          hasSuperAdminAuthority && authScopeService.isPlatformScope(companyCode);
+      if (hasSuperAdminAuthority
+          && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
+          && !superAdminPlatformScope) {
+        auditSuperAdminPlatformOnlyDenied(request, runtimePath);
+        writeAccessDenied(
+            response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
+        return;
+      }
+      if (superAdminPlatformScope) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
+          auditSuperAdminPlatformOnlyDenied(request, runtimePath);
           writeAccessDenied(
               response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
           return;
@@ -393,6 +422,29 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       return !isSuperAdminAllowedAccountingControlPath(normalizedPath);
     }
     return false;
+  }
+
+  private void auditSuperAdminPlatformOnlyDenied(
+      HttpServletRequest request, String normalizedPath) {
+    if (auditService == null || AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)) {
+      return;
+    }
+    String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
+    String tenantScope = AccessDeniedAuditMarker.resolveTenantScope(request);
+    Map<String, String> metadata = new LinkedHashMap<>();
+    metadata.put("actor", actor);
+    metadata.put("reason", "SUPER_ADMIN_PLATFORM_ONLY");
+    metadata.put(
+        "deniedPath",
+        StringUtils.hasText(normalizedPath)
+            ? normalizedPath
+            : normalizePath(resolveApplicationPath(request)));
+    metadata.put("deniedMethod", request.getMethod());
+    if (StringUtils.hasText(tenantScope)) {
+      metadata.put("tenantScope", tenantScope.trim());
+    }
+    auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
+    AccessDeniedAuditMarker.markCurrentRequestAudited();
   }
 
   private boolean isSuperAdminAllowedOrchestratorControlPath(String normalizedPath) {
@@ -622,13 +674,31 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     if (normalizedPath.equals("/api/v1/companies")) {
       return true;
     }
-    if (normalizedPath.equals("/api/v1/admin/settings")) {
+    if (isRetiredAdminHostPath(normalizedPath)) {
+      // Let retired admin hosts fall through to dispatcher 404 uniformly.
       return true;
     }
     return normalizedPath.equals("/api/v1/auth")
         || normalizedPath.startsWith("/api/v1/auth/")
         || normalizedPath.equals("/api/v1/superadmin")
         || normalizedPath.startsWith("/api/v1/superadmin/");
+  }
+
+  private boolean isRetiredAdminHostPath(String normalizedPath) {
+    return RetiredTenantAdminHostPaths.matchesNormalizedPath(normalizedPath);
+  }
+
+  private boolean isSuperadminPlatformScopeOnlyHostPath(String path) {
+    String normalizedPath = normalizePath(path);
+    if (!StringUtils.hasText(normalizedPath)) {
+      return false;
+    }
+    return normalizedPath.equals("/api/v1/superadmin/settings")
+        || normalizedPath.startsWith("/api/v1/superadmin/settings/")
+        || normalizedPath.equals("/api/v1/superadmin/roles")
+        || normalizedPath.startsWith("/api/v1/superadmin/roles/")
+        || normalizedPath.equals("/api/v1/superadmin/notify")
+        || normalizedPath.startsWith("/api/v1/superadmin/notify/");
   }
 
   private String normalizeMethod(String method) {

@@ -19,7 +19,7 @@ class AdminUserRequestContractTest {
   @Test
   void updateUserRequest_usesTenantScopedFieldsOnly() {
     assertThat(recordComponentNames(UpdateUserRequest.class))
-        .containsExactly("displayName", "roles", "enabled")
+        .containsExactly("displayName", "roles")
         .doesNotContain("companyId");
   }
 

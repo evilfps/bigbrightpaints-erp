@@ -79,7 +79,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void adminApprovalsEndpointAllowsAdminAndAccountingRoles() {
+  void adminApprovalsEndpoint_allowsOnlyTenantAdminRole() {
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
     HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
     HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, PASSWORD);
@@ -99,7 +99,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(accountingHeaders),
             Map.class);
-    assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> superAdminResponse =
         rest.exchange(
@@ -121,7 +121,6 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   @Test
   void adminApprovalsPayloadUsesTypedOriginAndOwnerFields() {
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
-    HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
     HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
 
     long dealerId = createDealer("APPROVAL-CONTRACT-" + System.nanoTime(), new BigDecimal("5000"));
@@ -140,7 +139,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     assertThat(approvalsBody).isNotNull();
     Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
     assertThat(approvalsData).isNotNull();
-    List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
+    List<?> creditApprovals = (List<?>) approvalsData.get("items");
     assertThat(creditApprovals).isNotEmpty();
 
     Map<?, ?> creditApproval = findCreditApproval(approvalsResponse, requestId);
@@ -154,7 +153,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     assertThat(creditApproval.containsKey("requesterUserId")).isFalse();
     assertThat(creditApproval.containsKey("requesterEmail")).isFalse();
 
-    List<?> exportApprovals = (List<?>) approvalsData.get("exportRequests");
+    List<?> exportApprovals = (List<?>) approvalsData.get("items");
     assertThat(exportApprovals).isNotEmpty();
     Map<?, ?> exportApproval =
         exportApprovals.stream()
@@ -170,51 +169,66 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     assertThat(exportApproval.get("parameters")).isEqualTo("periodId=7");
     assertThat(exportApproval.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
     assertThat(exportApproval.get("requesterUserId")).isNotNull();
-    assertThat(exportApproval.get("actionType")).isEqualTo("APPROVE_EXPORT_REQUEST");
-    assertThat(exportApproval.get("actionLabel")).isEqualTo("Approve data export");
+    assertThat(exportApproval.get("actionType")).isEqualTo("APPROVAL_DECISION");
+    assertThat(exportApproval.get("actionLabel")).isEqualTo("Review approval");
     assertThat(exportApproval.get("approveEndpoint"))
-        .isEqualTo("/api/v1/admin/exports/{id}/approve");
-    assertThat(exportApproval.get("rejectEndpoint")).isEqualTo("/api/v1/admin/exports/{id}/reject");
+        .isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/" + exportRequestId + "/decisions");
+    assertThat(exportApproval.get("rejectEndpoint"))
+        .isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/" + exportRequestId + "/decisions");
+  }
 
-    ResponseEntity<Map> accountingApprovalsResponse =
+  @Test
+  void genericApprovalDecisionEndpoint_allowsOnlyTenantAdmin() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+    HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
+
+    long exportRequestId = createPendingExportRequest("SALES_SUMMARY", "periodId=9");
+
+    ResponseEntity<Map> accountingDecision =
         rest.exchange(
-            ErpApiRoutes.ADMIN_APPROVALS,
-            HttpMethod.GET,
-            new HttpEntity<>(accountingHeaders),
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + exportRequestId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), accountingHeaders),
             Map.class);
-    assertThat(accountingApprovalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(accountingDecision.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-    Map<?, ?> accountingApprovalsBody = accountingApprovalsResponse.getBody();
-    assertThat(accountingApprovalsBody).isNotNull();
-    Map<?, ?> accountingApprovalsData = (Map<?, ?>) accountingApprovalsBody.get("data");
-    assertThat(accountingApprovalsData).isNotNull();
-    List<?> accountingExportApprovals = (List<?>) accountingApprovalsData.get("exportRequests");
-    assertThat(accountingExportApprovals).isNotEmpty();
+    ResponseEntity<Map> adminDecision =
+        rest.exchange(
+            "/api/v1/admin/approvals/EXPORT_REQUEST/" + exportRequestId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), adminHeaders),
+            Map.class);
+    assertThat(adminDecision.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> body = adminDecision.getBody();
+    assertThat(body).isNotNull();
+    Map<?, ?> data = (Map<?, ?>) body.get("data");
+    assertThat(data).isNotNull();
+    assertThat(data.get("originType")).isEqualTo("EXPORT_REQUEST");
+    assertThat(data.get("status")).isEqualTo("APPROVED");
+  }
 
-    Map<?, ?> accountingExportApproval =
-        accountingExportApprovals.stream()
-            .map(Map.class::cast)
-            .filter(item -> ("EXP-" + exportRequestId).equals(item.get("reference")))
-            .findFirst()
-            .orElseThrow();
-    assertThat(accountingExportApproval.get("originType")).isEqualTo("EXPORT_REQUEST");
-    assertThat(accountingExportApproval.get("ownerType")).isEqualTo("REPORTS");
-    assertThat(accountingExportApproval.get("reportType")).isEqualTo("SALES_SUMMARY");
-    assertThat(String.valueOf(accountingExportApproval.get("summary")))
-        .contains("report SALES_SUMMARY");
-    assertThat(String.valueOf(accountingExportApproval.get("summary")))
-        .doesNotContain(ACCOUNTING_EMAIL);
-    assertThat(accountingExportApproval.containsKey("parameters")).isFalse();
-    assertThat(accountingExportApproval.containsKey("requesterEmail")).isFalse();
-    assertThat(accountingExportApproval.containsKey("requesterUserId")).isFalse();
-    assertThat(accountingExportApproval.containsKey("actionType")).isTrue();
-    assertThat(accountingExportApproval.containsKey("actionLabel")).isTrue();
-    assertThat(accountingExportApproval.containsKey("approveEndpoint")).isTrue();
-    assertThat(accountingExportApproval.containsKey("rejectEndpoint")).isTrue();
-    assertThat(accountingExportApproval.get("actionType")).isNull();
-    assertThat(accountingExportApproval.get("actionLabel")).isNull();
-    assertThat(accountingExportApproval.get("approveEndpoint")).isNull();
-    assertThat(accountingExportApproval.get("rejectEndpoint")).isNull();
+  @Test
+  void periodCloseGenericDecision_requiresReasonForApproveAndReject() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+    long unknownPeriodId = 9_999_999L;
+
+    ResponseEntity<Map> approveWithoutReason =
+        rest.exchange(
+            "/api/v1/admin/approvals/PERIOD_CLOSE_REQUEST/" + unknownPeriodId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), adminHeaders),
+            Map.class);
+    assertThat(approveWithoutReason.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertValidationFailure(approveWithoutReason, "reason is required to approve this approval");
+
+    ResponseEntity<Map> rejectWithoutReason =
+        rest.exchange(
+            "/api/v1/admin/approvals/PERIOD_CLOSE_REQUEST/" + unknownPeriodId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "REJECT", "reason", "   "), adminHeaders),
+            Map.class);
+    assertThat(rejectWithoutReason.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertValidationFailure(rejectWithoutReason, "reason is required to reject this approval");
   }
 
   @Test
@@ -404,8 +418,6 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   void dealerPortalCreditRequest_createsApprovalQueueEntry() {
     HttpHeaders dealerHeaders = authHeaders(DEALER_EMAIL, PASSWORD);
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
-    HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
-
     Map<String, Object> payload = new HashMap<>();
     payload.put("amountRequested", new BigDecimal("2100"));
     payload.put("reason", "Need permanent limit increase for new order");
@@ -451,35 +463,15 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     assertThat(approvalsBody).isNotNull();
     Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
     assertThat(approvalsData).isNotNull();
-    List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
+    List<?> creditApprovals = (List<?>) approvalsData.get("items");
     assertThat(creditApprovals).isNotEmpty();
     Map<?, ?> creditApproval = findCreditApproval(approvalsResponse, requestId);
     assertThat(creditApproval).isNotNull();
     assertThat(creditApproval.get("originType")).isEqualTo("CREDIT_REQUEST");
     assertThat(creditApproval.get("summary").toString())
-        .contains("Approve permanent dealer credit-limit request CLR-" + requestId);
+        .contains("credit-limit request");
     assertThat(creditApproval.get("requesterEmail")).isEqualTo(DEALER_EMAIL);
     assertThat(creditApproval.get("requesterUserId")).isNotNull();
-
-    ResponseEntity<Map> accountingApprovalsResponse =
-        rest.exchange(
-            ErpApiRoutes.ADMIN_APPROVALS,
-            HttpMethod.GET,
-            new HttpEntity<>(accountingHeaders),
-            Map.class);
-    assertThat(accountingApprovalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> accountingApprovalsBody = accountingApprovalsResponse.getBody();
-    assertThat(accountingApprovalsBody).isNotNull();
-    Map<?, ?> accountingApprovalsData = (Map<?, ?>) accountingApprovalsBody.get("data");
-    assertThat(accountingApprovalsData).isNotNull();
-    Map<?, ?> accountingCreditApproval = findCreditApproval(accountingApprovalsResponse, requestId);
-    assertThat(accountingCreditApproval).isNotNull();
-    assertThat(accountingCreditApproval.get("originType")).isEqualTo("CREDIT_REQUEST");
-    assertThat(String.valueOf(accountingCreditApproval.get("summary")))
-        .contains("Approve permanent dealer credit-limit request CLR-" + requestId)
-        .doesNotContain(DEALER_EMAIL);
-    assertThat(accountingCreditApproval.containsKey("requesterEmail")).isFalse();
-    assertThat(accountingCreditApproval.containsKey("requesterUserId")).isFalse();
   }
 
   @Test
@@ -633,6 +625,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
 
   private Map<?, ?> findCreditApproval(ResponseEntity<Map> approvalsResponse, long requestId) {
     return creditApprovals(approvalsResponse).stream()
+        .filter(item -> "CREDIT_REQUEST".equals(item.get("originType")))
         .filter(item -> ("CLR-" + requestId).equals(item.get("reference")))
         .findFirst()
         .orElse(null);
@@ -643,7 +636,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     assertThat(body).isNotNull();
     Map<?, ?> data = (Map<?, ?>) body.get("data");
     assertThat(data).isNotNull();
-    List<?> creditApprovals = (List<?>) data.get("creditRequests");
+    List<?> creditApprovals = (List<?>) data.get("items");
     assertThat(creditApprovals).isNotNull();
     List<Map<?, ?>> approvals = new ArrayList<>();
     for (Object item : creditApprovals) {

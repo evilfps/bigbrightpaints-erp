@@ -36,7 +36,7 @@ It fulfills VAL-PLAT-007.
 
 ## 1. Runtime-Tunable Global Settings
 
-These settings are managed through `SystemSettingsService` and persisted in the `system_settings` table. They can be changed at runtime via the admin API (`AdminSettingsController`, `/api/v1/admin/settings`) without restarting the application.
+These settings are managed through `SystemSettingsService` and persisted in the `system_settings` table. They can be changed at runtime via the admin API (`AdminSettingsController`, `/api/v1/superadmin/settings`) without restarting the application.
 
 ### 1.1 Auto-Approval
 
@@ -393,7 +393,7 @@ The platform has three distinct configuration scopes:
 
 | Scope | Storage | Management | Examples |
 | --- | --- | --- | --- |
-| Global (runtime-tunable) | `system_settings` table | Admin API (`/api/v1/admin/settings`) | auto-approval, period-lock, export-approval, CORS origins, mail settings |
+| Global (runtime-tunable) | `system_settings` table | Admin API (`/api/v1/superadmin/settings`) | auto-approval, period-lock, export-approval, CORS origins, mail settings |
 | Global (config-only) | `application.yml` / env vars | Application restart required | licensing, security monitoring, encryption key, JWT secret |
 | Per-tenant | `system_settings` table (key-qualified) or `Company` entity | Super-admin API or company update API | runtime enforcement, module gating, accounting settings |
 

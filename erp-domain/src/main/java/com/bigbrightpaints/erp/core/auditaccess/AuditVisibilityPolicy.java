@@ -40,7 +40,10 @@ public class AuditVisibilityPolicy {
       List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
       predicates.add(cb.isNull(root.get("companyId")));
       predicates.add(pathEqualsOrStartsWith(root.get("requestPath"), cb, "/api/v1/superadmin"));
+      // Preserve historical visibility for pre-hard-cut admin settings audit paths.
       predicates.add(pathEqualsOrStartsWith(root.get("requestPath"), cb, "/api/v1/admin/settings"));
+      // Preserve historical visibility for pre-hard-cut admin role catalog paths.
+      predicates.add(pathEqualsOrStartsWith(root.get("requestPath"), cb, "/api/v1/admin/roles"));
       predicates.add(pathEqualsOrStartsWith(root.get("requestPath"), cb, "/api/v1/companies"));
       if (platformCompanyId != null) {
         predicates.add(cb.equal(root.get("companyId"), platformCompanyId));

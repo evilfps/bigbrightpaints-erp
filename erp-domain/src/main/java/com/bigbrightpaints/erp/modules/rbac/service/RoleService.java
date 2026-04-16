@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.rbac.domain.Permission;
 import com.bigbrightpaints.erp.modules.rbac.domain.PermissionRepository;
@@ -335,6 +336,7 @@ public class RoleService {
       auditService.logAuthSuccess(AuditEvent.ACCESS_GRANTED, actor, tenantScope, metadata);
     } else {
       auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
+      AccessDeniedAuditMarker.markCurrentRequestAudited();
     }
   }
 

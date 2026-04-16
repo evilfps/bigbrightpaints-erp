@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.rbac.dto.CreateRoleRequest;
 import com.bigbrightpaints.erp.modules.rbac.dto.RoleDto;
@@ -22,7 +23,8 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/v1/admin/roles")
+@RequestMapping("/api/v1/superadmin/roles")
+@PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
 public class RoleController {
 
   private final RoleService roleService;
@@ -32,14 +34,12 @@ public class RoleController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<List<RoleDto>>> listRoles() {
     return ResponseEntity.ok(
         ApiResponse.success("Platform roles", roleService.listRolesForCurrentActor()));
   }
 
   @GetMapping("/{roleKey}")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<RoleDto>> getRoleByKey(@PathVariable String roleKey) {
     String normalized = roleKey == null ? "" : roleKey.trim().toUpperCase(Locale.ROOT);
     if (!normalized.startsWith("ROLE_")) {
@@ -57,7 +57,6 @@ public class RoleController {
   }
 
   @PostMapping
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<RoleDto>> createRole(
       @Valid @RequestBody CreateRoleRequest request) {
     return ResponseEntity.ok(ApiResponse.success("Role saved", roleService.createRole(request)));

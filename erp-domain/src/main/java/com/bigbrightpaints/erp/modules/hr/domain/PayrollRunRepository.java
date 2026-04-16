@@ -22,6 +22,8 @@ public interface PayrollRunRepository extends JpaRepository<PayrollRun, Long> {
   List<PayrollRun> findByCompanyAndStatusOrderByCreatedAtDesc(
       Company company, PayrollRun.PayrollStatus status);
 
+  long countByCompanyAndStatus(Company company, PayrollRun.PayrollStatus status);
+
   List<PayrollRun> findByCompanyAndRunTypeOrderByCreatedAtDesc(
       Company company, PayrollRun.RunType runType);
 

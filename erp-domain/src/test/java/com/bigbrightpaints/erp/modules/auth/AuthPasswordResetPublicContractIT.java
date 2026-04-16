@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +31,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
@@ -53,6 +57,8 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
   @SpyBean private PasswordResetTokenRepository passwordResetTokenRepository;
 
   @Autowired private UserAccountRepository userAccountRepository;
+
+  @Autowired private AuditLogRepository auditLogRepository;
 
   @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -394,6 +400,52 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
         .isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
+  @Test
+  void forgotAndReset_auditTracksTargetWithoutImpersonatingAnonymousActor()
+      throws InterruptedException {
+    String suffix = Long.toString(System.nanoTime());
+    String companyCode = "RESET-AUD-" + suffix;
+    String email = "reset-audit-" + suffix + "@bbp.com";
+    String password = "Passw0rd!1";
+    UserAccount user =
+        dataSeeder.ensureUser(email, password, "Reset Audit User", companyCode, List.of("ROLE_ADMIN"));
+
+    List<String> deliveredTokens = Collections.synchronizedList(new ArrayList<>());
+    doAnswer(
+            invocation -> {
+              String to = invocation.getArgument(0, String.class);
+              String token = invocation.getArgument(2, String.class);
+              String scope = invocation.getArgument(3, String.class);
+              if (email.equalsIgnoreCase(to) && companyCode.equalsIgnoreCase(scope)) {
+                deliveredTokens.add(token);
+              }
+              return null;
+            })
+        .when(emailService)
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
+
+    LocalDateTime forgotStartedAt = LocalDateTime.now().minusSeconds(1);
+    ResponseEntity<Map> forgotResponse = postForgot(email, companyCode);
+    assertThat(forgotResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(deliveredTokens).hasSize(1);
+    AuditLog forgotAudit =
+        awaitAuditEvent(AuditEvent.PASSWORD_RESET_REQUESTED, email, "forgot_password", forgotStartedAt);
+    assertThat(forgotAudit.getUserId()).isEqualTo(email);
+    assertThat(forgotAudit.getUserId()).isNotEqualTo(user.getPublicId().toString());
+    assertThat(forgotAudit.getMetadata()).containsEntry("subjectPublicId", user.getPublicId().toString());
+    assertThat(forgotAudit.getMetadata()).doesNotContainKey("actorPublicId");
+
+    LocalDateTime resetStartedAt = LocalDateTime.now().minusSeconds(1);
+    ResponseEntity<Map> resetResponse = postReset(deliveredTokens.getFirst(), "Passw0rd!2");
+    assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    AuditLog resetAudit =
+        awaitAuditEvent(AuditEvent.PASSWORD_RESET_COMPLETED, email, "reset_password", resetStartedAt);
+    assertThat(resetAudit.getUserId()).isEqualTo(email);
+    assertThat(resetAudit.getUserId()).isNotEqualTo(user.getPublicId().toString());
+    assertThat(resetAudit.getMetadata()).containsEntry("subjectPublicId", user.getPublicId().toString());
+    assertThat(resetAudit.getMetadata()).doesNotContainKey("actorPublicId");
+  }
+
   private ResponseEntity<Map> postForgot(String email, String companyCode) {
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
@@ -443,5 +495,29 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
 
   private String passwordResetDigest(String token) {
     return IdempotencyUtils.sha256Hex("password-reset-token:" + token);
+  }
+
+  private AuditLog awaitAuditEvent(
+      AuditEvent eventType, String username, String operation, LocalDateTime notBefore)
+      throws InterruptedException {
+    for (int i = 0; i < 40; i++) {
+      List<AuditLog> logs = auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(eventType);
+      for (AuditLog log : logs) {
+        if (log.getTimestamp() == null || log.getTimestamp().isBefore(notBefore)) {
+          continue;
+        }
+        if (!username.equalsIgnoreCase(log.getUsername())) {
+          continue;
+        }
+        if (log.getMetadata() == null) {
+          continue;
+        }
+        if (operation.equals(log.getMetadata().get("operation"))) {
+          return log;
+        }
+      }
+      Thread.sleep(100);
+    }
+    throw new AssertionError("Audit event not found for " + eventType + " operation=" + operation);
   }
 }

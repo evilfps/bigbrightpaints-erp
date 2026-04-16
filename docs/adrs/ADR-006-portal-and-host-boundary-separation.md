@@ -41,7 +41,7 @@ The system currently exposes these major host prefixes:
 
 3. **Role-action matrices enforce host ownership.** `PortalRoleActionMatrix` defines role predicates for portal controllers (`ADMIN_OR_ACCOUNTING` for internal, `DEALER_ONLY` for self-service). These predicates are applied at the controller class level via `@PreAuthorize`.
 
-4. **Super-admin access is control-plane only.** Super admins are explicitly blocked from tenant business endpoints by `CompanyContextFilter`. They may access only `/api/v1/superadmin/*` lifecycle and policy routes, plus a narrow set of platform-scoped endpoints (`/api/v1/companies`, `/api/v1/auth/*`, `/api/v1/admin/settings`).
+4. **Super-admin access is control-plane only.** Super admins are explicitly blocked from tenant business endpoints by `CompanyContextFilter`. They may access only `/api/v1/superadmin/*` lifecycle and policy routes, plus a narrow set of platform-scoped endpoints (`/api/v1/companies`, `/api/v1/auth/*`, `/api/v1/superadmin/settings`).
 
 5. **Cross-portal references go through service facades, not shared controllers.** When the admin portal needs to display dealer-facing data (e.g., support ticket lists), it accesses it through the `portal` module's own controllers, which may call into `sales` or `admin` services internally.
 

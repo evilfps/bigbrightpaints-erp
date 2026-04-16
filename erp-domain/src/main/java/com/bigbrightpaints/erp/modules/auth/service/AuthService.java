@@ -102,8 +102,13 @@ public class AuthService {
       }
       mfaService.verifyDuringLogin(user, request.mfaCode(), request.recoveryCode());
       resetLock(user);
+      Map<String, String> successMetadata = new HashMap<>();
+      successMetadata.put("companyCode", scopeCode);
+      if (user.getPublicId() != null) {
+        successMetadata.put("actorPublicId", user.getPublicId().toString());
+      }
       auditService.logAuthSuccess(
-          AuditEvent.LOGIN_SUCCESS, user.getEmail(), scopeCode, Map.of("companyCode", scopeCode));
+          AuditEvent.LOGIN_SUCCESS, user.getEmail(), scopeCode, successMetadata);
       Map<String, Object> claims = new HashMap<>();
       claims.put("name", user.getDisplayName());
       claims.put("email", user.getEmail());
@@ -133,11 +138,16 @@ public class AuthService {
       if (reason == null || reason.isBlank()) {
         reason = "Login failed";
       }
+      Map<String, String> failureMetadata = new HashMap<>();
+      failureMetadata.put("reason", reason);
+      if (user != null && user.getPublicId() != null) {
+        failureMetadata.put("actorPublicId", user.getPublicId().toString());
+      }
       auditService.logAuthFailure(
           AuditEvent.LOGIN_FAILURE,
           normalizeAuditIdentifier(request.email()),
           normalizeAuditIdentifier(request.companyCode()),
-          Map.of("reason", reason));
+          failureMetadata);
       throw ex;
     }
   }

@@ -1,104 +1,75 @@
 # Frontend API Contract
 
-`docs/frontend-api/` documents the shared API contracts and rules that apply across all frontend portal shells. This is the canonical source for cross-portal frontend contracts and replaces any older handoff docs that referenced deprecated routes or tenant-scoping assumptions.
+`docs/frontend-api/` documents shared API rules across all frontend portal shells.
 
-Last reviewed: 2026-04-07
+Last reviewed: 2026-04-16
 
 ## Purpose
 
-This folder provides the shared topic files that all frontend portal shells (`superadmin`, `tenant-admin`, `accounting`, `sales`, `factory`, `dealer-client`) share. It explains:
+This folder defines canonical frontend contracts for:
 
-- How frontend applications bootstrap and authenticate
-- What tenant-scoping identifiers to use and persist
-- How to handle errors, idempotency, pagination, and filters consistently
-- Export and approval workflows that span multiple portals
-- Accounting reference chains and DTO examples
+- auth bootstrap and corridor handling
+- tenant scoping conventions
+- shared error/idempotency/pagination behavior
+- cross-portal approval/reporting boundaries
 
 ## Current Mainline Rules
 
 ### Bootstrap and Authentication
 
-- **Only bootstrap endpoint:** `GET /api/v1/auth/me` is the sole supported frontend identity surface. This endpoint returns claim/context-derived data and requires a valid JWT bearer token.
-- **Do not use:** `/api/v1/auth/profile` — this endpoint is retired and no longer wired into the current frontend contract.
-- **Session refresh:** Use `POST /api/v1/auth/refresh-token` to obtain a fresh access token from a valid refresh token.
-- **Logout:** Use `POST /api/v1/auth/logout` to invalidate the current session (optionally pass the refresh token to revoke it).
+- Only identity bootstrap endpoint: `GET /api/v1/auth/me`.
+- Do not use `GET /api/v1/auth/profile` for frontend identity bootstrap.
+- Use `POST /api/v1/auth/refresh-token` for access-token refresh.
+- Use `POST /api/v1/auth/logout` for session termination.
 
 ### Tenant Scope
 
-- **Tenant identifier:** Use `companyCode` as the persisted tenant scope identifier in frontend state, localStorage, and API calls.
-- **Do not use:** `companyId` (numeric) as a tenant-shell auth identifier — this is retired and only valid for superadmin route params (`/platform/tenants/:tenantId`).
-- **Request header:** Send `X-Company-Code` header (not `X-Company-Id`) for tenant-scoped requests.
+- Persist tenant scope as `companyCode`.
+- Send `X-Company-Code` for tenant-scoped requests.
+- Do not use `companyId`/`X-Company-Id` in tenant-shell flows.
 
 ### Portal Placement
 
-- **superadmin:** Platform control-plane only — routes to `/api/v1/superadmin/**`
-- **tenant-admin:** Owns `/api/v1/admin/users/**` and `GET /api/v1/admin/approvals`
-- **accounting:** COA, journals, reconciliation, period close, reports
-- **sales:** Dealer master, sales orders, credit escalation
-- **factory:** Production, packing, dispatch preparation and confirmation
-- **dealer-client:** Dealer dashboard, orders, invoices, aging, support
+- **superadmin:** platform control-plane routes (`/api/v1/superadmin/**`); tenant-scoped superadmin sessions are denied on platform-only hosts (`settings`, `roles`, `notify`), while tenant-targeted control routes remain tenant-scoped.
+- **tenant-admin:** canonical `/api/v1/admin/**` product surfaces (`/dashboard`, `/users`, `/approvals`, `/support`, `/self/settings`, `/audit`) plus `/api/v1/changelog`; legacy admin insight reads `/api/v1/portal/dashboard|operations|workforce` are still live until backend retirement.
+- **accounting:** COA, journals, reconciliation, period close, reports.
+- **sales:** dealer master, sales orders, commercial credit escalation.
+- **factory:** production, packing, dispatch confirmation.
+- **dealer-client:** dealer self-service dashboard/orders/invoices/aging/support.
 
-See [`docs/frontend-portals/README.md`](../frontend-portals/README.md) for detailed folder ownership.
+### Additional Contract Rules
 
-### Additional Current Contract Rules
-
-- **Manual journals:** `POST /api/v1/accounting/journal-entries` is the only public manual journal create route.
-- **Reversals:** `POST /api/v1/accounting/journal-entries/{entryId}/reverse` is the only public reversal route.
-- **Inventory reads:** `GET /api/v1/raw-materials/stock` returns `RawMaterialStockEntryDto[]`; `GET /api/v1/finished-goods` returns a paginated `PageResponse<FinishedGoodDto>`; `GET /api/v1/finished-goods/stock-summary` returns `FinishedGoodStockSummaryDto[]`; `GET /api/v1/finished-goods/{id}/batches` returns `FinishedGoodBatchInventoryDto[]`; and `GET /api/v1/inventory/batches/{id}/movements` returns `InventoryBatchMovementHistoryDto[]`.
-- **M6 create status codes:** `POST /api/v1/inventory/adjustments`, `POST /api/v1/suppliers`, `POST /api/v1/purchasing/purchase-orders`, and `POST /api/v1/purchasing/goods-receipts` return **`201 Created`**.
-- **Opening stock import response:** `OpeningStockImportResponse` includes `importedCount` alongside row/batch counts.
-- **Supplier read model:** `SupplierResponse` includes `outstandingBalance`.
-- **Purchase-order timeline shape:** timeline rows include `status`, `timestamp`, and `actor` (in addition to transition metadata).
-- **Settlement writes:** dealer and supplier settlement routes both accept the same `PartnerSettlementRequest` body; use `partnerType` + `partnerId`, not retired dealer/supplier-specific request DTOs, and do not send a separate `payments` list.
-- **Period writes:** both `POST /api/v1/accounting/periods` and `PUT /api/v1/accounting/periods/{periodId}` use `AccountingPeriodRequest`; close request/approve/reject use `PeriodCloseRequestActionRequest`, and reopen uses `AccountingPeriodReopenRequest`.
-- **Period close:** frontend must follow maker-checker flow: request close → tenant-admin approvals inbox → approve/reject close.
-- **Exports:** export approval belongs to `tenant-admin`; report consumption stays in `accounting`.
-- **Dispatch:** dispatch confirmation belongs to `factory` even when invoice or journal side effects follow.
+- **Manual journals:** `POST /api/v1/accounting/journal-entries` is canonical.
+- **Reversals:** `POST /api/v1/accounting/journal-entries/{entryId}/reverse` is canonical.
+- **Period close:** frontend must follow maker-checker flow: request close -> tenant-admin approval inbox -> approve/reject.
+- **Exports and approvals:** tenant-admin approval decisions use generic admin decision endpoint; accounting consumes approved report outputs.
 
 ## Shared Topic Files
 
 | Topic | Description |
-|---|---|
-| [auth-and-company-scope.md](./auth-and-company-scope.md) | Bootstrap, auth corridor, tenant-scoping, retired route warnings |
-| [idempotency-and-errors.md](./idempotency-and-errors.md) | Idempotency keys, retry behavior, error contracts, failure handling |
-| [pagination-and-filters.md](./pagination-and-filters.md) | List query patterns, cursor vs offset, filter syntax, sorting |
-| [exports-and-approvals.md](./exports-and-approvals.md) | Export request workflows, approval gates, approval ownership |
-| [accounting-reference-chains.md](./accounting-reference-chains.md) | Cross-document reference chains, audit trail, provenance fields |
-| [dto-examples.md](./dto-examples.md) | Sample request/response payloads for common operations |
+| --- | --- |
+| [auth-and-company-scope.md](./auth-and-company-scope.md) | Auth bootstrap, corridor, tenant scope rules |
+| [idempotency-and-errors.md](./idempotency-and-errors.md) | Idempotency and error contracts |
+| [pagination-and-filters.md](./pagination-and-filters.md) | List, filter, and paging conventions |
+| [exports-and-approvals.md](./exports-and-approvals.md) | Export and approval flow contracts |
+| [accounting-reference-chains.md](./accounting-reference-chains.md) | Accounting linkage and reference-chain contracts |
+| [dto-examples.md](./dto-examples.md) | Canonical DTO examples |
 
 ## Role-Oriented Handoff Files
 
 | Role | File |
-|---|---|
+| --- | --- |
 | Admin (`ROLE_ADMIN`) | [admin-role.md](./admin-role.md) |
 | Accounting (`ROLE_ACCOUNTING`) | [accounting-role.md](./accounting-role.md) |
 | Sales (`ROLE_SALES`) | [sales-role.md](./sales-role.md) |
 | Dealer (`ROLE_DEALER`) | [dealer-role.md](./dealer-role.md) |
 
-## Retired Routes
+## Relationship to Portal Docs
 
-The following routes are no longer part of the current frontend contract:
-
-| Retired Route | Replacement |
-|---|---|
-| `GET /api/v1/auth/profile` | Use `GET /api/v1/auth/me` for all identity data |
-| `X-Company-Id` header | Use `X-Company-Code` header with `companyCode` value |
-| `companyId` in frontend state | Use `companyCode` in frontend state and localStorage |
-| `POST /api/v1/accounting/journals/manual` | Use `POST /api/v1/accounting/journal-entries` |
-| `POST /api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | Use `POST /api/v1/accounting/journal-entries/{entryId}/reverse` |
-| `POST /api/v1/accounting/periods/{periodId}/close` | Use maker-checker flow: request close → admin approvals → approve/reject close |
-| `DealerSettlementRequest` / `SupplierSettlementRequest` | Use `PartnerSettlementRequest` on both settlement routes |
-| `AccountingPeriodUpsertRequest` / `AccountingPeriodUpdateRequest` | Use `AccountingPeriodRequest` for period create and update |
-
-## Relationship to Frontend Portals
-
-- Each portal in [`docs/frontend-portals/`](../frontend-portals/) has its own `api-contracts.md` that references this shared folder for common patterns.
-- Portal-specific contracts are not repeated here — see individual portal folders.
-- If this file disagrees with a portal's `api-contracts.md`, this `docs/frontend-api/` folder is the canonical source.
+- Portal-specific contracts live in `docs/frontend-portals/**`.
+- If shared contract text conflicts with portal docs, this `docs/frontend-api/` folder is canonical for shared behavior.
 
 ## Validation
-
-This contract is validated against `openapi.json` and the mainline backend behavior. Run:
 
 ```bash
 bash ci/lint-knowledgebase.sh

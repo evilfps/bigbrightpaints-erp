@@ -24,6 +24,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
 
   List<UserAccount> findAllByAuthScopeCodeIgnoreCase(String authScopeCode);
 
+  List<UserAccount> findByPublicIdIn(Iterable<UUID> publicIds);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select u from UserAccount u where u.id = :id")
   Optional<UserAccount> lockById(@Param("id") Long id);
@@ -43,6 +45,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
   long countByCompany_Id(Long companyId);
 
   long countByCompany_IdAndEnabledTrue(Long companyId);
+
+  long countByCompany_IdAndMfaEnabledTrue(Long companyId);
 
   Optional<UserAccount> findByIdAndCompany_Id(Long id, Long companyId);
 

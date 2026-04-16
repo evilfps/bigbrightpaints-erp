@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -33,6 +34,8 @@ public class AuthAuditIT extends AbstractIntegrationTest {
   @Autowired private TestRestTemplate rest;
 
   @Autowired private AuditLogRepository auditLogRepository;
+
+  @Autowired private UserAccountRepository userAccountRepository;
 
   @Autowired private CompanyRepository companyRepository;
 
@@ -51,9 +54,41 @@ public class AuthAuditIT extends AbstractIntegrationTest {
             Map.of("email", email, "password", PASSWORD, "companyCode", companyCode),
             Map.class);
     assertThat(loginResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    String expectedUserPublicId =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+            .orElseThrow()
+            .getPublicId()
+            .toString();
 
     AuditLog log = awaitAuditEvent(AuditEvent.LOGIN_SUCCESS, email);
     assertThat(log.getCompanyId()).isEqualTo(company.getId());
+    assertThat(log.getUserId()).isEqualTo(expectedUserPublicId);
+  }
+
+  @Test
+  void login_failure_for_known_user_logs_immutable_user_id() throws InterruptedException {
+    String suffix = Long.toString(System.nanoTime());
+    String companyCode = "AUTH-AUD-FAIL-" + suffix;
+    String email = "audit-fail-" + suffix + "@bbp.com";
+
+    dataSeeder.ensureUser(email, PASSWORD, "Audit Fail User", companyCode, List.of("ROLE_ADMIN"));
+    String expectedUserPublicId =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+            .orElseThrow()
+            .getPublicId()
+            .toString();
+
+    ResponseEntity<Map> loginResp =
+        rest.postForEntity(
+            "/api/v1/auth/login",
+            Map.of("email", email, "password", "wrong-password", "companyCode", companyCode),
+            Map.class);
+    assertThat(loginResp.getStatusCode().is4xxClientError()).isTrue();
+
+    AuditLog log = awaitAuditEvent(AuditEvent.LOGIN_FAILURE, email);
+    assertThat(log.getUserId()).isEqualTo(expectedUserPublicId);
   }
 
   @Test

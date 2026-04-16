@@ -2,10 +2,10 @@
 
 > ⚠️ **REFERENCE ONLY**: This inventory is retained for review and governance cross-reference, but it is not the canonical API truth. Use repo-root `openapi.json`, [docs/frontend-api/README.md](frontend-api/README.md), and the module/flow packets linked from [docs/INDEX.md](INDEX.md) as the primary contract surfaces.
 
-Last reviewed: 2026-04-08
+Last reviewed: 2026-04-16
 
 Source: `openapi.json`
-Updated: 2026-04-08
+Updated: 2026-04-16
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -19,9 +19,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `1981c782950a34c2b63cde5f6de1fca12e8fb0dacf49605c3c5b3511fa1f3a3c`)
-- OpenAPI total paths: `273`
-- OpenAPI total operations: `325`
+- OpenAPI snapshot: `openapi.json` (sha256 `a859f0fa6104cc92b42805adc6071042d5705c93324cbdb0227d51d7ad3cbfcb`)
+- OpenAPI total paths: `276`
+- OpenAPI total operations: `330`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 - Hard-cut contract reminder: retired surfaces such as `/api/v1/auth/profile`, `/api/v1/accounting/journals/manual`, `/api/v1/accounting/journals/{entryId}/reverse`, and direct `/api/v1/accounting/periods/{periodId}/close` are intentionally absent from this inventory and must not be reintroduced in frontend or review docs.
 
@@ -29,36 +29,35 @@ Portal scope guardrail:
 
 | Module | Path count | Examples |
 |---|---:|---|
-| `accounting` | 55 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/audit/events |
-| `admin` | 15 | /api/v1/admin/approvals, /api/v1/admin/audit/events, /api/v1/admin/exports/{requestId}/approve |
+| `accounting` | 55 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
+| `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/approvals/{originType}/{id}/decisions, /api/v1/admin/audit/events |
 | `audit` | 1 | /api/v1/audit/ml-events |
-| `auth` | 11 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/items, /api/v1/catalog/import |
+| `auth` | 10 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
+| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
-| `companies` | 2 | /api/v1/companies, /api/v1/companies/{id} |
-| `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/override-requests |
-| `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
+| `companies` | 1 | /api/v1/companies |
+| `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/limit-requests/{id}/reject |
+| `dealer-portal` | 9 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 5 | /api/v1/dealers, /api/v1/dealers/import, /api/v1/dealers/search |
 | `demo` | 1 | /api/v1/demo/ping |
-| `dispatch` | 8 | /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/slip/{slipId}/status |
+| `dispatch` | 8 | /api/v1/dispatch/backorder/{slipId}/cancel, /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId} |
 | `exports` | 2 | /api/v1/exports/request, /api/v1/exports/{requestId}/download |
-| `factory` | 19 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
+| `factory` | 17 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
 | `finished-goods` | 6 | /api/v1/finished-goods, /api/v1/finished-goods/low-stock, /api/v1/finished-goods/stock-summary |
 | `hr` | 17 | /api/v1/hr/attendance/bulk-import, /api/v1/hr/attendance/bulk-mark, /api/v1/hr/attendance/date/{date} |
 | `integration` | 1 | /api/integration/health |
 | `inventory` | 5 | /api/v1/inventory/adjustments, /api/v1/inventory/batches/expiring-soon, /api/v1/inventory/batches/{id}/movements |
 | `invoices` | 4 | /api/v1/invoices, /api/v1/invoices/{id}, /api/v1/invoices/{id}/email |
 | `migration` | 1 | /api/v1/migration/tally-import |
-| `orchestrator` | 9 | /api/v1/orchestrator/dashboard/admin, /api/v1/orchestrator/dashboard/factory, /api/v1/orchestrator/dashboard/finance |
+| `orchestrator` | 8 | /api/v1/orchestrator/dashboard/admin, /api/v1/orchestrator/dashboard/factory, /api/v1/orchestrator/dashboard/finance |
 | `payroll` | 13 | /api/v1/payroll/runs, /api/v1/payroll/runs/monthly, /api/v1/payroll/runs/weekly |
-| `portal` | 6 | /api/v1/portal/dashboard, /api/v1/portal/finance/aging, /api/v1/portal/finance/ledger |
+| `portal` | 8 | /api/v1/portal/dashboard, /api/v1/portal/finance/aging, /api/v1/portal/finance/invoices |
 | `purchasing` | 12 | /api/v1/purchasing/goods-receipts, /api/v1/purchasing/goods-receipts/{id}, /api/v1/purchasing/purchase-orders |
 | `raw-materials` | 3 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
 | `reports` | 19 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/receivables |
-| `sales` | 16 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
-| `superadmin` | 18 | /api/v1/superadmin/audit/platform-events, /api/v1/superadmin/changelog, /api/v1/superadmin/dashboard |
+| `sales` | 15 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
+| `superadmin` | 19 | /api/v1/superadmin/audit/platform-events, /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id} |
 | `suppliers` | 6 | /api/v1/suppliers, /api/v1/suppliers/import, /api/v1/suppliers/{id} |
-| `support` | 4 | /api/v1/portal/support/tickets, /api/v1/dealer-portal/support/tickets, /api/v1/portal/support/tickets/{ticketId} |
 
 ## `accounting`
 
@@ -121,15 +120,17 @@ Portal scope guardrail:
 ## `admin`
 
 - `GET` `/api/v1/admin/approvals`
+- `POST` `/api/v1/admin/approvals/{originType}/{id}/decisions`
 - `GET` `/api/v1/admin/audit/events`
-- `PUT` `/api/v1/admin/exports/{requestId}/approve`
-- `PUT` `/api/v1/admin/exports/{requestId}/reject`
-- `POST` `/api/v1/admin/notify`
-- `GET, POST` `/api/v1/admin/roles`
-- `GET` `/api/v1/admin/roles/{roleKey}`
-- `GET, PUT` `/api/v1/admin/settings`
+- `GET` `/api/v1/admin/dashboard`
+- `GET, POST` `/api/v1/superadmin/roles`
+- `GET` `/api/v1/superadmin/roles/{roleKey}`
+- `GET` `/api/v1/admin/self/settings`
+- `GET, PUT` `/api/v1/superadmin/settings`
+- `GET, POST` `/api/v1/admin/support/tickets`
+- `GET` `/api/v1/admin/support/tickets/{ticketId}`
 - `GET, POST` `/api/v1/admin/users`
-- `PUT, DELETE` `/api/v1/admin/users/{id}`
+- `GET, PUT, DELETE` `/api/v1/admin/users/{id}`
 - `PATCH` `/api/v1/admin/users/{id}/mfa/disable`
 - `PATCH` `/api/v1/admin/users/{id}/suspend`
 - `PATCH` `/api/v1/admin/users/{id}/unsuspend`
@@ -169,7 +170,6 @@ Portal scope guardrail:
 ## `companies`
 
 - `GET` `/api/v1/companies`
-- Path shell retained in spec inventory only: `/api/v1/companies/{id}` has no active operations.
 
 ## `credit`
 
@@ -189,6 +189,8 @@ Portal scope guardrail:
 - `GET` `/api/v1/dealer-portal/invoices/{invoiceId}/pdf`
 - `GET` `/api/v1/dealer-portal/ledger`
 - `GET` `/api/v1/dealer-portal/orders`
+- `GET, POST` `/api/v1/dealer-portal/support/tickets`
+- `GET` `/api/v1/dealer-portal/support/tickets/{ticketId}`
 
 ## `dealers`
 
@@ -237,9 +239,6 @@ Portal scope guardrail:
 - `GET, POST` `/api/v1/factory/tasks`
 - `PUT` `/api/v1/factory/tasks/{id}`
 - `GET` `/api/v1/factory/unpacked-batches`
-
-Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup, when `Idempotency-Key` is missing, or when legacy replay headers are sent.
-Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1/factory/bulk-batches/{parentBatchId}/children` are read-only helper surfaces for parent/child traceability. The only public packing mutation remains `POST /api/v1/factory/packing-records`. `-BULK` stays internal raw-material truth and is not a finished-good contract.
 
 ## `finished-goods`
 
@@ -327,6 +326,8 @@ Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1
 - `GET` `/api/v1/portal/finance/invoices`
 - `GET` `/api/v1/portal/finance/ledger`
 - `GET` `/api/v1/portal/operations`
+- `GET, POST` `/api/v1/portal/support/tickets`
+- `GET` `/api/v1/portal/support/tickets/{ticketId}`
 - `GET` `/api/v1/portal/workforce`
 
 ## `purchasing`
@@ -365,9 +366,9 @@ Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1
 - `GET` `/api/v1/reports/inventory-reconciliation`
 - `GET` `/api/v1/reports/inventory-valuation`
 - `GET` `/api/v1/reports/monthly-production-costs`
+- `GET` `/api/v1/reports/product-costing`
 - `GET` `/api/v1/reports/production-logs/{id}/cost-breakdown`
 - `GET` `/api/v1/reports/profit-loss`
-- `GET` `/api/v1/reports/product-costing`
 - `GET` `/api/v1/reports/reconciliation-dashboard`
 - `GET` `/api/v1/reports/trial-balance`
 - `GET` `/api/v1/reports/wastage`
@@ -394,8 +395,9 @@ Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1
 
 - `GET` `/api/v1/superadmin/audit/platform-events`
 - `POST` `/api/v1/superadmin/changelog`
-- `DELETE, PUT` `/api/v1/superadmin/changelog/{id}`
+- `PUT, DELETE` `/api/v1/superadmin/changelog/{id}`
 - `GET` `/api/v1/superadmin/dashboard`
+- `POST` `/api/v1/superadmin/notify`
 - `GET` `/api/v1/superadmin/tenants`
 - `GET` `/api/v1/superadmin/tenants/coa-templates`
 - `POST` `/api/v1/superadmin/tenants/onboard`
@@ -419,10 +421,3 @@ Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1
 - `POST` `/api/v1/suppliers/{id}/activate`
 - `POST` `/api/v1/suppliers/{id}/approve`
 - `POST` `/api/v1/suppliers/{id}/suspend`
-
-## `support`
-
-- `GET, POST` `/api/v1/portal/support/tickets`
-- `GET` `/api/v1/portal/support/tickets/{ticketId}`
-- `GET, POST` `/api/v1/dealer-portal/support/tickets`
-- `GET` `/api/v1/dealer-portal/support/tickets/{ticketId}`

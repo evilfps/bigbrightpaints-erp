@@ -61,7 +61,7 @@ class AuthPlatformScopeCodeIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> updateResponse =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of("platformAuthCode", UPDATED_PLATFORM_CODE),
@@ -115,7 +115,7 @@ class AuthPlatformScopeCodeIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> updateResponse =
         rest.exchange(
-            "/api/v1/admin/settings",
+            "/api/v1/superadmin/settings",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of("platformAuthCode", COLLIDING_TENANT_CODE),

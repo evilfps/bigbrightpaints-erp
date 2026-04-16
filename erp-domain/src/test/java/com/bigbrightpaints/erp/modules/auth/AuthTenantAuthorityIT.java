@@ -23,7 +23,9 @@ import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.security.AuditAwareAccessDeniedHandler;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.RequestBodyCachingFilter;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -518,6 +520,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     && "ROLE_ADMIN".equalsIgnoreCase(log.getMetadata().get("targetRole")));
     assertThat(denied.getMetadata()).containsEntry("actor", ADMIN_EMAIL);
     assertThat(denied.getMetadata().get("tenantScope")).contains(TENANT_A);
+    assertNoAuditEvent(
+        AuditEvent.ACCESS_DENIED,
+        log ->
+            ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                && "security-access-denied-handler".equals(log.getMetadata().get("reason"))
+                && "/api/v1/admin/users".equals(log.getMetadata().get("deniedPath")));
   }
 
   @Test
@@ -801,14 +809,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Test
   void tenant_admin_cannot_mutate_shared_role_permissions() throws InterruptedException {
     String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
-    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     assertTokenCanAccessMe(adminToken, TENANT_A);
-    Map<String, Object> before = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+    Map<String, Object> before = fetchRoleData(superAdminToken, PLATFORM_SCOPE, "ROLE_FACTORY");
     Set<String> beforePermissions = extractPermissionCodes(before);
 
     ResponseEntity<Map> denied =
         rest.exchange(
-            "/api/v1/admin/roles",
+            "/api/v1/superadmin/roles",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -819,31 +827,285 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             Map.class);
 
     assertForbiddenFromRoleMutationGuard(denied);
-    Map<String, Object> after = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
-    assertThat(extractPermissionCodes(after)).isEqualTo(beforePermissions);
-
     AuditLog deniedAudit =
         awaitAuditEvent(
             AuditEvent.ACCESS_DENIED,
             log ->
                 ROLE_GUARD_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
-                    && "shared-role-permission-mutation-requires-super-admin"
-                        .equals(log.getMetadata().get("reason"))
+                    && AuditAwareAccessDeniedHandler.ROLE_MUTATION_DENIED_AUDIT_REASON.equals(
+                        log.getMetadata().get("reason"))
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath"))
                     && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", ROLE_GUARD_ADMIN_EMAIL);
     assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+    Map<String, Object> after = fetchRoleData(superAdminToken, PLATFORM_SCOPE, "ROLE_FACTORY");
+    assertThat(extractPermissionCodes(after)).isEqualTo(beforePermissions);
+  }
+
+  @Test
+  void tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts() {
+    String tenantScopedSuperAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> settingsResponse =
+        rest.exchange(
+            "/api/v1/superadmin/settings",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(tenantScopedSuperAdminToken, TENANT_A)),
+            Map.class);
+    assertControlledAccessDenied(
+        settingsResponse,
+        "SUPER_ADMIN_PLATFORM_ONLY",
+        "Super Admin is limited to platform control-plane operations and cannot execute tenant"
+            + " business workflows");
+
+    ResponseEntity<Map> rolesResponse =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(tenantScopedSuperAdminToken, TENANT_A)),
+            Map.class);
+    assertControlledAccessDenied(
+        rolesResponse,
+        "SUPER_ADMIN_PLATFORM_ONLY",
+        "Super Admin is limited to platform control-plane operations and cannot execute tenant"
+            + " business workflows");
+
+    ResponseEntity<Map> notifyResponse =
+        rest.exchange(
+            "/api/v1/superadmin/notify",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "to", "security-check@bbp.com",
+                    "subject", "scope-guard",
+                    "body", "deny"),
+                jsonHeaders(tenantScopedSuperAdminToken, TENANT_A)),
+            Map.class);
+    assertControlledAccessDenied(
+        notifyResponse,
+        "SUPER_ADMIN_PLATFORM_ONLY",
+        "Super Admin is limited to platform control-plane operations and cannot execute tenant"
+            + " business workflows");
+
+    ResponseEntity<Map> roleMutationResponse =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name", "ROLE_FACTORY",
+                    "description", "Tenant scoped super admin mutation attempt",
+                    "permissions", factoryRolePermissionCodes()),
+                jsonHeaders(tenantScopedSuperAdminToken, TENANT_A)),
+            Map.class);
+    assertControlledAccessDenied(
+        roleMutationResponse,
+        "SUPER_ADMIN_PLATFORM_ONLY",
+        "Super Admin is limited to platform control-plane operations and cannot execute tenant"
+            + " business workflows");
+  }
+
+  @Test
+  void tenant_admin_denied_role_mutation_audit_keeps_tenant_scope_without_company_header()
+      throws InterruptedException {
+    String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> denied =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name", "ROLE_FACTORY",
+                    "description", "Tenant mutation attempt without company header",
+                    "permissions", factoryRolePermissionCodes()),
+                jsonHeaders(adminToken, null)),
+            Map.class);
+
+    assertForbiddenFromRoleMutationGuard(denied);
+    AuditLog deniedAudit =
+        awaitAuditEvent(
+            AuditEvent.ACCESS_DENIED,
+            log ->
+                ROLE_GUARD_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
+                    && AuditAwareAccessDeniedHandler.ROLE_MUTATION_DENIED_AUDIT_REASON.equals(
+                        log.getMetadata().get("reason"))
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath"))
+                    && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", ROLE_GUARD_ADMIN_EMAIL);
+    assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+  }
+
+  @Test
+  void non_admin_actor_denied_role_mutation_is_audited_with_target_role()
+      throws InterruptedException {
+    String salesToken = login(SALES_SYNC_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> denied =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name", "ROLE_FACTORY",
+                    "description", "Non-admin mutation attempt",
+                    "permissions", factoryRolePermissionCodes()),
+                jsonHeaders(salesToken, TENANT_A)),
+            Map.class);
+
+    assertForbiddenFromRoleMutationGuard(denied);
+    AuditLog deniedAudit =
+        awaitAuditEvent(
+            AuditEvent.ACCESS_DENIED,
+            log ->
+                SALES_SYNC_EMAIL.equalsIgnoreCase(log.getUsername())
+                    && AuditAwareAccessDeniedHandler.ROLE_MUTATION_DENIED_AUDIT_REASON.equals(
+                        log.getMetadata().get("reason"))
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath"))
+                    && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", SALES_SYNC_EMAIL);
+    assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+  }
+
+  @Test
+  void oversized_role_mutation_payload_is_denied_without_target_role_extraction()
+      throws InterruptedException {
+    String salesToken = login(SALES_SYNC_EMAIL, TENANT_A);
+    String oversizedRoleName =
+        "R".repeat(RequestBodyCachingFilter.ROLE_MUTATION_REQUEST_BODY_LIMIT_BYTES + 64);
+
+    ResponseEntity<Map> denied =
+        rest.exchange(
+            "/api/v1/superadmin/roles",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name", oversizedRoleName,
+                    "description", "Oversized payload role mutation attempt",
+                    "permissions", factoryRolePermissionCodes()),
+                jsonHeaders(salesToken, TENANT_A)),
+            Map.class);
+
+    assertForbiddenFromRoleMutationGuard(denied);
+    AuditLog deniedAudit =
+        awaitAuditEvent(
+            AuditEvent.ACCESS_DENIED,
+            log ->
+                SALES_SYNC_EMAIL.equalsIgnoreCase(log.getUsername())
+                    && AuditAwareAccessDeniedHandler.ROLE_MUTATION_DENIED_AUDIT_REASON.equals(
+                        log.getMetadata().get("reason"))
+                    && "/api/v1/superadmin/roles".equals(log.getMetadata().get("deniedPath"))
+                    && !log.getMetadata().containsKey("targetRole"));
+    assertThat(deniedAudit.getMetadata()).containsEntry("actor", SALES_SYNC_EMAIL);
+    assertThat(deniedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+  }
+
+  @Test
+  void retired_admin_settings_and_roles_hosts_are_not_exposed() {
+    String adminToken = login(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
+    List<RetiredHostProbe> probes =
+        List.of(
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/roles",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/roles",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(null, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/roles", HttpMethod.GET, new HttpEntity<>(jsonHeaders(null, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_B))),
+            retiredHostProbe(
+                "/api/v1/admin/roles",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_B))),
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.PUT,
+                new HttpEntity<>(
+                    Map.of("exportApprovalRequired", true), jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/settings",
+                HttpMethod.PUT,
+                new HttpEntity<>(
+                    Map.of("exportApprovalRequired", true),
+                    jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/roles",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of(
+                        "name", "ROLE_FACTORY",
+                        "description", "legacy role post should not exist",
+                        "permissions", factoryRolePermissionCodes()),
+                    jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/roles",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of(
+                        "name", "ROLE_FACTORY",
+                        "description", "legacy role post should not exist",
+                        "permissions", factoryRolePermissionCodes()),
+                    jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/roles/ROLE_FACTORY",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/roles/ROLE_FACTORY",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(null, TENANT_A))));
+
+    probes.forEach(this::assertRetiredHostNotFound);
   }
 
   @Test
   void super_admin_can_mutate_shared_role_permissions_via_existing_endpoint()
       throws InterruptedException {
-    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
-    Map<String, Object> baseline = fetchRoleData(superAdminToken, TENANT_A, "ROLE_FACTORY");
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
+    Map<String, Object> baseline = fetchRoleData(superAdminToken, PLATFORM_SCOPE, "ROLE_FACTORY");
     String description = String.valueOf(baseline.get("description"));
     List<String> permissions = extractPermissionCodes(baseline).stream().toList();
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/roles",
+            "/api/v1/superadmin/roles",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -853,7 +1115,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     description,
                     "permissions",
                     permissions.isEmpty() ? factoryRolePermissionCodes() : permissions),
-                jsonHeaders(superAdminToken, TENANT_A)),
+                jsonHeaders(superAdminToken, PLATFORM_SCOPE)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -865,7 +1127,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     && "shared-role-permission-mutation-approved"
                         .equals(log.getMetadata().get("reason"))
                     && "ROLE_FACTORY".equalsIgnoreCase(log.getMetadata().get("targetRole")));
-    assertThat(grantedAudit.getMetadata().get("tenantScope")).contains(TENANT_A);
+    assertThat(grantedAudit.getMetadata().get("tenantScope")).isEqualTo("none");
   }
 
   @Test
@@ -1211,7 +1473,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   private Map<String, Object> fetchRoleData(String token, String companyCode, String roleKey) {
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/roles/" + roleKey,
+            "/api/v1/superadmin/roles/" + roleKey,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(token, companyCode)),
             Map.class);
@@ -1307,6 +1569,16 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     return List.of("portal:factory", "factory.dispatch");
   }
 
+  private RetiredHostProbe retiredHostProbe(String path, HttpMethod method, HttpEntity<?> entity) {
+    return new RetiredHostProbe(path, method, entity);
+  }
+
+  private void assertRetiredHostNotFound(RetiredHostProbe probe) {
+    ResponseEntity<Map> response =
+        rest.exchange(probe.path(), probe.method(), probe.entity(), Map.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
   private HttpHeaders jsonHeaders(String token, String companyCode) {
     HttpHeaders headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
@@ -1385,14 +1657,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
       throws InterruptedException {
     for (int i = 0; i < 80; i++) {
       entityManager.clear();
-      List<AuditLog> logs =
-          entityManager
-              .createQuery(
-                  "select distinct al from AuditLog al left join fetch al.metadata where"
-                      + " al.eventType = :eventType order by al.timestamp desc",
-                  AuditLog.class)
-              .setParameter("eventType", eventType)
-              .getResultList();
+      List<AuditLog> logs = findAuditLogs(eventType);
       for (AuditLog log : logs) {
         if (matcher.test(log)) {
           return log;
@@ -1403,4 +1668,30 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     fail("Audit event %s not found with expected metadata", eventType);
     return null;
   }
+
+  private void assertNoAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher)
+      throws InterruptedException {
+    for (int i = 0; i < 40; i++) {
+      entityManager.clear();
+      List<AuditLog> logs = findAuditLogs(eventType);
+      for (AuditLog log : logs) {
+        if (matcher.test(log)) {
+          fail("Unexpected audit event %s with duplicate metadata", eventType);
+        }
+      }
+      Thread.sleep(100);
+    }
+  }
+
+  private List<AuditLog> findAuditLogs(AuditEvent eventType) {
+    return entityManager
+        .createQuery(
+            "select distinct al from AuditLog al left join fetch al.metadata where"
+                + " al.eventType = :eventType order by al.timestamp desc",
+            AuditLog.class)
+        .setParameter("eventType", eventType)
+        .getResultList();
+  }
+
+  private record RetiredHostProbe(String path, HttpMethod method, HttpEntity<?> entity) {}
 }

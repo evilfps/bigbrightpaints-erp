@@ -24,8 +24,8 @@ import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketCreateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketResponse;
+import com.bigbrightpaints.erp.modules.admin.service.AdminSupportService;
 import com.bigbrightpaints.erp.modules.admin.service.DealerPortalSupportTicketService;
-import com.bigbrightpaints.erp.modules.admin.service.PortalSupportTicketService;
 import com.bigbrightpaints.erp.modules.admin.service.SupportTicketAccessSupport;
 import com.bigbrightpaints.erp.modules.admin.service.SupportTicketGitHubSyncService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -40,7 +40,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
   private SupportTicketRepository supportTicketRepository;
   private CompanyContextService companyContextService;
   private SupportTicketGitHubSyncService supportTicketGitHubSyncService;
-  private PortalSupportTicketService portalSupportTicketService;
+  private AdminSupportService adminSupportService;
   private DealerPortalSupportTicketService dealerPortalSupportTicketService;
   private Company company;
 
@@ -51,8 +51,8 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
     supportTicketGitHubSyncService = Mockito.mock(SupportTicketGitHubSyncService.class);
     SupportTicketAccessSupport supportTicketAccessSupport =
         new SupportTicketAccessSupport(supportTicketRepository, supportTicketGitHubSyncService);
-    portalSupportTicketService =
-        new PortalSupportTicketService(
+    adminSupportService =
+        new AdminSupportService(
             supportTicketRepository, companyContextService, supportTicketAccessSupport);
     dealerPortalSupportTicketService =
         new DealerPortalSupportTicketService(
@@ -83,7 +83,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
             });
 
     SupportTicketResponse response =
-        portalSupportTicketService.create(
+        adminSupportService.create(
             new SupportTicketCreateRequest(
                 "support", "Unable to export", "Export request fails with timeout"));
 
@@ -106,7 +106,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
     when(supportTicketRepository.findUsersByIdIn(argThat(ids -> ids != null && ids.contains(71L))))
         .thenReturn(List.of(user(71L, "requester@acme.com", "ROLE_SALES", company)));
 
-    List<SupportTicketResponse> responses = portalSupportTicketService.list();
+    List<SupportTicketResponse> responses = adminSupportService.listAllTenantTickets();
 
     assertThat(responses).hasSize(1);
     assertThat(responses.getFirst().id()).isEqualTo(9301L);

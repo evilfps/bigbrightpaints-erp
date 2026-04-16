@@ -14,13 +14,13 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @Service
-public class PortalSupportTicketService {
+public class AdminSupportService {
 
   private final SupportTicketRepository supportTicketRepository;
   private final CompanyContextService companyContextService;
   private final SupportTicketAccessSupport supportTicketAccessSupport;
 
-  public PortalSupportTicketService(
+  public AdminSupportService(
       SupportTicketRepository supportTicketRepository,
       CompanyContextService companyContextService,
       SupportTicketAccessSupport supportTicketAccessSupport) {
@@ -36,11 +36,10 @@ public class PortalSupportTicketService {
   }
 
   @Transactional(readOnly = true)
-  public List<SupportTicketResponse> list() {
+  public List<SupportTicketResponse> listAllTenantTickets() {
     Company company = companyContextService.requireCurrentCompany();
     UserAccount actor = supportTicketAccessSupport.requireCurrentUser();
-    List<SupportTicket> tickets =
-        supportTicketRepository.findByCompanyOrderByCreatedAtDesc(company);
+    List<SupportTicket> tickets = supportTicketRepository.findByCompanyOrderByCreatedAtDesc(company);
     return supportTicketAccessSupport.toResponses(tickets, actor.getId());
   }
 

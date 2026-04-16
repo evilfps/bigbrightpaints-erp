@@ -1,72 +1,88 @@
 # R2 Checkpoint
 
-Last reviewed: 2026-04-09
+Last reviewed: 2026-04-16
 
 ## Scope
-- Feature: `refactor-accounting-role-cleanup` integration review
-- Branch: `refactor-accounting-role-cleanup` (base: `894023e51`)
+- Feature: `tenant-admin-backend-hard-cut` slices 1-2 + slice 8 pending-status index hardening
+- Branch: codex/tenant-admin-hardcut-s1 (base: `fc3266800`)
 - PR: pending
 - Review candidate:
-  - keep the accounting audit visibility narrowing so the accounting audit feed remains `ACCOUNTING`-only at runtime
-  - keep the reconciliation cleanup direction by replacing the inheritance-only `ReconciliationServiceCore` split with `ReconciliationService` plus `ReconciliationOperations`, and by removing the leftover legacy request shim
-  - keep the Tally import observability hardening and the docs/runtime corrections that now match the integrated branch truth
-- Why this is R2: the current diff changes high-risk accounting runtime surfaces under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**` and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/auditaccess/**`, so merge confidence still requires explicit evidence and rollback posture.
+  - keep tenant-admin user assignment constrained to `ROLE_ACCOUNTING`, `ROLE_FACTORY`, `ROLE_SALES`, `ROLE_DEALER`
+  - keep tenant-admin `ROLE_ADMIN` / `ROLE_SUPER_ADMIN` assignment denied with explicit access-denied auditing
+  - keep tenant-admin custom/unknown role creation removed from the admin users workflow surface
+  - keep superadmin settings/roles/notify control-plane hosts platform-scope-only for superadmin callers
+  - keep denied role-mutation audit body extraction fail-closed when request body cache is unavailable
+  - keep normalized pending-status predicates (`upper(trim(status))='PENDING'`) index-backed for tenant-admin approval inbox/dashboard queries
+- Why this is R2: this packet changes high-risk auth/RBAC and superadmin control-plane enforcement behavior under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`; it also changes `erp-domain/src/main/resources/db/migration_v2/` in slice 8 to keep normalized pending query predicates index-backed.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/auditaccess/AuditVisibilityPolicy.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/BankReconciliationSessionService.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationOperations.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`
+  - `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql`
 - Contract surfaces affected:
-  - accounting audit read visibility for the accounting audit events feed
-  - reconciliation runtime behavior and bank-reconciliation session flow after removal of the legacy request bridge
-  - Tally import observability on previously silent fallback/error-swallowing paths
-  - branch-level policy and changed-files coverage evidence consumed by `bash ci/check-enterprise-policy.sh` and `bash scripts/gate_fast.sh`
+  - tenant-admin create/update user role validation and assignment behavior
+  - role-escalation denial semantics for tenant-admin actors
+  - audit failure metadata for blocked privileged role attempts
+  - platform-scope host enforcement for superadmin settings/role/notify control-plane routes
+  - denied-path role target extraction behavior on oversized/uncached request bodies
+  - tenant-admin dashboard and approval inbox pending-status lookup performance under normalized status semantics
 - Failure mode if wrong:
-  - accounting audit visibility widens again beyond the intended accounting-only scope
-  - reconciliation cleanup leaves dead legacy paths or regresses the current explicit bank-reconciliation flow
-  - Tally import failures remain opaque to operators
-  - reviewers get misleading merge confidence from stale governance evidence
+  - tenant-admin could assign privileged or unknown roles
+  - tenant-scoped superadmin sessions could execute platform-only notify/settings/roles endpoints
+  - denied-path auditing could attempt raw request-stream reads instead of failing closed
+  - audit trail for blocked role escalation could become inconsistent
+  - tenant-admin dashboard approval summary could degrade under polling load if normalized status predicates are not index-backed
 
 ## Approval Authority
 - Mode: orchestrator
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
 - Approval status: branch-local integration candidate pending PR review
-- Basis: the repo is still pre-deployment with no external users, so current-state hard-cut cleanup is acceptable, but this branch still changes accounting runtime and audit visibility and therefore keeps explicit evidence in the same lane.
+- Basis: this is a hard-cut tenant-admin RBAC tightening with no compatibility bridge; rollout remains pre-deployment but still requires explicit R2 evidence because auth/RBAC semantics changed.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: the lane tightens visibility and removes legacy cleanup debt without widening tenant boundaries or introducing destructive migration work; standard code review remains the merge gate.
+- Reason: this packet narrows tenant-admin privileges, hardens platform-only superadmin boundaries, and keeps denied-path parsing fail-closed; it does not widen tenant boundaries or introduce destructive migration behavior.
 
 ## Rollback Owner
 - Owner: Droid mission orchestrator
 - Rollback method:
-  - before merge: revert the integrated packet stack together if audit, reconciliation, Tally, or docs truth becomes disputed
-  - after merge: revert the packet stack and re-run compile, targeted accounting tests, docs lint, enterprise policy, and gate-fast to confirm rollback parity
+  - before merge: revert the packet if tenant-admin role assignment or superadmin platform-only host contracts regress
+  - after merge: revert packet and rerun focused security/auth tests plus enterprise policy gates
 - Rollback trigger:
-  - audit visibility no longer stays accounting-only
-  - reconciliation session flow or checklist diagnostics regress after the cleanup extraction
-  - Tally import diagnostics become silent again
-  - enterprise policy or gate-fast fails on the integrated lane
+  - any non-allowlisted role can be assigned from the admin users API surface
+  - tenant-scoped superadmin can access superadmin settings/roles/notify control-plane hosts
+  - denied role-mutation audit extraction no longer fails closed when request body cache is unavailable
+  - tenant-admin privileged role denial/audit behavior diverges from the contract
+  - policy gate fails after integrating this packet
 
 ## Expiry
 - Valid until: 2026-04-23
-- Re-evaluate if: the lane expands beyond audit, reconciliation, Tally, and docs cleanup or introduces auth/RBAC/company-boundary changes.
+- Re-evaluate if: scope expands into broader auth, company-control-plane, or migration-path changes.
 
 ## Verification Evidence
+- Scope-to-evidence mapping:
+  - tenant-admin role allowlist + escalation denial contract: commit `5fe768a5d` and targeted tests `AdminUserServiceTest`, `AuthTenantAuthorityIT#admin_cannot_create_tenant_admin_user+tenant_admin_can_still_create_non_privileged_user`
+  - platform-only superadmin host deny (`settings`, `roles`, `notify`): `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml` testcase `tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts`
+  - denied role-mutation body extraction fail-closed: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
+  - normalized pending-status predicate index hardening: migration `V183__credit_pending_status_norm_indexes.sql` + focused verification (`AdminApprovalServiceTest`, `AdminDashboardSecurityIT`)
 - Commands run:
-  - `cd erp-domain && mvn -B -ntp -DskipTests compile`
-  - `cd erp-domain && mvn -B -ntp -Djacoco.skip=true -Dtest='AuditVisibilityPolicyTest,ReconciliationServiceTest,BankReconciliationSessionServiceTest,TallyImportServiceTest,AccountingPeriodServiceTest,TS_AccountingPeriodCloseChecklistSafetyContractTest' test`
-  - `bash ci/lint-knowledgebase.sh`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=RequestBodyCachingFilterTest,CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT#tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
+  - `bash ci/check-codex-review-guidelines.sh`
   - `bash ci/check-enterprise-policy.sh`
-  - `bash scripts/gate_fast.sh`
 - Result summary:
-  - compile passed on the integrated lane after stacking audit, reconciliation, Tally, and docs packets
-  - targeted audit, reconciliation, checklist, and Tally tests passed for the kept code paths
-  - knowledgebase lint and enterprise-policy-check passed with the integrated docs and governance updates
-  - gate-fast returned OK for the current branch diff, but changed-files coverage finished in compatibility mode because branch coverage was `109/126 = 0.865`, below the strict `0.90` threshold
+  - focused security/auth tests passed for this slice (`RequestBodyCachingFilterTest`, `CompanyContextFilterControlPlaneBindingTest`, `AuthTenantAuthorityIT` targeted method)
+  - tenant-scoped superadmin deny contract now explicitly covered on canonical notify POST call
+  - normalized pending-status queries remain behavior-compatible and now have dedicated expression indexes for dashboard/inbox load paths
+  - policy gates (`check-codex-review-guidelines`, `check-enterprise-policy`) passed
 - Artifact note:
-  - changed-files coverage evidence is recorded inline in this checkpoint; no local artifact path is required for lint or review
+  - evidence bundle index: `docs/approvals/evidence/2026-04-16-r2-slice2/README.md`
+  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
+  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest.txt`
+  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.txt`
+  - testcase anchor: `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml`
+  - policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-enterprise-policy.txt`
+  - policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-codex-review-guidelines.txt`

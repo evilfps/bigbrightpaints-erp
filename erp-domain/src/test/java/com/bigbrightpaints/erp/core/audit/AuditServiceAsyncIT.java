@@ -30,6 +30,8 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
+import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 
@@ -135,6 +137,45 @@ class AuditServiceAsyncIT {
     assertThat(saved.getUserId()).isEqualTo("explicit-user");
     assertThat(saved.getCompanyId()).isEqualTo(77L);
     assertThat(saved.getMetadata()).containsEntry("origin", "async-it");
+  }
+
+  @Test
+  void logAuthSuccess_asyncProxyCapturesAuthenticatedPublicIdWhenOverrideMatches() throws Exception {
+    Company company = new Company();
+    company.setCode("COMP-ASYNC");
+    ReflectionTestUtils.setField(company, "id", 77L);
+    when(companyRepository.findByCodeIgnoreCase("COMP-ASYNC")).thenReturn(Optional.of(company));
+
+    CountDownLatch latch = new CountDownLatch(1);
+    AtomicReference<AuditLog> savedRef = new AtomicReference<>();
+    when(auditLogRepository.save(any(AuditLog.class)))
+        .thenAnswer(
+            invocation -> {
+              AuditLog log = invocation.getArgument(0);
+              savedRef.set(log);
+              latch.countDown();
+              return log;
+            });
+
+    UserAccount authenticatedUser =
+        new UserAccount("actor@bbp.com", "COMP-ASYNC", "hash", "Authenticated Actor");
+    SecurityContext callerContext = SecurityContextHolder.createEmptyContext();
+    callerContext.setAuthentication(
+        new UsernamePasswordAuthenticationToken(
+            new UserPrincipal(authenticatedUser), "n/a", java.util.List.of()));
+    SecurityContextHolder.setContext(callerContext);
+
+    auditService.logAuthSuccess(
+        AuditEvent.LOGIN_SUCCESS, "actor@bbp.com", "COMP-ASYNC", Map.of("origin", "async-it"));
+
+    callerContext.setAuthentication(new UsernamePasswordAuthenticationToken("mutated", "n/a"));
+
+    assertThat(latch.await(3, TimeUnit.SECONDS)).isTrue();
+    AuditLog saved = savedRef.get();
+    assertThat(saved).isNotNull();
+    assertThat(saved.getUsername()).isEqualTo("actor@bbp.com");
+    assertThat(saved.getUserId()).isEqualTo(authenticatedUser.getPublicId().toString());
+    assertThat(saved.getMetadata()).containsEntry("actorPublicId", authenticatedUser.getPublicId().toString());
   }
 
   @Test

@@ -165,4 +165,32 @@ class AuditLogReadAdapterTest {
               assertThat(item.metadata().get("journalReference")).isNull();
             });
   }
+
+  @Test
+  void queryPlatformFeed_mapsSubjectPublicIdIntoSubjectIdentifier() {
+    AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
+    AuditVisibilityPolicy auditVisibilityPolicy = mock(AuditVisibilityPolicy.class);
+    AuditLogReadAdapter adapter =
+        new AuditLogReadAdapter(
+            auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
+    Specification<com.bigbrightpaints.erp.core.audit.AuditLog> allowAll =
+        (root, query, cb) -> cb.conjunction();
+    when(auditVisibilityPolicy.platformVisibility()).thenReturn(allowAll);
+
+    String subjectPublicId = "550e8400-e29b-41d4-a716-446655440000";
+    AuditLog auditLog = new AuditLog();
+    auditLog.setRequestPath("/api/v1/auth/password/forgot");
+    auditLog.setMetadata(Map.of("subjectPublicId", subjectPublicId));
+    when(auditLogRepository.findAll(
+            org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(java.util.List.of(auditLog)));
+
+    AuditFeedSlice slice =
+        adapter.queryPlatformFeed(
+            new AuditFeedFilter(null, null, null, null, null, null, null, null, 0, 50));
+
+    assertThat(slice.items())
+        .singleElement()
+        .satisfies(item -> assertThat(item.subjectIdentifier()).isEqualTo(subjectPublicId));
+  }
 }

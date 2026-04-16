@@ -90,7 +90,7 @@ class PortalRoleActionMatrixTest {
         .isNull();
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
-                authentication("ROLE_ADMIN"), request("GET", "/api/v1/admin/settings")))
+                authentication("ROLE_ADMIN"), request("GET", "/api/v1/superadmin/settings")))
         .isNull();
   }
 

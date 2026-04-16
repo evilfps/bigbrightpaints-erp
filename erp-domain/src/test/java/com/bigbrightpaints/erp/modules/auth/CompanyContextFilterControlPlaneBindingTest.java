@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -380,7 +381,14 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(
             (Boolean)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    filter, "isPlatformScopedRequestAllowed", "/api/v1/admin/settings"))
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/superadmin/settings"))
+        .isTrue();
+    assertThat(
+            (Boolean)
+                com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
+                    filter,
+                    "isSuperadminPlatformScopeOnlyHostPath",
+                    "/api/v1/superadmin/notify"))
         .isTrue();
     assertThat(
             (Boolean)
@@ -430,6 +438,25 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
+  void superAdminPlatformScopeOnlyHost_checkInvokesPlatformScopeLookupOncePerRequest()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+    when(authScopeService.isPlatformScope("TENANT-A")).thenReturn(false);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/superadmin/settings");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    request.addHeader("X-Company-Code", "TENANT-A");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+    verify(authScopeService, times(1)).isPlatformScope("TENANT-A");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
   void canonicalTenantControlRequest_allowsTenantAdminWhenTokenCompanyMatchesPathTarget()
       throws ServletException, IOException {
     authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
@@ -468,6 +495,10 @@ class CompanyContextFilterControlPlaneBindingTest {
   void retiredSharedSupportPrefix_isNotClassifiedAsTenantBusinessKnowledge() {
     assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/support")).isFalse();
     assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/support/tickets")).isFalse();
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/admin/dashboard")).isTrue();
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/admin/self/settings")).isTrue();
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/admin/support/tickets"))
+        .isTrue();
     assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/portal/support/tickets"))
         .isTrue();
     assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/dealer-portal/support/tickets"))

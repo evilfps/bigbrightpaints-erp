@@ -21,7 +21,7 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
 | Admin user governance | `GET/POST /api/v1/admin/users`, `PUT /api/v1/admin/users/{id}`, `PUT /api/v1/admin/users/{userId}/status`, `POST /api/v1/admin/users/{userId}/force-reset-password`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}` | `AdminUserController` | Tenant-admin operational surface only. Platform super admins are blocked from this workflow prefix and must stay on `/api/v1/superadmin/tenants/**`. |
-| Settings and governance inbox | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `AdminSettingsController` | Reads remain admin-accessible; settings mutation is superadmin-only; approvals stay tenant-scoped and exclude platform super-admin callers. |
+| Settings and governance inbox | `GET/PUT /api/v1/superadmin/settings`, `GET /api/v1/admin/approvals`, `POST /api/v1/admin/approvals/{originType}/{id}/decisions`, `POST /api/v1/superadmin/notify`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `AdminSettingsController`, `AdminApprovalController`, `AdminUtilityController` | Global settings and notify are superadmin control-plane routes; tenant-admin approvals remain tenant-scoped and exclude platform super-admin callers. |
 | Support desk | Internal: `POST/GET /api/v1/portal/support/tickets`, `GET /api/v1/portal/support/tickets/{ticketId}`; dealer: `POST/GET /api/v1/dealer-portal/support/tickets`, `GET /api/v1/dealer-portal/support/tickets/{ticketId}` | `PortalSupportTicketController`, `DealerPortalSupportTicketController` | Shared `/api/v1/support/**` is retired; admin/accounting work only on the portal host and dealer users stay on the dealer-portal host with self-scoped reads. |
 | Changelog reads | `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` | `ChangelogController` | Reads require authentication and are no longer public. |
 | Changelog writes | `POST /api/v1/superadmin/changelog`, `PUT /api/v1/superadmin/changelog/{id}`, `DELETE /api/v1/superadmin/changelog/{id}` | `SuperAdminChangelogController` | Global write ownership moved to superadmin-only control. |
@@ -133,7 +133,7 @@ Recovery behavior is asymmetric:
 
 #### 4.1 Global settings plane
 
-`GET/PUT /api/v1/admin/settings` reads and mutates `SystemSettingsService`, which persists these keys into the global `system_settings` table:
+`GET/PUT /api/v1/superadmin/settings` reads and mutates `SystemSettingsService`, which persists these keys into the global `system_settings` table:
 
 - `cors.allowed-origins`
 - `auto-approval.enabled`
@@ -147,7 +147,7 @@ Recovery behavior is asymmetric:
 
 These are runtime-wide values, not company-scoped values. `V1__core_auth_rbac.sql` defines `system_settings(setting_key, setting_value)` with no `company_id`, and `SystemSettingsService` reads/writes these keys without consulting `CompanyContextService`.
 
-`updateSettings(...)` only adds an explicit super-admin guard for `periodLockEnforced`. A plain tenant admin may still change:
+`updateSettings(...)` is now fully super-admin-only (`/api/v1/superadmin/settings` plus `PortalRoleActionMatrix.SUPER_ADMIN_ONLY`). The endpoint still mutates global values:
 
 - global CORS allow-list,
 - global mail delivery toggles and reset/credential delivery behavior,
@@ -199,7 +199,7 @@ This means export approval is a soft gate rather than a durable decision. The sc
 
 ### 6. Other governance controls
 
-`AdminSettingsController.approvals()` is the admin cockpit for pending governance work. It merges:
+`AdminApprovalController.inbox()` is the admin cockpit for pending governance work. It merges:
 
 - dealer credit requests,
 - dispatch credit overrides,
@@ -209,14 +209,14 @@ This means export approval is a soft gate rather than a durable decision. The sc
 
 The method is explicitly `@Transactional(readOnly = true)` and converts each pending item into an `AdminApprovalItemDto` with typed `originType` / `ownerType`, action labels, approve/reject endpoint templates, and export-specific machine-readable detail when `originType=EXPORT_REQUEST`. This is valuable operationally because it gives the governance UI a unified queue, but it is only a synthesizer: it does not own the actual approval rules.
 
-`POST /api/v1/admin/notify` is a smaller but still sensitive control. It lets any tenant admin send an arbitrary SMTP email through `EmailService.sendSimpleEmail(...)` using the platform-wide mail configuration. The method does not write an audit event of its own.
+`POST /api/v1/superadmin/notify` is a smaller but still sensitive control. It lets super admins send an arbitrary SMTP email through `EmailService.sendSimpleEmail(...)` using the platform-wide mail configuration. The method does not write an audit event of its own.
 
 ## Control boundaries
 
 - The live `/api/v1/admin/users/**` and `/api/v1/admin/approvals` surfaces are tenant-scoped workflow prefixes. Platform `ROLE_SUPER_ADMIN` callers are blocked there and must stay on `/api/v1/superadmin/tenants/**`.
 - Changelog authoring is tenant-admin writable but globally readable and globally stored.
 - Support tickets are company-scoped for tenant admins, user-scoped for ordinary users, and globally readable for super admins.
-- `AdminSettingsController` mixes global flags and tenant-scoped runtime policies in one namespace even though only the runtime-policy part is actually tenant-keyed.
+- Global settings and notify controls now live on `/api/v1/superadmin/**`, while tenant-admin operational workflows stay under `/api/v1/admin/**`.
 - Export approvals are company-scoped, but the switch that decides whether approval matters (`export.require-approval`) is global.
 - `CompanyContextFilter` treats `/api/v1/admin/tenant-runtime/policy` and canonical `/api/v1/companies/{id}/tenant-runtime/policy` as privileged policy-control paths, so control-plane authorization is path-sensitive.
 
@@ -236,7 +236,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 
 | Severity | Category | Finding | Evidence | Why it matters |
 | --- | --- | --- | --- | --- |
-| critical | governance / security | `GET/PUT /api/v1/admin/settings` is tenant-admin accessible, but `SystemSettingsService` persists global `system_settings` keys with no tenant scope. Any tenant admin can rewrite platform-wide CORS, mail, auto-approval, and export-approval behavior. | `AdminSettingsController.updateSettings(...)`, `SystemSettingsService`, `V1__core_auth_rbac.sql` | A single tenant admin can change security perimeter and operational policy for every tenant, including reset-email delivery and trusted browser origins. |
+| low | resolved hard-cut cleanup | Global settings mutation moved to `GET/PUT /api/v1/superadmin/settings` and is guarded by `PortalRoleActionMatrix.SUPER_ADMIN_ONLY`; tenant-admin callers are denied. | `AdminSettingsController`, `SystemSettingsService`, `AuthTenantAuthorityIT`, `RoleControllerSecurityContractTest` | The prior tenant-admin global-settings blast radius is closed on the current branch and retained here for traceability. |
 | high | governance / integrity | Changelog publishing is globally stored and publicly readable, yet any tenant admin can create, update, or soft-delete entries. Updates also rewrite `publishedAt`, effectively republishing old entries. | `ChangelogController`, `ChangelogService.applyRequest(...)`, `ChangelogEntry`, `SecurityConfig`, `V40__changelog_entries.sql` | Tenant-local admins can alter the product-wide public announcement feed without maker-checker review or immutable revision history. |
 | high | privacy / third-party integration | Support ticket GitHub sync exports raw ticket descriptions plus internal company code and requester user id to the configured GitHub repository. | `SupportTicketGitHubSyncService.buildIssueBody(...)`, `GitHubIssueClient`, `GitHubProperties` | Sensitive support data leaves the ERP boundary and lands in an external system with no redaction or per-category data minimization. |
 | high | resilience / workflow integrity | Support ticket creation returns success before GitHub sync completes, and failed issue creation has no retry loop for unsynced tickets. | `SupportTicketService.create(...)`, `SupportTicketGitHubSyncService.submitGitHubIssueAsync(...)`, `syncGitHubIssueStatuses()` | Operators and end users can believe a ticket is fully escalated even though only the local row exists; external escalation may silently stall forever. |
@@ -247,8 +247,8 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 | medium | hidden side effects / design | Creating a user with `ROLE_DEALER` auto-provisions or relinks dealer master data and receivable accounts from the admin-user surface. | `AdminUserService.createUser(...)`, `createDealerForUser(...)`, `AdminUserServiceTest.createUser_relinksExistingDealerByEmailAndReactivatesReceivableAccount()` | A user-management action crosses into sales/accounting state and can unexpectedly reactivate downstream financial objects. |
 | medium | API / OpenAPI drift | Support ticket endpoints are missing from `openapi.json`, and `AdminApprovalsResponse` in OpenAPI omits `periodCloseRequests`. | `SupportTicketController`, `openapi.json`, `AdminApprovalsResponse.java`, `AdminSettingsControllerApprovalsContractTest` | Client generation, review tooling, and operator docs understate the real governance surface and miss one approval lane entirely. |
 | medium | design / runtime governance | Tenant runtime policy is split across `TenantRuntimePolicyService`, `modules.company.service.TenantRuntimeEnforcementService`, and `modules.portal.service.TenantRuntimeEnforcementInterceptor`, with different defaults and enforcement surfaces. | `TenantRuntimePolicyService`, `modules.company.service.TenantRuntimeEnforcementService`, `modules.portal.service.TenantRuntimeEnforcementInterceptor` | Operators can believe they changed one quota model while a different runtime path still enforces another default. |
-| medium | API / route drift | `GET /api/v1/admin/settings/policy` currently returns `404`, even though the surrounding admin-settings surface suggests a dedicated policy sub-route. | live backend probe on `GET /api/v1/admin/settings/policy`, `AdminSettingsController` route surface | Frontend/operator code can assume a separable policy endpoint exists and only discover at runtime that the backend has no live route there. |
-| medium | observability / abuse prevention | `POST /api/v1/admin/notify` sends arbitrary SMTP email through shared mail config but does not create its own audit event. | `AdminSettingsController.notifyUser(...)`, `EmailService.sendSimpleEmail(...)` | This is a phishing/spam-capable admin surface with weak traceability. |
+| low | resolved hard-cut cleanup | Retired `GET /api/v1/admin/settings/policy` remains `404` by design after settings ownership moved to `/api/v1/superadmin/settings`. | `AdminSettingsController`, live backend probe on `GET /api/v1/admin/settings/policy` | Frontend/operator integrations should stop probing retired admin-settings policy routes and use the canonical superadmin settings host. |
+| medium | observability / abuse prevention | `POST /api/v1/superadmin/notify` sends arbitrary SMTP email through shared mail config but does not create its own audit event. | `AdminUtilityController.notifyUser(...)`, `EmailService.sendSimpleEmail(...)` | This remains a phishing/spam-capable control-plane surface with weak traceability. |
 | low | protocol drift | OpenAPI documents `DELETE /api/v1/admin/changelog/{id}` as `200`, while the controller returns `204 No Content`. | `ChangelogController.delete(...)`, `openapi.json` | Generated clients and automated contract checks can build the wrong response expectations for a governance endpoint. |
 
 ## Security, privacy, protocol, observability, and bad-pattern notes

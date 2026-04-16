@@ -13,27 +13,27 @@ import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketCreateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketListResponse;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketResponse;
-import com.bigbrightpaints.erp.modules.admin.service.PortalSupportTicketService;
+import com.bigbrightpaints.erp.modules.admin.service.AdminSupportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/portal/support/tickets")
-@PreAuthorize(PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING)
+@PreAuthorize("hasAuthority('ROLE_ACCOUNTING')")
 public class PortalSupportTicketController {
 
-  private final PortalSupportTicketService portalSupportTicketService;
+  private final AdminSupportService adminSupportService;
 
-  public PortalSupportTicketController(PortalSupportTicketService portalSupportTicketService) {
-    this.portalSupportTicketService = portalSupportTicketService;
+  public PortalSupportTicketController(AdminSupportService adminSupportService) {
+    this.adminSupportService = adminSupportService;
   }
 
   @PostMapping
   public ResponseEntity<ApiResponse<SupportTicketResponse>> create(
       @Valid @RequestBody SupportTicketCreateRequest request) {
     return ResponseEntity.ok(
-        ApiResponse.success("Support ticket created", portalSupportTicketService.create(request)));
+        ApiResponse.success("Support ticket created", adminSupportService.create(request)));
   }
 
   @GetMapping
@@ -41,13 +41,12 @@ public class PortalSupportTicketController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Support tickets fetched",
-            new SupportTicketListResponse(portalSupportTicketService.list())));
+            new SupportTicketListResponse(adminSupportService.listAllTenantTickets())));
   }
 
   @GetMapping("/{ticketId}")
   public ResponseEntity<ApiResponse<SupportTicketResponse>> getById(@PathVariable Long ticketId) {
     return ResponseEntity.ok(
-        ApiResponse.success(
-            "Support ticket fetched", portalSupportTicketService.getById(ticketId)));
+        ApiResponse.success("Support ticket fetched", adminSupportService.getById(ticketId)));
   }
 }

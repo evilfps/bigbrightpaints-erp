@@ -16,19 +16,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
-import com.bigbrightpaints.erp.core.notification.EmailService;
-import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
-import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
-import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
-import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
-import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.company.service.ModuleGatingService;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 class AdminSettingsControllerTenantRuntimeContractTest {
@@ -43,36 +32,6 @@ class AdminSettingsControllerTenantRuntimeContractTest {
 
     assertThat(annotation).isNotNull();
     assertThat(annotation.value()).isEqualTo("hasAuthority('ROLE_SUPER_ADMIN')");
-  }
-
-  @Test
-  void approvals_requiresTenantAdminOrAccountingAuthority() throws Exception {
-    Method method = AdminSettingsController.class.getMethod("approvals");
-
-    PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
-
-    assertThat(annotation).isNotNull();
-    assertThat(annotation.value())
-        .isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_OR_ACCOUNTING_ONLY);
-  }
-
-  @Test
-  void exportApprovalDecisionEndpoints_requireTenantAdminAuthority() throws Exception {
-    Method approveMethod =
-        AdminSettingsController.class.getMethod("approveExportRequest", Long.class);
-    Method rejectMethod =
-        AdminSettingsController.class.getMethod(
-            "rejectExportRequest",
-            Long.class,
-            com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDecisionRequest.class);
-
-    PreAuthorize approveAnnotation = approveMethod.getAnnotation(PreAuthorize.class);
-    PreAuthorize rejectAnnotation = rejectMethod.getAnnotation(PreAuthorize.class);
-
-    assertThat(approveAnnotation).isNotNull();
-    assertThat(approveAnnotation.value()).isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_ONLY);
-    assertThat(rejectAnnotation).isNotNull();
-    assertThat(rejectAnnotation.value()).isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_ONLY);
   }
 
   @Test
@@ -107,16 +66,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     when(systemSettingsService.snapshot()).thenReturn(snapshot);
 
     AdminSettingsController controller =
-        new AdminSettingsController(
-            systemSettingsService,
-            mock(EmailService.class),
-            mock(CompanyContextService.class),
-            mock(TenantRuntimePolicyService.class),
-            mock(ExportApprovalService.class),
-            mock(CreditRequestRepository.class),
-            mock(CreditLimitOverrideRequestRepository.class),
-            mock(PayrollRunRepository.class),
-            mock(ModuleGatingService.class));
+        new AdminSettingsController(systemSettingsService, null);
 
     ApiResponse<SystemSettingsDto> response = controller.getSettings();
 
@@ -156,16 +106,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     when(systemSettingsService.update(request)).thenReturn(updated);
 
     AdminSettingsController controller =
-        new AdminSettingsController(
-            systemSettingsService,
-            mock(EmailService.class),
-            mock(CompanyContextService.class),
-            mock(TenantRuntimePolicyService.class),
-            mock(ExportApprovalService.class),
-            mock(CreditRequestRepository.class),
-            mock(CreditLimitOverrideRequestRepository.class),
-            mock(PayrollRunRepository.class),
-            mock(ModuleGatingService.class));
+        new AdminSettingsController(systemSettingsService, null);
 
     ApiResponse<SystemSettingsDto> response = controller.updateSettings(request);
 
@@ -219,18 +160,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     when(systemSettingsService.update(request)).thenReturn(after);
 
     AdminSettingsController controller =
-        new AdminSettingsController(
-            systemSettingsService,
-            mock(EmailService.class),
-            mock(CompanyContextService.class),
-            mock(TenantRuntimePolicyService.class),
-            mock(ExportApprovalService.class),
-            mock(CreditRequestRepository.class),
-            mock(CreditLimitOverrideRequestRepository.class),
-            mock(PeriodCloseRequestRepository.class),
-            mock(PayrollRunRepository.class),
-            auditService,
-            mock(ModuleGatingService.class));
+        new AdminSettingsController(systemSettingsService, auditService);
 
     controller.updateSettings(request);
 
@@ -249,120 +179,4 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     assertThat(metadata.get("requestedPlatformAuthCode")).isEqualTo("<redacted>");
   }
 
-  @Test
-  void updateSettings_redacts_platform_auth_code_when_settings_update_runs() {
-    SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
-    AuditService auditService = mock(AuditService.class);
-    SystemSettingsDto before =
-        new SystemSettingsDto(
-            java.util.List.of("https://portal.bigbrightpaints.com"),
-            true,
-            false,
-            true,
-            "PLATFORM",
-            true,
-            "ops@bigbrightpaints.com",
-            "https://mail.bigbrightpaints.com",
-            false,
-            true);
-    SystemSettingsUpdateRequest request =
-        new SystemSettingsUpdateRequest(
-            java.util.List.of("https://portal.bigbrightpaints.com"),
-            null,
-            null,
-            false,
-            null,
-            true,
-            "noreply@bigbrightpaints.com",
-            "https://mail.bigbrightpaints.com",
-            true,
-            false);
-    SystemSettingsDto after =
-        new SystemSettingsDto(
-            java.util.List.of("https://portal.bigbrightpaints.com"),
-            true,
-            false,
-            false,
-            "PLATFORM",
-            true,
-            "noreply@bigbrightpaints.com",
-            "https://mail.bigbrightpaints.com",
-            true,
-            false);
-    when(systemSettingsService.snapshot()).thenReturn(before);
-    when(systemSettingsService.update(request)).thenReturn(after);
-
-    AdminSettingsController controller =
-        new AdminSettingsController(
-            systemSettingsService,
-            mock(EmailService.class),
-            mock(CompanyContextService.class),
-            mock(TenantRuntimePolicyService.class),
-            mock(ExportApprovalService.class),
-            mock(CreditRequestRepository.class),
-            mock(CreditLimitOverrideRequestRepository.class),
-            mock(PeriodCloseRequestRepository.class),
-            mock(PayrollRunRepository.class),
-            auditService,
-            mock(ModuleGatingService.class));
-
-    controller.updateSettings(request);
-
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
-    verify(auditService)
-        .logAuthSuccess(
-            org.mockito.ArgumentMatchers.eq(AuditEvent.CONFIGURATION_CHANGED),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.isNull(),
-            metadataCaptor.capture());
-    Map<String, String> metadata = metadataCaptor.getValue();
-    assertThat(metadata.get("requestedPlatformAuthCode")).isEqualTo("<redacted>");
-  }
-
-  @Test
-  void notifyUser_dispatchesEmailAndReturnsSuccessContract() {
-    EmailService emailService = mock(EmailService.class);
-    AdminSettingsController controller =
-        new AdminSettingsController(
-            mock(SystemSettingsService.class),
-            emailService,
-            mock(CompanyContextService.class),
-            mock(TenantRuntimePolicyService.class),
-            mock(ExportApprovalService.class),
-            mock(CreditRequestRepository.class),
-            mock(CreditLimitOverrideRequestRepository.class),
-            mock(PayrollRunRepository.class),
-            mock(ModuleGatingService.class));
-    AdminNotifyRequest request =
-        new AdminNotifyRequest(
-            "admin.user@bigbrightpaints.com",
-            "Tenant runtime maintenance",
-            "Maintenance window starts at 23:00 UTC");
-
-    ApiResponse<String> response = controller.notifyUser(request);
-
-    assertThat(response.success()).isTrue();
-    assertThat(response.message()).isEqualTo("Notification sent");
-    assertThat(response.data()).isEqualTo("Email dispatched");
-    verify(emailService)
-        .sendSimpleEmail(
-            "admin.user@bigbrightpaints.com",
-            "Tenant runtime maintenance",
-            "Maintenance window starts at 23:00 UTC");
-  }
-
-  private AdminSettingsController newController(
-      TenantRuntimePolicyService tenantRuntimePolicyService) {
-    return new AdminSettingsController(
-        mock(SystemSettingsService.class),
-        mock(EmailService.class),
-        mock(CompanyContextService.class),
-        tenantRuntimePolicyService,
-        mock(ExportApprovalService.class),
-        mock(CreditRequestRepository.class),
-        mock(CreditLimitOverrideRequestRepository.class),
-        mock(PayrollRunRepository.class),
-        mock(ModuleGatingService.class));
-  }
 }

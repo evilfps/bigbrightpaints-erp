@@ -94,39 +94,77 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
 
     assertOperationContract(
         root,
-        "/api/v1/admin/settings",
+        "/api/v1/superadmin/settings",
         "get",
         null,
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
     assertOperationContract(
         root,
-        "/api/v1/admin/settings",
+        "/api/v1/superadmin/settings",
         "put",
         "#/components/schemas/SystemSettingsUpdateRequest",
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
     assertOperationContract(
         root,
+        "/api/v1/superadmin/roles",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseListRoleDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/roles",
+        "post",
+        "#/components/schemas/CreateRoleRequest",
+        "200",
+        "#/components/schemas/ApiResponseRoleDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/roles/{roleKey}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseRoleDto");
+    assertOperationMissing(root, "/api/v1/admin/settings", "get");
+    assertOperationMissing(root, "/api/v1/admin/settings", "put");
+    assertOperationMissing(root, "/api/v1/admin/roles", "get");
+    assertOperationMissing(root, "/api/v1/admin/roles", "post");
+    assertOperationMissing(root, "/api/v1/admin/roles/{roleKey}", "get");
+    assertOperationContract(
+        root,
         "/api/v1/admin/approvals",
         "get",
         null,
         "200",
-        "#/components/schemas/ApiResponseAdminApprovalsResponse");
+        "#/components/schemas/ApiResponseAdminApprovalInboxResponse");
     assertOperationContract(
         root,
-        "/api/v1/admin/exports/{requestId}/approve",
-        "put",
+        "/api/v1/admin/approvals/{originType}/{id}/decisions",
+        "post",
+        "#/components/schemas/AdminApprovalDecisionRequest",
+        "200",
+        "#/components/schemas/ApiResponseAdminApprovalItemDto");
+    JsonNode approvalDecisionOperation =
+        root.path("paths").path("/api/v1/admin/approvals/{originType}/{id}/decisions").path("post");
+    assertThat(approvalDecisionOperation.path("description").asText(""))
+        .contains("PERIOD_CLOSE_REQUEST")
+        .contains("require");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/dashboard",
+        "get",
         null,
         "200",
-        "#/components/schemas/ApiResponseExportRequestDto");
+        "#/components/schemas/ApiResponseAdminDashboardDto");
     assertOperationContract(
         root,
-        "/api/v1/admin/exports/{requestId}/reject",
-        "put",
-        "#/components/schemas/ExportRequestDecisionRequest",
+        "/api/v1/admin/self/settings",
+        "get",
+        null,
         "200",
-        "#/components/schemas/ApiResponseExportRequestDto");
+        "#/components/schemas/ApiResponseAdminSelfSettingsDto");
     assertOperationMissing(root, "/api/v1/admin/exports/pending", "get");
     assertOperationContract(
         root,
@@ -331,6 +369,20 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationContract(root, "/api/v1/admin/users/{id}/unsuspend", "patch", null, "204", null);
     assertOperationContract(
         root, "/api/v1/admin/users/{id}/mfa/disable", "patch", null, "204", null);
+    assertOperationContract(
+        root,
+        "/api/v1/admin/users/{id}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseUserDto");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/users/{id}",
+        "put",
+        "#/components/schemas/UpdateUserRequest",
+        "200",
+        "#/components/schemas/ApiResponseUserDto");
     assertOperationContract(root, "/api/v1/admin/users/{id}", "delete", null, "204", null);
 
     assertOperationContract(
@@ -691,6 +743,28 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   @Test
   void support_ticket_contract_paths_expose_only_split_hosts() throws IOException {
     JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/admin/support/tickets",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketListResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/support/tickets",
+        "post",
+        "#/components/schemas/SupportTicketCreateRequest",
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/support/tickets/{ticketId}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
 
     assertOperationContract(
         root,

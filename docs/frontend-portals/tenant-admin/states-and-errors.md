@@ -39,7 +39,12 @@ Important user-management failures:
 
 Important approval notes:
 
-- Reject should require a human-readable reason in the UI even though the API request body is optional.
+- Decision reason is origin-specific:
+  - `CREDIT_REQUEST`: reason required for approve/reject
+  - `CREDIT_LIMIT_OVERRIDE_REQUEST`: reason required for approve/reject
+  - `PERIOD_CLOSE_REQUEST`: reason required for approve/reject
+  - `EXPORT_REQUEST`: reason optional
+  - `PAYROLL_RUN`: reject is unsupported
 - Sensitive requester fields may be absent. Render null-safe detail panels.
 
 ## Support ticket states

@@ -181,7 +181,7 @@ Super-admin users authenticate with the platform scope code (default: `PLATFORM`
 - `/api/v1/superadmin/**` — control-plane operations.
 - `/api/v1/auth/**` — auth endpoints.
 - `/api/v1/companies` — company listing.
-- `/api/v1/admin/settings` — global settings.
+- `/api/v1/superadmin/settings` — global settings.
 
 Super-admin users are **explicitly blocked** from tenant business endpoints (sales, inventory, factory, purchasing, HR, portal, dealer-portal, etc.) by `CompanyContextFilter`.
 

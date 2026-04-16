@@ -24,6 +24,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, Lo
 
   Optional<SupportTicket> findByCompanyAndId(Company company, Long id);
 
+  long countByCompanyAndStatus(Company company, SupportTicketStatus status);
+
   List<SupportTicket> findTop200ByGithubIssueNumberIsNotNullAndStatusInOrderByCreatedAtAsc(
       Collection<SupportTicketStatus> statuses);
 

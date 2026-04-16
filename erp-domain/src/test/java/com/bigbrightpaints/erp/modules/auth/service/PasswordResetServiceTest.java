@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.EmailProperties;
@@ -179,12 +181,45 @@ class PasswordResetServiceTest {
   }
 
   @Test
+  void requestResetByAdminAuditMetadataDoesNotTreatTargetAsActor() {
+    UserAccount user = enabledUser("admin-reset-audit@example.com", TENANT_SCOPE);
+
+    passwordResetService.requestResetByAdmin(user);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(auditService)
+        .logAuthSuccess(
+            eq(AuditEvent.PASSWORD_RESET_REQUESTED),
+            eq("admin-reset-audit@example.com"),
+            eq(TENANT_SCOPE),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertEquals("admin_force_reset", metadata.get("operation"));
+    assertEquals("email_dispatched", metadata.get("outcome"));
+    assertEquals(null, metadata.get("actorPublicId"));
+    assertEquals(user.getPublicId().toString(), metadata.get("subjectPublicId"));
+  }
+
+  @Test
   void requestResetByAdminFailsFastWhenDeliveryDisabled() {
     UserAccount user = enabledUser("admin-reset@example.com", TENANT_SCOPE);
     emailProperties.setSendPasswordReset(false);
 
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     assertThrows(ApplicationException.class, () -> passwordResetService.requestResetByAdmin(user));
 
+    verify(auditService)
+        .logAuthFailure(
+            eq(AuditEvent.PASSWORD_RESET_REQUESTED),
+            eq("admin-reset@example.com"),
+            eq(TENANT_SCOPE),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertEquals("delivery_failed", metadata.get("outcome"));
+    assertEquals(user.getPublicId().toString(), metadata.get("subjectPublicId"));
+    assertEquals(null, metadata.get("actorPublicId"));
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
         .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
@@ -195,12 +230,49 @@ class PasswordResetServiceTest {
     UserAccount user = enabledUser("disabled-admin@example.com", TENANT_SCOPE);
     user.setEnabled(false);
 
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     ApplicationException exception =
         assertThrows(
             ApplicationException.class, () -> passwordResetService.requestResetByAdmin(user));
 
     assertEquals(ErrorCode.AUTH_ACCOUNT_DISABLED, exception.getErrorCode());
     assertEquals("Account is disabled", exception.getMessage());
+    verify(auditService)
+        .logAuthFailure(
+            eq(AuditEvent.PASSWORD_RESET_REQUESTED),
+            eq("disabled-admin@example.com"),
+            eq(TENANT_SCOPE),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertEquals("user_disabled", metadata.get("outcome"));
+    assertEquals(user.getPublicId().toString(), metadata.get("subjectPublicId"));
+    verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
+    verify(emailService, never())
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
+  }
+
+  @Test
+  void requestResetByAdminRateLimitedAuditIncludesSubjectPublicId() {
+    UserAccount user = enabledUser("rate-limited-admin@example.com", TENANT_SCOPE);
+    when(securityMonitoringService.checkRateLimit(anyString())).thenReturn(false);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+    ApplicationException exception =
+        assertThrows(
+            ApplicationException.class, () -> passwordResetService.requestResetByAdmin(user));
+
+    assertEquals(ErrorCode.SYSTEM_RATE_LIMIT_EXCEEDED, exception.getErrorCode());
+    verify(auditService)
+        .logAuthFailure(
+            eq(AuditEvent.PASSWORD_RESET_REQUESTED),
+            eq("rate-limited-admin@example.com"),
+            eq(TENANT_SCOPE),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertEquals("rate_limited", metadata.get("outcome"));
+    assertEquals(user.getPublicId().toString(), metadata.get("subjectPublicId"));
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
         .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
@@ -236,8 +308,20 @@ class PasswordResetServiceTest {
         .sendPasswordResetEmailRequired(
             eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     assertThrows(RuntimeException.class, () -> passwordResetService.requestResetByAdmin(user));
 
+    verify(auditService)
+        .logAuthFailure(
+            eq(AuditEvent.PASSWORD_RESET_REQUESTED),
+            eq("user@example.com"),
+            eq(TENANT_SCOPE),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertEquals("delivery_failed", metadata.get("outcome"));
+    assertEquals(user.getPublicId().toString(), metadata.get("subjectPublicId"));
+    assertEquals(null, metadata.get("actorPublicId"));
     verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
     verify(tokenRepository).deleteByTokenDigest(anyString());
   }

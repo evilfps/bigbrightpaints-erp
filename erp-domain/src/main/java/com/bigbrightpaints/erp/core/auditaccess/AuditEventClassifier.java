@@ -35,6 +35,7 @@ public class AuditEventClassifier {
   private static final List<String> SUBJECT_IDENTIFIER_KEYS =
       List.of(
           "subjectIdentifier",
+          "subjectPublicId",
           "targetUserEmail",
           "requesterEmail",
           "adminEmail",

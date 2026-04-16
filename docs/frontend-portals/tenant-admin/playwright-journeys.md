@@ -29,10 +29,10 @@
 ## Journey 4: Approve an export request
 
 1. Open `/tenant/approvals`.
-2. Assert `GET /api/v1/admin/approvals` returns `exportRequests`.
+2. Assert `GET /api/v1/admin/approvals` returns `items[]` with rows where `originType=EXPORT_REQUEST`.
 3. Open one export request detail.
 4. Approve it.
-5. Assert `PUT /api/v1/admin/exports/{requestId}/approve` succeeds.
+5. Assert `POST /api/v1/admin/approvals/EXPORT_REQUEST/{requestId}/decisions` with `{"decision":"APPROVE"}` succeeds.
 6. Refresh inbox and assert the row is gone from pending requests.
 
 ## Journey 5: Reject an export request
@@ -40,7 +40,7 @@
 1. Open one export approval detail.
 2. Enter a rejection reason.
 3. Submit reject.
-4. Assert `PUT /api/v1/admin/exports/{requestId}/reject` succeeds.
+4. Assert `POST /api/v1/admin/approvals/EXPORT_REQUEST/{requestId}/decisions` with `{"decision":"REJECT","reason":"..."}` succeeds.
 5. Refresh inbox and assert the row is removed from pending state.
 
 ## Journey 6: Create and inspect a support ticket

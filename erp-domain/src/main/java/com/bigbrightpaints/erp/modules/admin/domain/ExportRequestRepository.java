@@ -14,4 +14,6 @@ public interface ExportRequestRepository extends JpaRepository<ExportRequest, Lo
 
   List<ExportRequest> findByCompanyAndStatusOrderByCreatedAtAsc(
       Company company, ExportApprovalStatus status);
+
+  long countByCompanyAndStatus(Company company, ExportApprovalStatus status);
 }

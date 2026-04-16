@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -710,6 +711,10 @@ public class SuperAdminTenantControlPlaneService {
       auditMetadata.putAll(metadata);
     }
     auditMetadata.put("actor", currentActor());
+    String actorPublicId = currentActorPublicId();
+    if (StringUtils.hasText(actorPublicId)) {
+      auditMetadata.put("actorPublicId", actorPublicId);
+    }
     auditMetadata.put("reason", reason);
     auditMetadata.put("targetCompanyCode", company.getCode());
     auditMetadata.put("targetCompanyId", String.valueOf(company.getId()));
@@ -719,5 +724,19 @@ public class SuperAdminTenantControlPlaneService {
 
   private Instant toInstant(LocalDateTime timestamp) {
     return timestamp == null ? null : timestamp.atZone(ZoneOffset.UTC).toInstant();
+  }
+
+  private String currentActorPublicId() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null) {
+      return null;
+    }
+    Object principal = authentication.getPrincipal();
+    if (principal instanceof UserPrincipal userPrincipal
+        && userPrincipal.getUser() != null
+        && userPrincipal.getUser().getPublicId() != null) {
+      return userPrincipal.getUser().getPublicId().toString();
+    }
+    return null;
   }
 }

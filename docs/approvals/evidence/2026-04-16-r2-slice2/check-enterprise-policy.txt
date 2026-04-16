@@ -1,0 +1,5 @@
+[enterprise-policy] canonical workflow decision contract guard
+[guard_workflow_canonical_paths] verified canonical dispatch source path
+[guard_workflow_canonical_paths] OK
+[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls
+[enterprise-policy] OK

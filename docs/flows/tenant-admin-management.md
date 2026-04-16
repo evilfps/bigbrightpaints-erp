@@ -1,254 +1,256 @@
 # Tenant / Admin Management Flow
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-15
 
-This packet documents the **tenant/admin management flow**: the canonical lifecycle from super-admin tenant onboarding through ongoing tenant administration, user management, and support operations. It covers company creation, admin provisioning, lifecycle state transitions, usage controls, module gating, user CRUD, support interventions, and platform governance surfaces.
+This packet describes the canonical behavior for tenant and admin management after the tenant-admin hard-cut refactor.
 
-This flow is **behavior-first** and **code-grounded**. Where the backend is incomplete, blocked, or intentionally partial, the packet explicitly states the current limitation instead of presenting partial behavior as complete.
+## Product Boundary
 
----
+### Tenant-admin product (in scope)
 
-## 1. Actors
+- Dashboard
+- User management
+- Approval inbox + decisions
+- Tenant audit feed
+- Internal support tickets (admin host)
+- Self-settings read model
+- Tenant changelog reads
 
-| Actor | Role | Authorization Scope |
+### Control-plane (out of tenant-admin scope)
+
+- Tenant onboarding
+- Tenant lifecycle transitions
+- Module enable/disable
+- Tenant limit and quota mutation
+- Support recovery operations
+- Platform changelog publishing
+
+All control-plane behavior stays under `/api/v1/superadmin/**`.
+
+## Actors
+
+| Actor | Role | Scope |
 | --- | --- | --- |
-| **Super admin** | User with `ROLE_SUPER_ADMIN` | Platform-wide access to `/api/v1/superadmin/**` and `/api/v1/companies/**` |
-| **Tenant admin** | User with `ROLE_ADMIN` within a tenant | Manage own tenant users, settings, exports |
-| **Tenant user** | Regular user with any role | Self-service only, cannot access admin surfaces |
-| **Accounting role** | User with `ROLE_ACCOUNTING` | Can approve exports, access approval inbox (read-only) |
+| Superadmin | `ROLE_SUPER_ADMIN` | Platform control plane only |
+| Tenant admin | `ROLE_ADMIN` | Tenant-admin product workflows |
+| Tenant user | non-admin role | Self-service module workflows |
+| Accounting | `ROLE_ACCOUNTING` | Accounting/portal workflows, not tenant-admin shell |
 
----
+## Entrypoints
 
-## 2. Entrypoints
+### Superadmin control-plane entrypoints
 
-| Entrypoint | Method | Path | Actor | Purpose |
-| --- | --- | --- | --- | --- |
-| List CoA templates | GET | `/api/v1/superadmin/tenants/coa-templates` | `ROLE_SUPER_ADMIN` | Get available chart-of-accounts templates |
-| Onboard tenant | POST | `/api/v1/superadmin/tenants/onboard` | `ROLE_SUPER_ADMIN` | Create company, admin user, seed CoA, create default period |
-| List tenants | GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | List all tenants with optional status filter |
-| Get tenant detail | GET | `/api/v1/superadmin/tenants/{id}` | `ROLE_SUPER_ADMIN` | Get full tenant detail with support timeline |
-| Update lifecycle | PUT | `/api/v1/superadmin/tenants/{id}/lifecycle` | `ROLE_SUPER_ADMIN` | Update tenant lifecycle state (ACTIVE/SUSPENDED/DEACTIVATED) |
-| Update limits | PUT | `/api/v1/superadmin/tenants/{id}/limits` | `ROLE_SUPER_ADMIN` | Update tenant usage limits (max users, requests) |
-| Update modules | PUT | `/api/v1/superadmin/tenants/{id}/modules` | `ROLE_SUPER_ADMIN` | Enable/disable modules for tenant |
-| Support warning | POST | `/api/v1/superadmin/tenants/{id}/support/warnings` | `ROLE_SUPER_ADMIN` | Issue support warning |
-| Support admin reset | POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | Force-reset tenant admin password |
-| Support context | PUT | `/api/v1/superadmin/tenants/{id}/support/context` | `ROLE_SUPER_ADMIN` | Update support notes and tags |
-| Force logout | POST | `/api/v1/superadmin/tenants/{id}/force-logout` | `ROLE_SUPER_ADMIN` | Log out all tenant users |
-| Replace main admin | PUT | `/api/v1/superadmin/tenants/{id}/admins/main` | `ROLE_SUPER_ADMIN` | Replace main admin user |
-| Request email change | POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request` | `ROLE_SUPER_ADMIN` | Request admin email change |
-| Confirm email change | POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm` | `ROLE_SUPER_ADMIN` | Confirm admin email change |
-| Admin list users | GET | `/api/v1/admin/users` | `ROLE_ADMIN` | List tenant users |
-| Admin create user | POST | `/api/v1/admin/users` | `ROLE_ADMIN` | Create tenant user |
-| Admin update user | PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | Update user details |
-| Admin user status | PUT | `/api/v1/admin/users/{userId}/status` | `ROLE_ADMIN` | Enable/disable user |
-| Admin force-reset | POST | `/api/v1/admin/users/{userId}/force-reset-password` | `ROLE_ADMIN` | Reset user's password |
-| Request export | POST | `/api/v1/exports/request` | `ROLE_ADMIN`, `ROLE_ACCOUNTING` | Request sensitive export |
-| Approve export | PUT | `/api/v1/admin/exports/{requestId}/approve` | `ROLE_ADMIN` | Approve export request |
-| Reject export | PUT | `/api/v1/admin/exports/{requestId}/reject` | `ROLE_ADMIN` | Reject export request |
-| Publish changelog | POST | `/api/v1/superadmin/changelog` | `ROLE_SUPER_ADMIN` | Publish release notes |
-| List changelog | GET | `/api/v1/changelog` | Authenticated | List release notes |
+- `POST /api/v1/superadmin/tenants/onboard`
+- `GET /api/v1/superadmin/tenants`
+- `GET /api/v1/superadmin/tenants/{id}`
+- `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+- `PUT /api/v1/superadmin/tenants/{id}/limits`
+- `PUT /api/v1/superadmin/tenants/{id}/modules`
+- `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`
+- `POST /api/v1/superadmin/tenants/{id}/support/warnings`
+- `PUT /api/v1/superadmin/tenants/{id}/support/context`
+- `POST /api/v1/superadmin/changelog`
+- `POST /api/v1/superadmin/notify`
 
----
+### Tenant-admin product entrypoints
 
-## 3. Preconditions
-
-### Tenant Onboarding Preconditions
-
-1. **Caller must be super admin** — `ROLE_SUPER_ADMIN` required
-2. **Company code must be unique** — no existing company with same code
-3. **Admin email must be unique** — no existing user with same email across platform
-4. **CoA template must exist** — valid template code from `/api/v1/superadmin/tenants/coa-templates`
-5. **Mail must be configured** — `erp.mail.enabled` and `erp.mail.send-password-reset` for credential delivery
-
-### Lifecycle Transition Preconditions
-
-1. **Valid state transition** — must follow `ACTIVE ↔ SUSPENDED → DEACTIVATED` machine
-2. **Reason required** — each transition requires a reason string
-3. **Main admin cannot be removed without replacement** — cannot deactivate main admin before new main admin is set
-
-### Admin User Management Preconditions
-
-1. **Caller must be tenant admin** — `ROLE_ADMIN` within own tenant
-2. **Target user must belong to same tenant** — unless caller is super admin
-3. **Role must be valid** — valid role ID from `Role` table
-
-### Export Approval Preconditions
-
-1. **Export must be pending** — request exists with status `PENDING`
-2. **Caller must be tenant admin** — `ROLE_ADMIN` required to approve/reject
-3. **Accounting role cannot approve** — accounting sees export requests in inbox but cannot take action
-
----
-
-## 4. Lifecycle
-
-### 4.1 Tenant Onboarding Lifecycle
-
-```
-[Start] → Validate super-admin auth → Validate company code uniqueness → 
-Validate admin email uniqueness → Get CoA template → Create company entity → 
-Create admin user account → Generate temp password → Seed chart of accounts → 
-Create default accounting period → Send admin credentials email → [End: Tenant operational]
-```
-
-**Key behaviors:**
-- Onboarding creates: company record, admin user with `ROLE_ADMIN`, seeded CoA from template, default period
-- Admin password is temporary — user must change on first login
-- If email delivery fails, onboarding returns success but admin must use support reset path
-
-### 4.2 Tenant Lifecycle State Machine
-
-```
-ACTIVE ←→ SUSPENDED → DEACTIVATED
-  │               │             ↑
-  │               └─────────────┘
-  └─────────────────────────────┘
-```
-
-| From State | To State | API | Effect |
-| --- | --- | --- | --- |
-| ACTIVE | SUSPENDED | `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | Tenant becomes read-only (HTTP 423 on mutations) |
-| SUSPENDED | ACTIVE | `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | Tenant restored to full operation |
-| ACTIVE | DEACTIVATED | `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | Tenant fully blocked |
-| SUSPENDED | DEACTIVATED | `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | Tenant fully blocked |
-| DEACTIVATED | ACTIVE | `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | Tenant recovered |
-
-**Runtime states** (enforced per-request, separate from lifecycle):
-
-| Runtime State | Effect |
+| Workflow | Method + path |
 | --- | --- |
-| `ACTIVE` | Normal operation |
-| `HOLD` | Read-only (mutations denied with 423) |
-| `BLOCKED` | All requests denied with 403 |
+| Dashboard | `GET /api/v1/admin/dashboard` |
+| User list/create | `GET, POST /api/v1/admin/users` |
+| User detail/update/delete | `GET, PUT, DELETE /api/v1/admin/users/{id}` |
+| User status | `PUT /api/v1/admin/users/{userId}/status` |
+| User suspend/unsuspend | `PATCH /api/v1/admin/users/{id}/suspend`, `PATCH /api/v1/admin/users/{id}/unsuspend` |
+| User MFA disable | `PATCH /api/v1/admin/users/{id}/mfa/disable` |
+| User reset link | `POST /api/v1/admin/users/{userId}/force-reset-password` |
+| Approval inbox | `GET /api/v1/admin/approvals` |
+| Approval decision | `POST /api/v1/admin/approvals/{originType}/{id}/decisions` |
+| Audit feed | `GET /api/v1/admin/audit/events` |
+| Internal support | `POST, GET /api/v1/admin/support/tickets`, `GET /api/v1/admin/support/tickets/{ticketId}` |
+| Self settings | `GET /api/v1/admin/self/settings` |
+| Tenant changelog | `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` |
 
-### 4.3 Admin User Management Lifecycle
+## Preconditions
 
+### Tenant-admin session preconditions
+
+1. Caller must authenticate and pass `GET /api/v1/auth/me`.
+2. Tenant-scoped requests must use `X-Company-Code`.
+3. If `mustChangePassword=true`, user must complete `POST /api/v1/auth/password/change` before normal shell routes.
+
+### Tenant-admin user-management preconditions
+
+1. Caller must be `ROLE_ADMIN` in the active tenant.
+2. Target user must be in the same tenant scope.
+3. Assignable roles are fixed to:
+   - `ROLE_ACCOUNTING`
+   - `ROLE_FACTORY`
+   - `ROLE_SALES`
+   - `ROLE_DEALER`
+4. Unknown/blank/custom roles are rejected.
+
+### Tenant-admin approval preconditions
+
+1. Caller must be tenant admin (`ROLE_ADMIN`).
+2. `originType` must be one of:
+   - `EXPORT_REQUEST`
+   - `CREDIT_REQUEST`
+   - `CREDIT_LIMIT_OVERRIDE_REQUEST`
+   - `PAYROLL_RUN`
+   - `PERIOD_CLOSE_REQUEST`
+3. Decision request must include `decision=APPROVE|REJECT`.
+4. Decision semantics are origin-specific:
+   - `CREDIT_REQUEST`: reason is required for approve/reject.
+   - `CREDIT_LIMIT_OVERRIDE_REQUEST`: reason is required; `expiresAt` may be required by workflow policy.
+   - `PAYROLL_RUN`: only approve is supported; reject fails validation.
+   - `PERIOD_CLOSE_REQUEST`: reason is required for approve/reject; workflow force posture remains request-owned.
+
+## Lifecycle Flows
+
+### 1) Session bootstrap and corridor
+
+```text
+GET /api/v1/auth/me
+  -> mustChangePassword=true ? force password-change corridor : proceed to tenant-admin shell
 ```
-[Create user] → Validate admin auth → Validate unique email → Create user with temp password → 
-Send credentials → [End: User created]
 
-[Update user] → Validate admin auth → Validate target user → Update mutable fields → [End: User updated]
+### 2) Dashboard
 
-[Disable user] → Validate admin auth → Revoke all sessions → Send suspension email → [End: User disabled]
-
-[Force-reset password] → Validate admin auth → Generate reset token → Send reset email → 
-[End: Reset link delivered]
+```text
+GET /api/v1/admin/dashboard
+  -> returns activity + approval + user + support + runtime + security summary
 ```
 
-### 4.4 Support Intervention Lifecycle
+### 3) User lifecycle
 
-```
-[Support warning] → Record warning in support timeline → [End: Warning issued]
-
-[Force logout] → Revoke all refresh tokens → Blacklist all access tokens → [End: All sessions terminated]
-
-[Admin password reset] → Generate reset token → Send reset email → [End: Reset link delivered]
-
-[Main admin replacement] → Validate current main admin → Validate new user → 
-Update main admin flag → [End: Main admin replaced]
+```text
+Create -> validate fixed role set -> provision scoped account -> optional dealer provisioning for ROLE_DEALER
+Update -> validate fixed role set -> apply display/role changes -> revoke tokens when role set changes
+Disable/Suspend/Delete/MFA disable -> scoped target checks -> revoke sessions/tokens where required -> audit
+Force reset link -> scoped target checks -> password reset token + mail dispatch -> audit
 ```
 
-### 4.5 Export Approval Lifecycle
+### 4) Approval lifecycle
 
-```
-[Request export] → Create export request with PENDING status → Log request → [End: Request pending]
-
-[Admin reviews] → GET /api/v1/admin/approvals → [End: Review pending requests]
-
-[Approve] → Validate admin auth → Validate request pending → Update status to APPROVED → 
-Generate download token → Notify requester → [End: Export approved]
-
-[Reject] → Validate admin auth → Validate request pending → Update status to REJECTED → 
-Notify requester → [End: Export rejected]
+```text
+GET /api/v1/admin/approvals
+  -> normalized item list + pendingCount
+POST /api/v1/admin/approvals/{originType}/{id}/decisions
+  -> domain-delegated decision with origin-specific validation rules
+  -> returns normalized updated item
 ```
 
----
+### 5) Internal support lifecycle
 
-## 5. Completion Boundary / Current Definition of Done
+```text
+POST /api/v1/admin/support/tickets
+  -> ticket created in tenant scope
+GET /api/v1/admin/support/tickets
+GET /api/v1/admin/support/tickets/{ticketId}
+  -> list/detail and sync state visibility
+```
 
-The flow is complete when:
+### 6) Self settings lifecycle
 
-1. **Tenant onboarding** — Company exists, admin user created, CoA seeded, default period created
-2. **Lifecycle transition** — New state persisted, runtime enforcement updated, audit logged
-3. **User management** — User created/updated/disabled, sessions revoked as needed
-4. **Support intervention** — Action recorded in support timeline, effect applied
-5. **Export approval** — Request approved/rejected, requester notified
+```text
+GET /api/v1/admin/self/settings
+  -> identity + MFA + mustChangePassword + role list + runtime metrics + active session estimate
+```
 
-### Current Limitations
+## Canonical vs Retired Paths
 
-1. **Company cannot be deleted** — `DELETE /api/v1/companies/{id}` always denies deletion
-
-2. **Accounting cannot approve exports** — Accounting role sees export requests in approval inbox but cannot approve/reject. Export requests with accounting-only viewers have `null` action fields.
-
-3. **Main admin cannot be self-deactivated** — Cannot remove the current main admin before replacement is in place
-
-4. **Changelog publish has no approval** — Super-admin can publish changelog without review
-
-5. **Support ticket sync is best-effort** — Support tickets sync to GitHub but sync failures don't block ticket creation
-
-6. **Tenant limits not auto-enforced** — Limits are stored but automatic enforcement (e.g., preventing new user creation when at limit) is not fully implemented
-
----
-
-## 6. Canonical vs Non-Canonical Paths
-
-### Canonical Paths
-
-| Path | Owner | Notes |
-| --- | --- | --- |
-| `POST /api/v1/superadmin/tenants/onboard` | `SuperAdminTenantOnboardingController` | Primary tenant creation |
-| `PUT /api/v1/superadmin/tenants/{id}/lifecycle` | `SuperAdminController` | Canonical lifecycle control |
-| `PUT /api/v1/superadmin/tenants/{id}/limits` | `SuperAdminController` | Quota management |
-| `PUT /api/v1/superadmin/tenants/{id}/modules` | `SuperAdminController` | Module gating |
-| `POST /api/v1/admin/users` | `AdminUserController` | Tenant user creation |
-| `PUT /api/v1/admin/users/{userId}/status` | `AdminUserController` | User enable/disable |
-| `POST /api/v1/admin/users/{userId}/force-reset-password` | `AdminUserController` | Admin password reset |
-
-### Non-Canonical / Deprecated Paths
-
-| Path | Status | Replacement |
-| --- | --- | --- |
-| `/api/v1/support/**` (shared) | Deprecated | Use host-specific: `/api/v1/portal/support/tickets` or `/api/v1/dealer-portal/support/tickets` |
-
----
-
-## 7. Cross-Module Dependencies
-
-| Module | Dependency | Direction |
-| --- | --- | --- |
-| `auth` | User authentication, password reset, session revocation | Write via service |
-| `rbac` | Role definitions, permission matrix | Read |
-| `accounting` | CoA seeding, period creation | Write via service |
-| `sales` | Export request creation, approval inbox | Read |
-| `portal` | Support ticket surface (dealer) | Write |
-
----
-
-## 8. Security Considerations
-
-- **Super-admin auth required** — All `/api/v1/superadmin/**` endpoints require `ROLE_SUPER_ADMIN`
-- **Tenant isolation** — Tenant admins cannot access other tenants' data
-- **Session revocation** — User disable and force-logout revoke all active sessions
-- **Export approval gate** — Sensitive exports require tenant admin approval
-- **Company context filter** — Mismatched company header vs token claims fails closed
-
----
-
-## 9. Related Documentation
-
-- [docs/modules/company.md](../modules/company.md) — Company module canonical packet
-- [docs/modules/admin-portal-rbac.md](../modules/admin-portal-rbac.md) — Admin and RBAC boundaries
-- [docs/modules/auth.md](../modules/auth.md) — Auth module for credential flows
-- [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
-
----
-
-## 10. Known Limitations
-
-> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
-
-| Decision | Notes |
+| Retired for tenant-admin product | Canonical |
 | --- | --- |
-| Company deletion | No deletion path exists. Hard delete is not supported. |
-| Auto-limit enforcement | Credit limits are stored but not all are automatically enforced. Some require manual intervention. |
-| Changelog approval | No review workflow exists for changelog entries. |
+| `PUT /api/v1/admin/exports/{requestId}/approve|reject` | `POST /api/v1/admin/approvals/{originType}/{id}/decisions` |
+| `/api/v1/portal/support/tickets/**` as tenant-admin host | `/api/v1/admin/support/tickets/**` |
+| Tenant-admin dependency on platform role-catalog hosts (`/api/v1/superadmin/roles/**`) | fixed role assignment validation in `/api/v1/admin/users/**` |
+| `/api/v1/auth/profile` as identity source | `GET /api/v1/auth/me` |
+
+## Completion Boundary
+
+Flow is complete when:
+
+1. Superadmin control-plane actions remain isolated to `/api/v1/superadmin/**`.
+2. Tenant-admin primary screens run on canonical admin product surfaces (`/api/v1/admin/**`).
+3. Legacy portal insights reads (`/api/v1/portal/dashboard|operations|workforce`) remain live `ROLE_ADMIN` read surfaces until backend retirement.
+4. Tenant-admin approval actions happen only through generic admin decisions endpoint with origin-specific decision constraints.
+4. Tenant-admin support runs on admin host, not portal host.
+5. User role assignment remains fixed-list and escalation-proof.
+6. Tenant-admin self-settings use `/api/v1/admin/self/settings` + auth-owned self-service flows.
+
+## Implementation Plan (Executed Slices)
+
+This is the canonical implementation order and status for the tenant-admin hard-cut refactor.
+
+### Slice 1: Contract inventory + hard-cut removals (complete)
+
+- Tenant-admin product ownership moved to canonical `/api/v1/admin/**` surfaces.
+- Tenant-admin role creation/custom-role dependency removed from product contract.
+- Portal-hosted tenant-admin support ownership retired in favor of admin host.
+- Legacy and canonical boundaries aligned in endpoint inventory + portal docs.
+
+### Slice 2: User management rewrite (complete)
+
+- `AdminUserController` + `AdminUserService` now enforce fixed assignable roles only.
+- Tenant-admin user list/detail/mutations mask privileged identities (`ROLE_ADMIN`, `ROLE_SUPER_ADMIN`) as not found.
+- User lifecycle actions remain tenant-scoped and audit-emitting.
+
+### Slice 3: Approval system rewrite (complete)
+
+- Canonical approval inbox contract: `GET /api/v1/admin/approvals`.
+- Canonical generic decision contract: `POST /api/v1/admin/approvals/{originType}/{id}/decisions`.
+- Origin-specific decision constraints enforced in admin orchestration:
+  - credit and credit-override require nonblank reason
+  - payroll reject blocked (approve-only)
+  - period-close force posture preserved
+
+### Slice 4: Dashboard read model (complete)
+
+- Canonical dashboard endpoint: `GET /api/v1/admin/dashboard`.
+- Aggregates approval, user, support, runtime, security, and recent activity summaries.
+- User-summary and activity rows now follow tenant-admin visibility masking for privileged identities (`ROLE_ADMIN`, `ROLE_SUPER_ADMIN`).
+- No quota/runtime mutation behavior is exposed from dashboard.
+
+### Slice 5: Support rewrite (complete)
+
+- Tenant-admin internal support is owned by `/api/v1/admin/support/tickets/**`.
+- Portal support host remains accounting-owned and out of tenant-admin ownership.
+- Sync state visibility remains scoped to support DTOs only.
+
+### Slice 6: Settings/self-service rewrite (complete)
+
+- Canonical tenant-admin settings payload: `GET /api/v1/admin/self/settings`.
+- Self security and password/MFA flows remain auth-owned (`/api/v1/auth/**`).
+- Utility notify action moved to superadmin control-plane host (`POST /api/v1/superadmin/notify`).
+
+### Slice 7: Documentation realignment (complete)
+
+- Updated docs:
+  - `docs/modules/admin-portal-rbac.md`
+  - `docs/flows/tenant-admin-management.md`
+  - `docs/frontend-portals/tenant-admin/api-contracts.md`
+  - `docs/frontend-portals/tenant-admin/routes.md`
+  - `docs/frontend-portals/tenant-admin/role-boundaries.md`
+  - `docs/frontend-api/admin-role.md`
+  - `docs/frontend-api/auth-and-company-scope.md`
+  - `docs/endpoint-inventory.md`
+
+## Verification Contract
+
+Run these in `bigbrightpaints-erp_worktrees/tenant-admin-hardcut-s1`:
+
+- `bash scripts/guard_openapi_contract_drift.sh`
+- `bash scripts/guard_accounting_portal_scope_contract.sh`
+- `bash ci/lint-knowledgebase.sh`
+- `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminUserServiceTest,AdminApprovalServiceTest,AdminApprovalControllerContractTest test`
+- Colima + curl contract checks:
+  - tenant-admin user list excludes privileged targets
+  - privileged-target and missing-target user mutations return the same masked not-found contract
+  - credit-override generic decision rejects blank reason
+  - payroll generic decision rejects `REJECT`
+
+## Related Docs
+
+- [docs/modules/admin-portal-rbac.md](../modules/admin-portal-rbac.md)
+- [docs/frontend-portals/tenant-admin/api-contracts.md](../frontend-portals/tenant-admin/api-contracts.md)
+- [docs/frontend-api/admin-role.md](../frontend-api/admin-role.md)

@@ -1,35 +1,42 @@
 # Tenant Admin Portal
 
+Last reviewed: 2026-04-15
+
 ## Purpose
 
-This portal owns tenant-scoped administration for the current company. It is the shell for session bootstrap, user lifecycle, export approvals, support tickets, and the tenant-visible changelog.
+Tenant-admin portal is the tenant-scoped administration shell for `ROLE_ADMIN`.
+
+It owns:
+
+- dashboard (`/api/v1/admin/dashboard`)
+- user lifecycle (`/api/v1/admin/users/**`)
+- approval inbox + decisions (`/api/v1/admin/approvals`, `POST /api/v1/admin/approvals/{originType}/{id}/decisions`)
+- tenant audit feed (`/api/v1/admin/audit/events`)
+- internal support (`/api/v1/admin/support/tickets/**`)
+- self settings (`/api/v1/admin/self/settings` + auth self-service)
+- read-only changelog (`/api/v1/changelog`)
+
+Still-live legacy admin insight reads:
+
+- `/api/v1/portal/dashboard`
+- `/api/v1/portal/operations`
+- `/api/v1/portal/workforce`
 
 ## Users
 
-- Primary role: `ROLE_ADMIN`
-- Treat the tenant-admin shell, navigation, and route tree as `ROLE_ADMIN` only.
-- Backend reads may also allow `ROLE_ACCOUNTING` for some shared data, but that
-  does not create accounting access to the tenant-admin shell.
+- Primary actor: `ROLE_ADMIN`
+- Tenant-admin shell and navigation are `ROLE_ADMIN` only.
 
-## What belongs here
+## Hard boundaries
 
-- Shell bootstrap from `GET /api/v1/auth/me`
-- User list, create, edit, enable or disable, suspend or unsuspend, MFA disable, force reset password, delete
-- Approval inbox for tenant-admin decisions
-- Export approval decisions
-- Support ticket list, detail, create
-- Tenant-visible changelog read screens
-
-## What does not belong here
-
-- Superadmin onboarding and tenant lifecycle control
-- Accounting journal entry, reversal, period-close, reconciliation, report execution
-- Factory dispatch confirmation or production actions
-- Dealer self-service
+- No superadmin control-plane routes.
+- No role-creation UX.
+- No accounting journal/reconciliation workflows.
+- No factory execution workflows.
+- No dealer self-service workflows.
 
 ## Critical frontend rules
 
-- The active tenant is always the `companyCode` from `GET /api/v1/auth/me`.
-- Do not design or persist a company switcher.
-- Do not expose `ROLE_SUPER_ADMIN` anywhere in role-pickers or shell navigation.
-- Treat `mustChangePassword=true` as a blocking pre-shell state.
+- Always bootstrap with `GET /api/v1/auth/me`.
+- Treat `mustChangePassword=true` as a blocking corridor state.
+- Persist tenant scope as `companyCode` and send `X-Company-Code`.

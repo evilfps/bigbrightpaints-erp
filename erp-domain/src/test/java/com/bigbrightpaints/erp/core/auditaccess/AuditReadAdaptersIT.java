@@ -55,7 +55,7 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             company.getId(),
             AuditEvent.USER_UPDATED,
             day.atTime(9, 1),
-            log -> log.setRequestPath("/api/v1/admin/settings"));
+            log -> log.setRequestPath("/api/v1/admin/users"));
     AuditLog accountingPath =
         saveAuditLog(
             company.getId(),
@@ -268,6 +268,12 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             AuditEvent.CONFIGURATION_CHANGED,
             absentDay.atTime(9, 2),
             log -> log.setRequestPath("/api/v1/admin/settings/preferences"));
+    AuditLog adminRoles =
+        saveAuditLog(
+            tenantA.getId(),
+            AuditEvent.ACCESS_DENIED,
+            absentDay.atTime(9, 2, 30),
+            log -> log.setRequestPath("/api/v1/admin/roles"));
     AuditLog targetCompany =
         saveAuditLog(
             tenantB.getId(),
@@ -289,11 +295,16 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
 
     assertThat(sourceIds(absentPlatformFeed))
         .containsExactlyInAnyOrder(
-            nullCompany.getId(), superadmin.getId(), adminSettings.getId(), targetCompany.getId());
+            nullCompany.getId(),
+            superadmin.getId(),
+            adminSettings.getId(),
+            adminRoles.getId(),
+            targetCompany.getId());
     assertThat(companyCodesBySourceId(absentPlatformFeed))
         .containsEntry(nullCompany.getId(), null)
         .containsEntry(superadmin.getId(), tenantA.getCode())
         .containsEntry(adminSettings.getId(), tenantA.getCode())
+        .containsEntry(adminRoles.getId(), tenantA.getCode())
         .containsEntry(targetCompany.getId(), "TENANT-B");
 
     Company platformCompany = dataSeeder.ensureCompany(platformCode, "Platform Company");
@@ -312,6 +323,33 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
     assertThat(sourceIds(presentPlatformFeed)).containsExactly(platformOwned.getId());
     assertThat(companyCodesBySourceId(presentPlatformFeed))
         .containsEntry(platformOwned.getId(), platformCode);
+  }
+
+  @Test
+  void auditLogAdapter_exposesSubjectPublicIdInFeedSubjectIdentifier() {
+    Company company = dataSeeder.ensureCompany("ARDSUB", "Audit Subject Mapping");
+    LocalDate day = LocalDate.of(2035, 3, 11);
+    String subjectPublicId = "550e8400-e29b-41d4-a716-446655440000";
+    AuditLog resetRequested =
+        saveAuditLog(
+            company.getId(),
+            AuditEvent.PASSWORD_RESET_REQUESTED,
+            day.atTime(9, 0),
+            log -> {
+              log.setRequestPath("/api/v1/auth/password/forgot");
+              log.setMetadata(
+                  Map.of(
+                      "operation", "forgot_password",
+                      "subjectPublicId", subjectPublicId));
+            });
+
+    AuditFeedSlice slice = queryTenantLogs(company, day, day, "AUTH", null, null, null, null, null);
+
+    assertThat(sourceIds(slice)).contains(resetRequested.getId());
+    assertThat(slice.items())
+        .filteredOn(item -> item.sourceId().equals(resetRequested.getId()))
+        .singleElement()
+        .satisfies(item -> assertThat(item.subjectIdentifier()).isEqualTo(subjectPublicId));
   }
 
   @Test

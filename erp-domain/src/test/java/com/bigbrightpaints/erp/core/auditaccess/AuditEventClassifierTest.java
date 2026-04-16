@@ -54,7 +54,7 @@ class AuditEventClassifierTest {
   private static Stream<Arguments> pathModuleCases() {
     return Stream.of(
         Arguments.of("/api/v1/superadmin/users", "SUPERADMIN"),
-        Arguments.of("/api/v1/admin/settings", "ADMIN"),
+        Arguments.of("/api/v1/admin/users", "ADMIN"),
         Arguments.of("/api/v1/accounting/journal-entries", "ACCOUNTING"),
         Arguments.of("/api/v1/auth/login", "AUTH"),
         Arguments.of("/api/v1/changelog/releases", "CHANGELOG"),
@@ -165,5 +165,13 @@ class AuditEventClassifierTest {
   void subjectIdentifier_returnsNullWhenMetadataIsMissingOrBlank() {
     assertThat(classifier.subjectIdentifier(null)).isNull();
     assertThat(classifier.subjectIdentifier(Map.of("subjectEmail", " "))).isNull();
+  }
+
+  @Test
+  void subjectIdentifier_supportsSubjectPublicIdFallback() {
+    assertThat(
+            classifier.subjectIdentifier(
+                Map.of("subjectPublicId", "550e8400-e29b-41d4-a716-446655440000")))
+        .isEqualTo("550e8400-e29b-41d4-a716-446655440000");
   }
 }

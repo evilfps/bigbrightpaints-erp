@@ -1,6 +1,17 @@
 # Migration Runbook
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-16
+
+## 2026-04-16 — `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql`
+
+- **Purpose:** add expression indexes for normalized pending-status predicates (`upper(trim(status))`) used by tenant-admin approval inbox/dashboard summary queries so behavior-compatible matching remains performant under polling load.
+- **Release-guard posture:** this is a hard-cut performance/safety migration for current-state query semantics. It does not reintroduce compatibility paths; it keeps canonical normalized matching while avoiding query-amplification risk.
+- **Forward plan:** apply `V183__credit_pending_status_norm_indexes.sql` with the tenant-admin hard-cut packet and keep repository predicates on `upper(trim(status))='PENDING'` for both `credit_requests` and `credit_limit_override_requests`.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
+  - `bash ci/check-codex-review-guidelines.sh`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** prefer snapshot/PITR restore if the deployment must be abandoned after migration execution. If only the index migration must be reversed while keeping application behavior unchanged, drop the indexes in a coordinated maintenance window and keep normalized predicate semantics intact in runtime code.
 
 ## 2026-04-06 — `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
 

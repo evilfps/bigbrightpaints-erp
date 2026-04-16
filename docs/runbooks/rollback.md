@@ -1,6 +1,18 @@
 # Rollback Runbook
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-16
+
+## 2026-04-16 — `tenant-admin.pending-status-normalized-index-hardening`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql` and the paired normalized pending-status query hardening in tenant-admin approval repositories.
+- **Application rollback:** keep runtime predicates and migration posture aligned. Do not leave mixed state where runtime depends on normalized expression predicates without corresponding index support in high-volume tenants.
+- **Database rollback:** preferred path is snapshot/PITR restore. If reverting only the index migration, execute:
+  - `DROP INDEX IF EXISTS idx_credit_requests_company_status_norm_created_at;`
+  - `DROP INDEX IF EXISTS idx_credit_override_company_status_norm_created_at;`
+  after confirming the deployment no longer requires the extra index coverage.
+- **Verification:** rerun:
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
+  - `bash ci/check-enterprise-policy.sh`
 
 ## 2026-04-06 — `m3.packaging-slip-invoice-link-backfill-v2`
 
