@@ -216,9 +216,26 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
     PackagingSlip slip = createSlip(order, fgBatch, new BigDecimal("40"), fgBatch.getUnitCost());
     createReservation(refreshedFinishedGood, fgBatch, order.getId(), new BigDecimal("40"));
 
+    List<DispatchConfirmRequest.DispatchLine> dispatchLines =
+        packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).stream()
+            .map(
+                line ->
+                    new DispatchConfirmRequest.DispatchLine(
+                        line.getId(),
+                        line.getFinishedGoodBatch() != null
+                            ? line.getFinishedGoodBatch().getId()
+                            : null,
+                        line.getQuantity(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null))
+            .toList();
+
     salesService.confirmDispatch(
         new DispatchConfirmRequest(
-            slip.getId(), order.getId(), null, null, null, false, null, null));
+            slip.getId(), order.getId(), dispatchLines, null, null, false, null, null));
 
     // Inventory assertions
     assertThat(rawMaterialRepository.findById(base.getId()).orElseThrow().getCurrentStock())
