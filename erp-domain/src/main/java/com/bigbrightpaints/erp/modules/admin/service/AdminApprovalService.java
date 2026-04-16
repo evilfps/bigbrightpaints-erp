@@ -141,12 +141,14 @@ public class AdminApprovalService {
 
     AdminApprovalItemDto.OriginType originType = parseOriginType(originTypeRaw);
     boolean approve = request.decision() == AdminApprovalDecisionRequest.Decision.APPROVE;
+    Company company = companyContextService.requireCurrentCompany();
 
     return switch (originType) {
       case EXPORT_REQUEST -> toExportApprovalItem(decideExport(id, approve, request.reason()));
-      case CREDIT_REQUEST -> toCreditRequestItem(decideCreditRequest(id, approve, request.reason()));
+      case CREDIT_REQUEST ->
+          toCreditRequestItem(decideCreditRequest(company, id, approve, request.reason()));
       case CREDIT_LIMIT_OVERRIDE_REQUEST ->
-          toCreditOverrideItem(decideCreditOverride(id, approve, request));
+          toCreditOverrideItem(decideCreditOverride(company, id, approve, request));
       case PAYROLL_RUN -> toPayrollApprovalItem(decidePayroll(id, approve, request.reason()));
       case PERIOD_CLOSE_REQUEST -> decidePeriodCloseItem(id, approve, request.reason());
     };
@@ -156,7 +158,7 @@ public class AdminApprovalService {
     return approve ? exportApprovalService.approve(id) : exportApprovalService.reject(id, reason);
   }
 
-  private CreditRequest decideCreditRequest(Long id, boolean approve, String reason) {
+  private CreditRequest decideCreditRequest(Company company, Long id, boolean approve, String reason) {
     String decisionReason = requireReason(reason, approve ? "approve" : "reject");
     if (approve) {
       creditLimitRequestService.approveRequest(id, decisionReason);
@@ -164,12 +166,12 @@ public class AdminApprovalService {
       creditLimitRequestService.rejectRequest(id, decisionReason);
     }
     return creditRequestRepository
-        .findById(id)
+        .findByCompanyAndId(company, id)
         .orElseThrow(() -> ValidationUtils.invalidInput("Credit request not found: " + id));
   }
 
   private CreditLimitOverrideRequest decideCreditOverride(
-      Long id, boolean approve, AdminApprovalDecisionRequest request) {
+      Company company, Long id, boolean approve, AdminApprovalDecisionRequest request) {
     String decisionReason = requireReason(request.reason(), approve ? "approve" : "reject");
     CreditLimitOverrideDecisionRequest delegateRequest =
         new CreditLimitOverrideDecisionRequest(decisionReason, request.expiresAt());
@@ -180,7 +182,7 @@ public class AdminApprovalService {
       creditLimitOverrideService.rejectRequest(id, delegateRequest, actor);
     }
     return creditLimitOverrideRequestRepository
-        .findById(id)
+        .findByCompanyAndId(company, id)
         .orElseThrow(() -> ValidationUtils.invalidInput("Credit override request not found: " + id));
   }
 

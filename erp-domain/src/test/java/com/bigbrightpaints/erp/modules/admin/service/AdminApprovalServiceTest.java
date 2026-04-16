@@ -220,7 +220,7 @@ class AdminApprovalServiceTest {
             Instant.parse("2026-04-15T08:30:00Z"));
     when(creditLimitOverrideService.approveRequest(any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class)))
         .thenReturn(approved);
-    when(creditLimitOverrideRequestRepository.findById(90L))
+    when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 90L))
         .thenReturn(Optional.of(buildCreditLimitOverrideRequest(90L, "APPROVED")));
 
     service.decide(
@@ -253,7 +253,7 @@ class AdminApprovalServiceTest {
             "APPROVED",
             "approved",
             Instant.parse("2026-04-15T08:30:00Z")));
-    when(creditRequestRepository.findById(42L)).thenReturn(Optional.of(approved));
+    when(creditRequestRepository.findByCompanyAndId(company, 42L)).thenReturn(Optional.of(approved));
 
     AdminApprovalInboxResponse inbox = service.getInbox();
     AdminApprovalItemDto decided =

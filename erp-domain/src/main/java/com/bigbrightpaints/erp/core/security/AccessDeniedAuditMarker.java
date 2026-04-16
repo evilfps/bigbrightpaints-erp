@@ -4,6 +4,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import io.jsonwebtoken.Claims;
+
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
@@ -11,8 +13,6 @@ import jakarta.servlet.http.HttpServletRequest;
  * layers in a single request.
  */
 public final class AccessDeniedAuditMarker {
-
-  public static final String HEADER_COMPANY_CODE = "X-Company-Code";
 
   private static final String ATTRIBUTE_ALREADY_AUDITED =
       AccessDeniedAuditMarker.class.getName() + ".alreadyAudited";
@@ -37,13 +37,18 @@ public final class AccessDeniedAuditMarker {
   }
 
   public static String resolveTenantScope(HttpServletRequest request) {
-    String headerScope = request != null ? request.getHeader(HEADER_COMPANY_CODE) : null;
-    if (StringUtils.hasText(headerScope)) {
-      return headerScope.trim();
-    }
     String boundScope = CompanyContextHolder.getCompanyCode();
     if (StringUtils.hasText(boundScope)) {
       return boundScope.trim();
+    }
+    if (request != null) {
+      Object claimsAttr = request.getAttribute("jwtClaims");
+      if (claimsAttr instanceof Claims claims) {
+        String tokenScope = claims.get("companyCode", String.class);
+        if (StringUtils.hasText(tokenScope)) {
+          return tokenScope.trim();
+        }
+      }
     }
     return null;
   }
