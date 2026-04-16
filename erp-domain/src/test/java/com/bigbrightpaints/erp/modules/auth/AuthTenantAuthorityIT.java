@@ -1072,7 +1072,25 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             retiredHostProbe(
                 "/api/v1/admin/roles/ROLE_FACTORY",
                 HttpMethod.GET,
-                new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE))));
+                new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(adminToken, TENANT_A))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
+            retiredHostProbe(
+                "/api/v1/admin/notify",
+                HttpMethod.POST,
+                new HttpEntity<>(
+                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    jsonHeaders(null, TENANT_A))));
 
     probes.forEach(this::assertRetiredHostNotFound);
   }
