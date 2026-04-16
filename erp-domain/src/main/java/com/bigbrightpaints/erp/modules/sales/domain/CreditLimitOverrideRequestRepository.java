@@ -17,6 +17,8 @@ public interface CreditLimitOverrideRequestRepository
   List<CreditLimitOverrideRequest> findByCompanyAndStatusOrderByCreatedAtDesc(
       Company company, String status);
 
+  long countByCompanyAndStatusIgnoreCase(Company company, String status);
+
   @Query(
       """
       select request

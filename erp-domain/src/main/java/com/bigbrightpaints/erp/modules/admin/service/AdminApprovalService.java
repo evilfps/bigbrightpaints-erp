@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -126,6 +127,29 @@ public class AdminApprovalService {
             .toList();
 
     return new AdminApprovalInboxResponse(items, items.size());
+  }
+
+  @Transactional(readOnly = true)
+  public PendingCounts getPendingCounts() {
+    Company company = companyContextService.requireCurrentCompany();
+    long creditPending = creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING");
+    long creditOverridePending =
+        creditLimitOverrideRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING");
+    long payrollPending =
+        isHrPayrollEnabled(company)
+            ? payrollRunRepository.countByCompanyAndStatus(
+                company, PayrollRun.PayrollStatus.CALCULATED)
+            : 0L;
+    long periodClosePending =
+        periodCloseRequestRepository.countByCompanyAndStatus(
+            company, PeriodCloseRequestStatus.PENDING);
+    long exportPending = exportApprovalService.countPending();
+    return new PendingCounts(
+        creditPending,
+        creditOverridePending,
+        payrollPending,
+        periodClosePending,
+        exportPending);
   }
 
   @Transactional
@@ -459,5 +483,16 @@ public class AdminApprovalService {
 
   private boolean isHrPayrollEnabled(Company company) {
     return moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL);
+  }
+
+  public record PendingCounts(
+      long creditPending,
+      long creditOverridePending,
+      long payrollPending,
+      long periodClosePending,
+      long exportPending) {
+    public long totalPending() {
+      return creditPending + creditOverridePending + payrollPending + periodClosePending + exportPending;
+    }
   }
 }

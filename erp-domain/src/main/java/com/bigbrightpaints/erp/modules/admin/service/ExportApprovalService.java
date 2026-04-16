@@ -95,6 +95,12 @@ public class ExportApprovalService {
         .toList();
   }
 
+  @Transactional(readOnly = true)
+  public long countPending() {
+    Company company = companyContextService.requireCurrentCompany();
+    return exportRequestRepository.countByCompanyAndStatus(company, ExportApprovalStatus.PENDING);
+  }
+
   @Transactional
   public ExportRequestDto approve(Long requestId) {
     Company company = companyContextService.requireCurrentCompany();

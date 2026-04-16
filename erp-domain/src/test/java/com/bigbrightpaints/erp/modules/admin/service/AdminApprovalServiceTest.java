@@ -25,6 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -93,6 +94,62 @@ class AdminApprovalServiceTest {
     lenient().when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company)).thenReturn(List.of());
     lenient().when(exportApprovalService.listPending()).thenReturn(List.of());
     lenient().when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL)).thenReturn(false);
+    lenient().when(creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING")).thenReturn(0L);
+    lenient()
+        .when(creditLimitOverrideRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING"))
+        .thenReturn(0L);
+    lenient()
+        .when(periodCloseRequestRepository.countByCompanyAndStatus(
+            company, PeriodCloseRequestStatus.PENDING))
+        .thenReturn(0L);
+    lenient().when(exportApprovalService.countPending()).thenReturn(0L);
+    lenient()
+        .when(payrollRunRepository.countByCompanyAndStatus(company, PayrollRun.PayrollStatus.CALCULATED))
+        .thenReturn(0L);
+  }
+
+  @Test
+  void pendingCounts_usesRepositoryCountsWithPayrollGateEnabled() {
+    when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL)).thenReturn(true);
+    when(creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING")).thenReturn(3L);
+    when(creditLimitOverrideRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING"))
+        .thenReturn(4L);
+    when(payrollRunRepository.countByCompanyAndStatus(company, PayrollRun.PayrollStatus.CALCULATED))
+        .thenReturn(2L);
+    when(
+            periodCloseRequestRepository.countByCompanyAndStatus(
+                company, PeriodCloseRequestStatus.PENDING))
+        .thenReturn(5L);
+    when(exportApprovalService.countPending()).thenReturn(6L);
+
+    AdminApprovalService.PendingCounts counts = service.getPendingCounts();
+
+    assertThat(counts.creditPending()).isEqualTo(3L);
+    assertThat(counts.creditOverridePending()).isEqualTo(4L);
+    assertThat(counts.payrollPending()).isEqualTo(2L);
+    assertThat(counts.periodClosePending()).isEqualTo(5L);
+    assertThat(counts.exportPending()).isEqualTo(6L);
+    assertThat(counts.totalPending()).isEqualTo(20L);
+  }
+
+  @Test
+  void pendingCounts_skipsPayrollWhenModuleDisabled() {
+    when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL)).thenReturn(false);
+    when(creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING")).thenReturn(1L);
+    when(creditLimitOverrideRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING"))
+        .thenReturn(1L);
+    when(
+            periodCloseRequestRepository.countByCompanyAndStatus(
+                company, PeriodCloseRequestStatus.PENDING))
+        .thenReturn(1L);
+    when(exportApprovalService.countPending()).thenReturn(1L);
+
+    AdminApprovalService.PendingCounts counts = service.getPendingCounts();
+
+    verify(payrollRunRepository, never())
+        .countByCompanyAndStatus(company, PayrollRun.PayrollStatus.CALCULATED);
+    assertThat(counts.payrollPending()).isEqualTo(0L);
+    assertThat(counts.totalPending()).isEqualTo(4L);
   }
 
   @Test

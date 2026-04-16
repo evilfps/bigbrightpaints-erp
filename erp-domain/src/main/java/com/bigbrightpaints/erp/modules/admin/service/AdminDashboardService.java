@@ -22,8 +22,6 @@ import com.bigbrightpaints.erp.core.audit.AuditLog;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
-import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalInboxResponse;
-import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalItemDto;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminDashboardDto;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -69,17 +67,16 @@ public class AdminDashboardService {
     Company company = companyContextService.requireCurrentCompany();
     Long companyId = company.getId();
 
-    AdminApprovalInboxResponse inbox = adminApprovalService.getInbox();
-    List<AdminApprovalItemDto> approvals = inbox.items();
+    AdminApprovalService.PendingCounts pendingCounts = adminApprovalService.getPendingCounts();
 
     AdminDashboardDto.ApprovalSummary approvalSummary =
         new AdminDashboardDto.ApprovalSummary(
-            inbox.pendingCount(),
-            countByOrigin(approvals, AdminApprovalItemDto.OriginType.CREDIT_REQUEST),
-            countByOrigin(approvals, AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST),
-            countByOrigin(approvals, AdminApprovalItemDto.OriginType.PAYROLL_RUN),
-            countByOrigin(approvals, AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST),
-            countByOrigin(approvals, AdminApprovalItemDto.OriginType.EXPORT_REQUEST));
+            pendingCounts.totalPending(),
+            pendingCounts.creditPending(),
+            pendingCounts.creditOverridePending(),
+            pendingCounts.payrollPending(),
+            pendingCounts.periodClosePending(),
+            pendingCounts.exportPending());
 
     List<UserAccount> companyUsers = userAccountRepository.findByCompany_Id(companyId);
     List<UserAccount> visibleUsers =
@@ -203,10 +200,6 @@ public class AdminDashboardService {
         actorProtectionByPublicIdCache.put(unresolvedPublicId, ActorProtectionState.UNKNOWN);
       }
     }
-  }
-
-  private long countByOrigin(List<AdminApprovalItemDto> items, AdminApprovalItemDto.OriginType type) {
-    return items.stream().filter(item -> item.originType() == type).count();
   }
 
   private AdminDashboardDto.ActivityItem toActivityItem(AuditLog auditLog) {

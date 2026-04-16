@@ -28,6 +28,8 @@ order by request.requestedAt desc
   List<PeriodCloseRequest> findByCompanyAndStatusOrderByRequestedAtDesc(
       Company company, PeriodCloseRequestStatus status);
 
+  long countByCompanyAndStatus(Company company, PeriodCloseRequestStatus status);
+
   Optional<PeriodCloseRequest> findByCompanyAndAccountingPeriodAndStatus(
       Company company, AccountingPeriod accountingPeriod, PeriodCloseRequestStatus status);
 
