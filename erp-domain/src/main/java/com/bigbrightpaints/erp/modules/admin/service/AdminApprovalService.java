@@ -33,8 +33,6 @@ import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRe
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequest;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
-import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestDto;
-import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDto;
 import com.bigbrightpaints.erp.modules.sales.service.CreditLimitOverrideService;
 import com.bigbrightpaints.erp.modules.sales.service.CreditLimitRequestService;
 
@@ -158,22 +156,32 @@ public class AdminApprovalService {
     return approve ? exportApprovalService.approve(id) : exportApprovalService.reject(id, reason);
   }
 
-  private CreditLimitRequestDto decideCreditRequest(Long id, boolean approve, String reason) {
+  private CreditRequest decideCreditRequest(Long id, boolean approve, String reason) {
     String decisionReason = requireReason(reason, approve ? "approve" : "reject");
-    return approve
-        ? creditLimitRequestService.approveRequest(id, decisionReason)
-        : creditLimitRequestService.rejectRequest(id, decisionReason);
+    if (approve) {
+      creditLimitRequestService.approveRequest(id, decisionReason);
+    } else {
+      creditLimitRequestService.rejectRequest(id, decisionReason);
+    }
+    return creditRequestRepository
+        .findById(id)
+        .orElseThrow(() -> ValidationUtils.invalidInput("Credit request not found: " + id));
   }
 
-  private CreditLimitOverrideRequestDto decideCreditOverride(
+  private CreditLimitOverrideRequest decideCreditOverride(
       Long id, boolean approve, AdminApprovalDecisionRequest request) {
     String decisionReason = requireReason(request.reason(), approve ? "approve" : "reject");
     CreditLimitOverrideDecisionRequest delegateRequest =
         new CreditLimitOverrideDecisionRequest(decisionReason, request.expiresAt());
     String actor = com.bigbrightpaints.erp.core.security.SecurityActorResolver.resolveActorOrUnknown();
-    return approve
-        ? creditLimitOverrideService.approveRequest(id, delegateRequest, actor)
-        : creditLimitOverrideService.rejectRequest(id, delegateRequest, actor);
+    if (approve) {
+      creditLimitOverrideService.approveRequest(id, delegateRequest, actor);
+    } else {
+      creditLimitOverrideService.rejectRequest(id, delegateRequest, actor);
+    }
+    return creditLimitOverrideRequestRepository
+        .findById(id)
+        .orElseThrow(() -> ValidationUtils.invalidInput("Credit override request not found: " + id));
   }
 
   private PayrollService.PayrollRunDto decidePayroll(Long id, boolean approve, String reason) {
@@ -240,32 +248,6 @@ public class AdminApprovalService {
         request.getCreatedAt());
   }
 
-  private AdminApprovalItemDto toCreditRequestItem(CreditLimitRequestDto request) {
-    String reference = request.publicId() != null ? request.publicId().toString() : "CLR-" + request.id();
-    String dealerLabel = StringUtils.hasText(request.dealerName()) ? request.dealerName() : "Unknown dealer";
-    String summary =
-        "Credit-limit request "
-            + reference
-            + " reviewed for "
-            + dealerLabel
-            + " amount "
-            + toAmountString(request.amountRequested());
-    if (StringUtils.hasText(request.reason())) {
-      summary = summary + " (reason: " + request.reason().trim() + ")";
-    }
-    return decisionItem(
-        AdminApprovalItemDto.OriginType.CREDIT_REQUEST,
-        AdminApprovalItemDto.OwnerType.SALES,
-        request.id(),
-        request.publicId(),
-        reference,
-        normalizeStatus(request.status()),
-        summary,
-        null,
-        null,
-        request.createdAt());
-  }
-
   private AdminApprovalItemDto toCreditOverrideItem(CreditLimitOverrideRequest request) {
     String reference =
         request.getPackagingSlip() != null && StringUtils.hasText(request.getPackagingSlip().getSlipNumber())
@@ -304,38 +286,6 @@ public class AdminApprovalService {
         null,
         null,
         request.getCreatedAt());
-  }
-
-  private AdminApprovalItemDto toCreditOverrideItem(CreditLimitOverrideRequestDto request) {
-    String reference = request.publicId() != null ? request.publicId().toString() : "CLO-" + request.id();
-    String dealerLabel = StringUtils.hasText(request.dealerName()) ? request.dealerName() : "Unknown dealer";
-    String summary =
-        "Credit override "
-            + reference
-            + " reviewed for "
-            + dealerLabel
-            + ": dispatch "
-            + toAmountString(request.dispatchAmount())
-            + ", exposure "
-            + toAmountString(request.currentExposure())
-            + ", limit "
-            + toAmountString(request.creditLimit());
-    if (StringUtils.hasText(request.reason())) {
-      summary = summary + " (reason: " + request.reason().trim() + ")";
-    }
-    return decisionItem(
-        AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST,
-        request.packagingSlipId() != null
-            ? AdminApprovalItemDto.OwnerType.FACTORY
-            : AdminApprovalItemDto.OwnerType.SALES,
-        request.id(),
-        request.publicId(),
-        reference,
-        normalizeStatus(request.status()),
-        summary,
-        null,
-        null,
-        request.createdAt());
   }
 
   private AdminApprovalItemDto toPayrollApprovalItem(PayrollRun run) {
