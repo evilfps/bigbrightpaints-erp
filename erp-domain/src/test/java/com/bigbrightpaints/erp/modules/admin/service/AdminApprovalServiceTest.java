@@ -229,6 +229,45 @@ class AdminApprovalServiceTest {
   }
 
   @Test
+  void decide_payrollApproval_allowsMissingReasonAndNormalizesBlankStatus() {
+    when(payrollService.approvePayroll(63L)).thenReturn(payrollRunDto(63L, "   "));
+
+    AdminApprovalItemDto item =
+        service.decide(
+            "PAYROLL_RUN",
+            63L,
+            new AdminApprovalDecisionRequest(
+                AdminApprovalDecisionRequest.Decision.APPROVE, null, null));
+
+    assertThat(item.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+    assertThat(item.status()).isEqualTo("UNKNOWN");
+    assertThat(item.summary()).contains("status=UNKNOWN");
+    verify(payrollService).approvePayroll(63L);
+  }
+
+  @Test
+  void decide_payrollReject_usesHrCorrectionGuardrail() {
+    assertThatThrownBy(
+            () ->
+                service.decide(
+                    "PAYROLL_RUN",
+                    64L,
+                    new AdminApprovalDecisionRequest(
+                        AdminApprovalDecisionRequest.Decision.REJECT, "not supported", null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Payroll rejection is not supported");
+
+    verify(payrollService, never()).approvePayroll(any(Long.class));
+  }
+
+  @Test
+  void normalizeStatus_returnsUnknownForNullAndBlankAndUppercasesText() {
+    assertThat(normalizeStatus(null)).isEqualTo("UNKNOWN");
+    assertThat(normalizeStatus("   ")).isEqualTo("UNKNOWN");
+    assertThat(normalizeStatus(" approved ")).isEqualTo("APPROVED");
+  }
+
+  @Test
   void decide_creditOverride_requiresReason_forApproveAndReject() {
     AdminApprovalDecisionRequest approveWithoutReason =
         new AdminApprovalDecisionRequest(
@@ -355,6 +394,38 @@ class AdminApprovalServiceTest {
     request.setRequesterEmail("dealer.requester@bbp.com");
     request.setRequesterUserId(101L);
     return request;
+  }
+
+  private PayrollService.PayrollRunDto payrollRunDto(Long id, String status) {
+    return new PayrollService.PayrollRunDto(
+        id,
+        java.util.UUID.randomUUID(),
+        "PR-" + id,
+        "MONTHLY",
+        LocalDate.of(2026, 4, 1),
+        LocalDate.of(2026, 4, 30),
+        status,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "admin@bbp.com",
+        Instant.parse("2026-04-15T08:30:00Z"),
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private String normalizeStatus(String status) {
+    return ReflectionTestUtils.invokeMethod(service, "normalizeStatus", status);
   }
 
   private CreditLimitOverrideRequest buildCreditLimitOverrideRequest(Long id, String status) {
