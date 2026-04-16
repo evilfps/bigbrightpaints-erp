@@ -4,101 +4,35 @@ commands:
   install: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && mvn -q -DskipTests dependency:go-offline
   compile: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 compile -q
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T5 compile -q
   typecheck: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 compile -q
-  spotless-check: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn spotless:check
-  spotless-apply: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn spotless:apply
-  test-dev-smoke: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Pdev-smoke test
-  test-local-guard: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Plocal-guard test
-  test-pr-ci: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
-  test-baseline-core: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_core.sh
-  test-release-local: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/release_proof.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T5 compile -q
+  build: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T5 package -DskipTests
   test: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
-  gate-fast: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
-  gate-core: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_core.sh
-  gate-release: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_release.sh
-  release-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/release_proof.sh
-  gate-reconciliation: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_reconciliation.sh
-  strict-runtime-smoke-check: >-
-    health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && readiness=$(curl -s -o /tmp/factory-strict-readiness.out -w '%{http_code}' http://localhost:9090/actuator/health/readiness || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && [ "$readiness" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
-  contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh
-  targeted-dispatch-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,OrderFulfillmentE2ETest' test
-  targeted-orchestrator-dispatch-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrchestratorControllerIT,IntegrationCoordinatorTest,CommandDispatcherTest,TS_O2COrchestratorDispatchRemovalRegressionTest,TS_RuntimeOrchestratorExecutableCoverageTest,TS_OrchestratorExactlyOnceOutboxTest' test
-  targeted-accounting-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test
-  targeted-security-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,TenantRuntimeEnforcementAuthIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest,CompanyControllerIT,OpenApiSnapshotIT' test
-  targeted-dependent-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,ProcureToPayE2ETest,InventoryAccountingEventListenerIT,CreditDebitNoteIT,ReconciliationControlsIT,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest' test
-  targeted-deploy-hardening: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ProductionMonitoringContractTest,CR_HealthEndpointProdHardeningIT,CR_ActuatorProdHardeningIT' test
-  verify-local: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && MIGRATION_SET=v2 bash scripts/verify_local.sh
-  erp21-runtime-reset: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/reset_final_validation_runtime.sh
-  erp21-targeted-finance: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PortalFinanceControllerIT,DealerPortalControllerSecurityIT,DealerPortalReadOnlySecurityIT,DealerPortalControllerExportAuditTest,DealerControllerSecurityIT,InvoiceControllerSecurityContractTest,ReportControllerRouteContractIT,StatementAgingIT' test
-  erp21-targeted-support: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test
-  erp21-contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_accounting_portal_scope_contract.sh
-  erp38-targeted-setup: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogControllerCanonicalProductIT,CatalogServiceCanonicalCoverageTest,ProductionCatalogServiceCanonicalEntryTest,SkuReadinessServiceTest,PackagingMaterialServiceTest' test
-  erp38-targeted-setup-packaging: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PackagingMaterialServiceTest,PackagingMappingControllerSecurityContractTest,PackingControllerTest,BulkPackingManualPackagingRegressionIT' test
-  erp38-targeted-batch-pack: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='ProductionLogWipPostingRegressionIT,ProductionLaborOverheadWipIT,ProductionLogListDetailLazyLoadRegressionIT,ProductionLogPackingStatusRegressionIT,PackingControllerTest,PackingServiceTest,FactoryPackagingCostingIT,TS_PackingIdempotencyAndFacadeBoundaryTest' test
-  erp38-targeted-factory-fast-gate: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PackagingMappingControllerSecurityContractTest,PackagingMappingControllerTest,PackingControllerTest,FactoryServiceTest,PackingReadServiceTest,PackingServiceTest,PackagingMaterialServiceTest,PackingAllowedSizeServiceTest,ProductionLogServiceCostingFallbackTest,ProductionLogPackingStatusRegressionIT,FactoryPackagingCostingIT' test
-  erp38-targeted-dispatch: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,ErpInvariantsSuiteIT,OrderFulfillmentE2ETest' test
-  erp38-contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-codex-review-guidelines.sh && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_accounting_portal_scope_contract.sh
-  openapi-refresh: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test
-  final-validation-reset: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/reset_final_validation_runtime.sh
-  final-validation-targeted-tests: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='ProductionLogWipPostingRegressionIT,ProductionLogPackingStatusRegressionIT,FactoryPackagingCostingIT,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,ErpInvariantsSuiteIT,OrderFulfillmentE2ETest' test
-  build: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 package -DskipTests
   lint: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh
   docs-lint: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh
-  audit-trail-ownership-guard: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_audit_trail_ownership_contract.sh
-  accounting-frontend-doc-contract-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SettlementControllerIdempotencyHeaderParityTest,AccountingEndpointContractTest,AccountingApplicationExceptionAdviceTest,AccountingApplicationExceptionResponsesTest,OpeningStockImportControllerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,AdminUserValidationEnvelopeIT,OpenApiSnapshotIT' test
-  codex-review-policy: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/enforce_codex_review_policy.sh
-  docs-governance: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh
-  docs-contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh && bash scripts/guard_openapi_contract_drift.sh
-  pr-ci-parity: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && python3 scripts/pr_ci_parity.py --base "${PR_CI_BASE:?set PR_CI_BASE}" --head "${PR_CI_HEAD:-HEAD}"
-  milestone-shareout: >-
-    ROOT=$(git rev-parse --show-toplevel) && git -C "$ROOT" status --short --branch && echo '---' && git -C "$ROOT" log --oneline --decorate origin/main..HEAD && echo '---' && git -C "$ROOT" diff --stat origin/main...HEAD
-  packet-review: >-
-    ROOT=$(git rev-parse --show-toplevel) && git -C "$ROOT" status --short --branch && echo FACTORY-DROID && git -C "$ROOT" log --oneline --decorate -5 origin/main
+  contract-guards: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh
+  openapi-refresh: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test
+  strict-runtime-smoke-check: >-
+    health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && readiness=$(curl -s -o /tmp/factory-strict-readiness.out -w '%{http_code}' http://localhost:9090/actuator/health/readiness || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && [ "$readiness" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
+  platform-control-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SuperAdminControllerIT,SuperAdminControllerTest,SuperAdminAuditControllerTest,TenantOnboardingControllerTest,SuperAdminTenantControlPlaneServiceTest,AuthPlatformScopeCodeIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest' test
+  onboarding-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TenantOnboardingControllerTest,ValidationSeedDataInitializerTest,SuperAdminTenantControlPlaneServiceTest' test
+  self-service-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='AuthControllerIT,AuthPasswordResetPublicContractIT,MfaControllerIT,AdminSelfSettingsSecurityIT,AuthTenantAuthorityIT,AuthPlatformScopeCodeIT' test
+  sales-dealers-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerControllerTest,DealerControllerSecurityIT,DealerServiceTest,SalesControllerIT,AdminApprovalServiceTest,AdminApprovalControllerContractTest' test
+  sales-credit-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CreditLimitRequestServiceTest,CreditLimitOverrideServiceTest,CreditLimitOverrideControllerSecurityContractTest,SalesControllerIT,AdminApprovalServiceTest,AdminApprovalRbacIT' test
+  cleanup-contract-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash ci/lint-knowledgebase.sh
 
 services:
   postgres-v2:

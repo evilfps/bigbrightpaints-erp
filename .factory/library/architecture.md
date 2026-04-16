@@ -1,199 +1,159 @@
 # Architecture
 
-High-level system map for the `orchestrator-erp` cleanup mission.
+High-level system map for the platform-owner-first ERP hard-cut mission.
 
-This file is internal worker guidance for the mission infrastructure, not a public canonical docs entrypoint.
+This file is internal worker guidance for the current mission infrastructure, not a public canonical docs packet.
 
-**What belongs here:** system shape, module relationships, canonical write/read boundaries, deployment-proof surfaces, and the architectural seams workers must preserve while simplifying the repo.
+**What belongs here:** system shape, canonical route ownership, cross-module boundaries, mission invariants, and the target-state seams workers must preserve while simplifying the repo.
+
+**Important:** this is the high-level architectural summary. `validation-contract.md` remains the route-complete definition of done for milestone validation.
 
 ---
 
 ## System Shape
 
-Current code package root remains `com.bigbrightpaints.erp`, but the current product identity for touched canonical docs is `orchestrator-erp`.
+The repository is a Java 21 / Spring Boot modular monolith rooted under `erp-domain/`.
 
-The backend is a modular monolith:
+Major runtime layers:
+- `core/` — security, JWT/session handling, error envelopes, audit, health, infra utilities
+- `modules/auth` — login, logout, refresh, password flows, MFA, `auth/me`
+- `modules/company` — superadmin control plane, onboarding, lifecycle, limits, modules, billing-plan, support context, warnings, admin recovery, platform audit
+- `modules/admin` — tenant-admin workflows, approvals inbox, tenant-admin support, tenant-admin self settings
+- `modules/sales` — dealer directory, sales dashboard, promotions, order/credit/override request flows, dealer-commercial behavior
+- `modules/portal` — tenant-business portal surfaces such as accounting-hosted portal support; this mission must respect portal ownership and not collapse it into platform or sales ownership
+- other business modules (`accounting`, `inventory`, `factory`, `reports`, etc.) remain downstream tenant-business surfaces that platform-owner must not read directly
 
-- `core/` — security, config, exception handling, audit, idempotency, health, utilities
-- `modules/` — business domains (`accounting`, `admin`, `auth`, `company`, `factory`, `inventory`, `invoice`, `portal`, `production`, `purchasing`, `rbac`, `reports`, `sales`, plus currently paused `hr`)
-- `orchestrator/` — background coordination, outbox/event publishing, command dispatch, schedulers, health surfaces
-- `shared/dto/` — shared API envelopes and cross-cutting DTOs
+There is no in-repo frontend app for this mission. Frontend-facing truth lives in canonical docs under `docs/frontend-portals/**` and `docs/frontend-api/**`.
 
-The codebase already has strong infrastructure patterns (idempotency, outbox/event delivery, RBAC, multi-tenancy, audits), but important business flows still cross module boundaries through large services, listeners, helpers, and duplicated contract surfaces.
+## Canonical Route Matrix
 
-## Mission Cleanup Posture
+Treat these as canonical target-state route families for this mission's touched areas.
 
-This mission is not preserving dead compatibility.
+### Platform control plane (`/api/v1/superadmin/**`)
+- `GET /api/v1/superadmin/dashboard`
+- `GET /api/v1/superadmin/tenants`
+- `GET /api/v1/superadmin/tenants/{id}`
+- `GET /api/v1/superadmin/tenants/coa-templates`
+- `POST /api/v1/superadmin/tenants/onboard`
+- `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+- `PUT /api/v1/superadmin/tenants/{id}/limits`
+- `PUT /api/v1/superadmin/tenants/{id}/modules`
+- `PUT /api/v1/superadmin/tenants/{id}/billing-plan`
+- `PUT /api/v1/superadmin/tenants/{id}/support/context`
+- `POST /api/v1/superadmin/tenants/{id}/support/warnings`
+- `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`
+- `POST /api/v1/superadmin/tenants/{id}/force-logout`
+- `PUT /api/v1/superadmin/tenants/{id}/admins/main`
+- `POST /api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request`
+- `POST /api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm`
+- `GET /api/v1/superadmin/audit/platform-events`
 
-- No legacy data compatibility is required.
-- No active frontend consumers need protecting.
-- No new fallbacks, aliases, dual-write paths, or duplicate helper seams should be introduced.
-- Prefer deletion, extraction, and reuse of the surviving canonical path.
-- Accounting refactors must preserve dependent-module correctness and remove duplicates rather than relocate them.
-- HR/payroll feature work is out of scope unless a shared guard/test/doc surface must stay consistent.
+### Platform support workspace (privacy-wall exception)
+- `GET /api/v1/superadmin/support/tickets`
+- `GET /api/v1/superadmin/support/tickets/{ticketId}`
+- `PUT /api/v1/superadmin/support/tickets/{ticketId}/status`
+
+This is the only platform surface allowed to expose full cross-tenant support-ticket content.
+
+### Shared self-service (`/api/v1/auth/**`)
+- `GET /api/v1/auth/me`
+- `PUT /api/v1/auth/me/profile`
+- `POST /api/v1/auth/password/change`
+- `POST /api/v1/auth/password/forgot`
+- `POST /api/v1/auth/password/reset`
+- MFA setup/activate/disable under `/api/v1/auth/mfa/**`
+
+### Tenant-admin-owned surfaces (`/api/v1/admin/**`)
+- `GET /api/v1/admin/self/settings` is tenant-admin-only and is not shared self-service
+- tenant-admin support remains under `/api/v1/admin/support/tickets/**`
+- tenant-admin approvals inbox and decision ownership remain under `/api/v1/admin/approvals/**`
+- canonical credit review decision: `POST /api/v1/admin/approvals/{originType}/{id}/decisions`
+
+### Tenant business portal and dealer portal hosts (must remain distinct)
+- accounting-hosted support remains under `/api/v1/portal/support/tickets/**`
+- dealer self-service support remains under `/api/v1/dealer-portal/support/tickets/**`
+- this mission must not resurrect the retired shared `/api/v1/support/**` host
+
+### Sales ownership
+- canonical dealer directory/create host: `/api/v1/dealers/**`
+- canonical sales dashboard is sales-owned and must stay free of dispatch/accounting write affordances
+- canonical promotions CRUD is sales-owned and promotions-only
+- canonical sales order detail: `GET /api/v1/sales/orders/{id}`
+- sales owns credit-limit request creation and credit override request creation
+- tenant-admin approval inbox + generic decision route own the decision act for credit requests and overrides
+
+## Core Mission Invariants
+
+- Platform-owner must never receive tenant business data from platform dashboard/list/detail APIs.
+- The only privacy-wall exception is the platform support workspace over ticket content plus bounded admin recovery actions.
+- Platform audit is control-plane only and must not degrade into a tenant business audit feed.
+- Manual billing-plan fields are phase-one billing truth; ARR/MRR rollups derive from billing-plan state, not tenant accounting ledgers.
+- Shared self-service is for all authenticated human users; tenant-admin-only settings remain separate.
+- Canonical dealer create must not auto-provision dealer portal identity unless an explicit user-provisioning flow is used.
+- Generic tenant-admin approval inbox + decision route are the surviving review surfaces for credit requests and overrides.
+- Retired routes and aliases must fail closed and disappear from canonical docs/OpenAPI when their hard cut lands.
+
+## Boundary Map
+
+### Platform vs tenant business
+- platform-owned: onboarding, lifecycle, limits, modules, billing-plan, platform support workspace, admin recovery, platform audit
+- tenant-owned business: accounting, inventory, factory execution, payroll, tenant business audit feeds, dealer business surfaces
+
+### Shared self-service vs tenant-admin shell settings
+- shared self-service is identity-bound and follows the authenticated user across scopes
+- tenant-admin self settings remain host-owned by the tenant-admin shell and must not become the shared profile update path
+
+### Sales vs admin approval ownership
+- sales owns request creation, dealer commercial state, dashboard truth, promotions, and commercial order state
+- tenant-admin approval owns the canonical review list and decision act for credit requests and overrides
+- cleanup removes direct module-specific credit decision routes once generic approval ownership is live
+
+### Support host splitting
+- platform support workspace owns cross-tenant ticket visibility and lifecycle at the control-plane level
+- tenant-admin support host remains tenant-admin-owned
+- portal support host remains accounting-owned
+- dealer-portal support host remains dealer-owned
+- shared `/api/v1/support/**` stays retired
+
+## Highest-Risk Retirements
+
+Workers should treat these as the highest-risk hard-cut seams:
+- shared `/api/v1/support/**` host
+- `/api/v1/sales/dealers*` aliases once `/api/v1/dealers/**` becomes singular
+- nested `/api/v1/companies/**` control-plane aliases
+- direct module-specific credit decision routes once generic admin approval decisions are canonical
+- contradictory docs/deprecated entries for `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`
 
 ## Runtime Boundary
 
-The approved runtime boundary for this mission is fixed:
+Approved runtime boundary for this mission:
+- Postgres `5433`
+- RabbitMQ `5672`
+- MailHog SMTP/UI `1025` / `8025`
+- App HTTP `8081`
+- Actuator `9090`
 
-- Postgres: `5433`
-- RabbitMQ: `5672`
-- MailHog UI: `8025`
-- App HTTP: `8081`
-- Actuator/management: `9090`
-
-Workers must not use host Postgres `5432` or introduce new services outside this boundary without returning to the orchestrator.
-
-## Canonical Public Contract Surfaces
-
-These are the highest-value public surfaces that must stay singular and aligned across code, OpenAPI, docs, tests, and worker guidance:
-
-- Auth bootstrap: `GET /api/v1/auth/me`
-- Public password reset corridor: `POST /api/v1/auth/password/forgot|reset`
-- Dispatch write boundary: `POST /api/v1/dispatch/confirm`
-- Accounting manual journal boundary: `POST /api/v1/accounting/journal-entries`
-- Canonical superadmin tenant-runtime mutation paths:
-  - `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
-  - `PUT /api/v1/superadmin/tenants/{id}/limits`
-
-Retired routes should be absent or explicitly fail closed. Do not leave a second public writer behind.
-
-## Core Architectural Invariants
-
-- **Tenant scoping is mandatory.** Company-scoped data and request admission depend on company context and must fail closed.
-- **`ApplicationException` + `ErrorCode` remain the business error contract.**
-- **Accounting is the financial truth boundary.** Other modules may initiate business flows, but accounting owns journals, settlements, period control, and reconciliation truth.
-- **Idempotency is mandatory on write surfaces.** Reject stale headers and parallel fallback replay schemes.
-- **Cross-request audit correlation is explicit.** When one business flow spans multiple HTTP requests and must remain traceable as one flow, the caller/test harness must propagate a shared `X-Correlation-Id`; validators should prove related audit rows reuse that exact value.
-- **Role/host boundaries are part of the contract.** Admin/control-plane, operational/factory, sales/commercial, and dealer/self-service surfaces must stay explicit.
-- **Docs/OpenAPI/tests/CI are part of the architecture.** A cleanup is incomplete if these still teach contradictory truths.
-
-## Highest-Risk Cleanup Seams
-
-### 1. Accounting core
-
-Primary hotspots:
-
-- `modules/accounting/service/{SettlementAllocationResolutionService,SettlementTotalsValidationService,SettlementJournalLineDraftService}`
-- `modules/accounting/service/JournalPostingService`
-- `modules/accounting/service/AccountingFacade`
-
-Supporting sprawl:
-
-- `modules/accounting/service/AccountingPeriodService`
-- `modules/accounting/service/AccountingAuditTrailService`
-- `modules/accounting/service/ReconciliationService`
-- focused accounting controllers under `modules/accounting/controller/`, especially:
-  - `AccountController`
-  - `JournalController`
-  - `SettlementController`
-  - `PeriodController`
-  - `ReconciliationController`
-  - `StatementReportController`
-  - `InventoryAccountingController`
-
-Cleanup direction:
-
-- Treat retired `internal/AccountingCoreEngineCore`, `AccountingFacadeCore`, and `SettlementSupportService` references as stale history, not live ownership.
-- Split by business flow, not by more wrapper layers
-- Keep one canonical write path per operation
-- Remove duplicate helper logic while preserving downstream module behavior
-- Continue shrinking settlement write-path helpers until no single service centralizes allocation resolution, totals, validation, and line drafting above the mission size cap
-
-### 2. Dispatch truth
-
-Dispatch is a cross-module seam. The public write host, downstream financial ownership, docs, OpenAPI, tests, and validator guidance must all converge on the same truth.
-
-Workers must answer both questions whenever dispatch is touched:
-
-1. Which public controller/host owns dispatch today?
-2. Which service path owns the authoritative downstream business and financial effects?
-
-### 3. Security/runtime admission
-
-Primary hotspots:
-
-- `core/security/CompanyContextFilter`
-- `modules/company/service/TenantRuntimeEnforcementService`
-- `modules/company/service/TenantRuntimeRequestAdmissionService`
-- `core/security/TenantRuntimeAccessService`
-- module-scoped `CompanyScoped*LookupService` implementations
-
-Cleanup direction:
-
-- Keep tenant binding fail-closed
-- Keep canonical control-plane paths singular
-- Remove shadow runtime owners
-- Keep the retired `CompanyEntityLookup` gravity well out of live production ownership and favor narrower module-scoped resolution
-
-### 4. Deployment-proof and CI truth
-
-The deployability story is split across:
-
-- strict compose runtime
-- gate scripts
-- workflow files
-- runbooks/docs
-- generated artifacts and old mission-specific guidance
-
-Cleanup direction:
-
-- one real strict smoke story
-- one real release-proof story
-- docs-only governance stays narrow
-- stale generated artifacts do not masquerade as current proof
-
-## Canonical Dependency Map
-
-These edges are the main blast-radius map for refactors:
-
-- `sales -> inventory` for dispatch, stock execution, and reservation-facing behavior
-- `sales -> accounting` for AR/revenue/COGS and settlement truth
-- `factory -> inventory` for production, packing, and finished-goods registration
-- `factory -> accounting` for manufacturing/packing side effects
-- `purchasing -> inventory` for GRN/opening stock/returns/stock intake
-- `purchasing -> accounting` for AP, supplier settlement, and purchase-return truth
-- `invoice -> accounting` for posting, settlement, and reference behavior
-- `reports -> accounting/inventory/sales` for downstream truth consumption
-- `auth/company/admin -> every tenant business surface` for company binding, control-plane, and runtime enforcement
-- `orchestrator -> sales/factory/accounting/inventory` for background coordination and fail-closed retirement checks
-
-Accounting cleanup must explicitly re-verify dependent module flows across sales, inventory, purchasing, invoice, and reporting.
-
-## Canonical Flow Spine
-
-For the current mission, the highest-value operator flow is:
-
-`tenant onboarding -> company defaults -> brand/item setup -> readiness review -> opening stock -> production log -> packing record -> dispatch confirm`
-
-This flow spans control-plane, production/catalog, inventory, factory, dispatch, and accounting/reporting consumers. Cleanup work must not reopen aliases or second owners inside this spine.
+Workers must not introduce alternate application ports.
 
 ## Validation Model
 
-This mission’s validation model is:
+Primary validation surfaces:
+- compose-backed backend HTTP/API proof with `curl`
+- MailHog capture for onboarding/reset emails
+- repo-static OpenAPI/docs/retired-route proof
+- targeted Maven proof packs for risky code paths
 
-- **strict `prod,flyway-v2` compose smoke** for deployment/runtime proof
-- **targeted Maven suites** for business-flow proof
+High-value end-to-end flow spine for this mission:
+1. platform login -> `auth/me` -> dashboard/list/detail
+2. onboarding -> MailHog credential capture -> tenant login -> `auth/me`
+3. control-plane mutation -> tenant runtime effect -> platform recovery action
+4. tenant support ticket creation -> platform support workspace visibility -> tenant business routes still denied
+5. dealer create -> sales dashboard/credit flows -> tenant-admin approval decision
 
-Treat these as complementary:
+## Cleanup Posture
 
-- compose smoke proves the runtime boots and exposes the expected health/app boundary
-- targeted suites prove business-critical invariants for dispatch, accounting, runtime admission, and dependent-module flows
+This mission is a hard cut, not a compatibility mission.
 
-## Canonical Evidence Sources
-
-When workers need truth, prefer this order:
-
-1. controller annotations + `openapi.json` for route/payload truth
-2. service/facade/engine code for lifecycle and side-effect truth
-3. focused tests for executed behavior and retirement proof
-4. canonical docs for operator/developer-facing explanation
-5. library/validator guidance only after it has been aligned to the canonical contract
-
-## Worker Design Implications
-
-- Do not split a god class into several duplicate god helpers.
-- Do not leave a deprecated route or helper alive “just in case.”
-- If a path is no longer canonical, remove it or retire it explicitly.
-- If a refactor touches accounting, verify dependent modules in the same packet or return a tracked issue immediately.
-- If a feature changes a canonical contract surface, update OpenAPI/docs/tests/guidance in the same packet.
+- Prefer deleting aliases/fallbacks/duplicate truth over preserving them.
+- Do not leave two public write or review surfaces alive in touched mission areas.
+- Treat docs/OpenAPI/route inventory as part of the architecture: a cleanup is incomplete if those artifacts still teach the old truth.
