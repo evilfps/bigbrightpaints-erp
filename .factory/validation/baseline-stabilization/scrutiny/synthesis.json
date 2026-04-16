@@ -1,0 +1,46 @@
+{
+  "milestone": "baseline-stabilization",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T5 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": ".factory/skills/backend-worker/SKILL.md",
+      "suggestion": "Replace the hardcoded local repository path in the gate-fast verification step with a repo-root-discovered or repo-relative command so resumed backend workers do not get sent to a stale workspace path.",
+      "evidence": "Review report for baseline-gate-fast-stabilization found `.factory/skills/backend-worker/SKILL.md:74` still instructing workers to run `cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh`, which does not match the current workspace and can misdirect resumed sessions.",
+      "isSystemic": true
+    },
+    {
+      "target": "worker bootstrap reminders",
+      "suggestion": "Include absolute mission artifact paths plus the current feature id in compaction-safe bootstrap reminders so resumed workers can reliably recover mission context without reconstructing it from handoffs or progress logs.",
+      "evidence": "The reviewed baseline-gate-fast-stabilization handoff recorded that, after compaction, mission.md/features.json/validation-contract.md were not directly resolvable from the provided guidance and the worker had to rebuild context manually from other artifacts.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}
