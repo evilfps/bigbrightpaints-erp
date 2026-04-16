@@ -113,6 +113,32 @@ class RequestBodyCachingFilterTest {
   }
 
   @Test
+  void resolveRequestedRole_returnsEmptyWhenRequestBodyIsMalformedJson() throws Exception {
+    String payload = "{\"name\":";
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/superadmin/roles");
+    request.setRequestURI("/api/v1/superadmin/roles");
+    request.setContent(payload.getBytes(StandardCharsets.UTF_8));
+
+    HttpServletRequest wrappedRequest = wrapAndDrain(request);
+
+    assertThat(RequestBodyCachingFilter.resolveRequestedRole(wrappedRequest, new ObjectMapper()))
+        .isEmpty();
+  }
+
+  @Test
+  void resolveRequestedRole_returnsEmptyWhenNameFieldIsMissing() throws Exception {
+    String payload = "{\"description\":\"missing role field\"}";
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/superadmin/roles");
+    request.setRequestURI("/api/v1/superadmin/roles");
+    request.setContent(payload.getBytes(StandardCharsets.UTF_8));
+
+    HttpServletRequest wrappedRequest = wrapAndDrain(request);
+
+    assertThat(RequestBodyCachingFilter.resolveRequestedRole(wrappedRequest, new ObjectMapper()))
+        .isEmpty();
+  }
+
+  @Test
   void resolveBoundedRequestBody_returnsEmptyWhenRequestWasNotCached() throws Exception {
     String payload = "{\"name\":\"ROLE_FACTORY\"}";
     MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/superadmin/roles");

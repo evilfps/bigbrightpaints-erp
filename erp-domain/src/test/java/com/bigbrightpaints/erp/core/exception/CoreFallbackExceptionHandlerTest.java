@@ -1,12 +1,17 @@
 package com.bigbrightpaints.erp.core.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +21,13 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.MfaChallengeResponse;
@@ -27,6 +38,7 @@ class CoreFallbackExceptionHandlerTest {
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
+    RequestContextHolder.resetRequestAttributes();
   }
 
   @Test
@@ -80,6 +92,27 @@ class CoreFallbackExceptionHandlerTest {
         .containsEntry("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode())
         .containsEntry("message", "Access denied")
         .containsKey("traceId");
+  }
+
+  @Test
+  void handleAccessDenied_marksRequestAsAuditedWhenFallbackAuditRuns() {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "accounting.user", "N/A", List.of(new SimpleGrantedAuthority("ROLE_ACCOUNTING"))));
+    CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
+    AuditService auditService = Mockito.mock(AuditService.class);
+    ReflectionTestUtils.setField(handler, "auditService", auditService);
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/dispatch/confirm");
+    request.setRequestURI("/api/v1/dispatch/confirm");
+    RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+    handler.handleAccessDenied(new AccessDeniedException("denied"), request);
+
+    assertThat(AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)).isTrue();
+    verify(auditService)
+        .logAuthFailure(
+            eq(AuditEvent.ACCESS_DENIED), any(String.class), isNull(), any(Map.class));
   }
 
   @Test

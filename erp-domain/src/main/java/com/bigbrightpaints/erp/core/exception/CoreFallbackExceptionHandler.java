@@ -166,6 +166,7 @@ public class CoreFallbackExceptionHandler {
           actor,
           tenantScope,
           metadata);
+      AccessDeniedAuditMarker.markCurrentRequestAudited();
     }
     String userMessage =
         PortalRoleActionMatrix.resolveAccessDeniedMessage(
