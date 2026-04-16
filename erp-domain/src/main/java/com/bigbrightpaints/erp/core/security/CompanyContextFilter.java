@@ -12,6 +12,8 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +23,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
@@ -114,6 +118,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   private final AuthScopeService authScopeService;
   private final ObjectMapper objectMapper;
 
+  @Autowired(required = false)
+  @Nullable
+  private AuditService auditService;
+
   public CompanyContextFilter(
       TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService,
       CompanyService companyService,
@@ -156,6 +164,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         return;
       }
       if (hasSuperAdminAuthority && isTenantBusinessRequestBlockedForSuperAdmin(runtimePath)) {
+        auditSuperAdminPlatformOnlyDenied(request, runtimePath);
         writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
@@ -207,12 +216,14 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       if (hasSuperAdminAuthority
           && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
           && !superAdminPlatformScope) {
+        auditSuperAdminPlatformOnlyDenied(request, runtimePath);
         writeAccessDenied(
             response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
       if (superAdminPlatformScope) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
+          auditSuperAdminPlatformOnlyDenied(request, runtimePath);
           writeAccessDenied(
               response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
           return;
@@ -411,6 +422,29 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       return !isSuperAdminAllowedAccountingControlPath(normalizedPath);
     }
     return false;
+  }
+
+  private void auditSuperAdminPlatformOnlyDenied(
+      HttpServletRequest request, String normalizedPath) {
+    if (auditService == null || AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)) {
+      return;
+    }
+    String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
+    String tenantScope = AccessDeniedAuditMarker.resolveTenantScope(request);
+    Map<String, String> metadata = new LinkedHashMap<>();
+    metadata.put("actor", actor);
+    metadata.put("reason", "SUPER_ADMIN_PLATFORM_ONLY");
+    metadata.put(
+        "deniedPath",
+        StringUtils.hasText(normalizedPath)
+            ? normalizedPath
+            : normalizePath(resolveApplicationPath(request)));
+    metadata.put("deniedMethod", request.getMethod());
+    if (StringUtils.hasText(tenantScope)) {
+      metadata.put("tenantScope", tenantScope.trim());
+    }
+    auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
+    AccessDeniedAuditMarker.markCurrentRequestAudited();
   }
 
   private boolean isSuperAdminAllowedOrchestratorControlPath(String normalizedPath) {

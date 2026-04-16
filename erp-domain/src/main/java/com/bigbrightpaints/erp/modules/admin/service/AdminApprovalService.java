@@ -172,7 +172,7 @@ public class AdminApprovalService {
           toCreditRequestItem(decideCreditRequest(company, id, approve, request.reason()));
       case CREDIT_LIMIT_OVERRIDE_REQUEST ->
           toCreditOverrideItem(decideCreditOverride(company, id, approve, request));
-      case PAYROLL_RUN -> toPayrollApprovalItem(decidePayroll(id, approve, request.reason()));
+      case PAYROLL_RUN -> toPayrollApprovalItem(decidePayroll(id, approve));
       case PERIOD_CLOSE_REQUEST -> decidePeriodCloseItem(id, approve, request.reason());
     };
   }
@@ -209,7 +209,7 @@ public class AdminApprovalService {
         .orElseThrow(() -> ValidationUtils.invalidInput("Credit override request not found: " + id));
   }
 
-  private PayrollService.PayrollRunDto decidePayroll(Long id, boolean approve, String reason) {
+  private PayrollService.PayrollRunDto decidePayroll(Long id, boolean approve) {
     if (!approve) {
       throw ValidationUtils.invalidInput(
           "Payroll rejection is not supported; use the HR correction workflow before re-approval");
@@ -470,10 +470,14 @@ public class AdminApprovalService {
   }
 
   private String normalizeStatus(String status) {
-    if (!StringUtils.hasText(status)) {
+    if (status == null) {
       return "UNKNOWN";
     }
-    return status.trim().toUpperCase(Locale.ROOT);
+    String trimmedStatus = status.trim();
+    if (trimmedStatus.isEmpty()) {
+      return "UNKNOWN";
+    }
+    return trimmedStatus.toUpperCase(Locale.ROOT);
   }
 
   private String toAmountString(BigDecimal amount) {

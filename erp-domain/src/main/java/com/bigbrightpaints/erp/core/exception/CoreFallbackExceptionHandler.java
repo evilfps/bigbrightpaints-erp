@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.core.exception;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;

@@ -310,10 +310,14 @@ public class AdminDashboardService {
   }
 
   private String normalizeActorKey(String actor) {
-    if (!StringUtils.hasText(actor)) {
+    if (actor == null) {
       return null;
     }
-    return actor.trim().toLowerCase(Locale.ROOT);
+    String trimmedActor = actor.trim();
+    if (trimmedActor.isEmpty()) {
+      return null;
+    }
+    return trimmedActor.toLowerCase(Locale.ROOT);
   }
 
   private enum ActorProtectionState {

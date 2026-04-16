@@ -89,7 +89,7 @@ Denied:
 Request body (`UpdateUserRequest`):
 
 - `displayName` required
-- `roles` optional full desired set (same fixed-role validation)
+- `roles` optional full desired set (same fixed-role validation); omit to keep existing roles unchanged
 
 ### `PUT /api/v1/admin/users/{userId}/status`
 
