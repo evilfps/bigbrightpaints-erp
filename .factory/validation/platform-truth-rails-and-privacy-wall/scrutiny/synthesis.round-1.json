@@ -1,0 +1,51 @@
+{
+  "milestone": "platform-truth-rails-and-privacy-wall",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory && ROOT=$(git rev-parse --show-toplevel) && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T5 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "platform-privacy-wall-and-superadmin-auth"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "platform-privacy-wall-and-superadmin-auth",
+      "severity": "blocking",
+      "description": "`GET /api/v1/companies` still returns `companyService.findAll()` to any `ROLE_SUPER_ADMIN`, leaving a non-canonical cross-tenant inventory surface outside `/api/v1/superadmin/**` and keeping the platform privacy-wall hard cut incomplete."
+    },
+    {
+      "featureId": "platform-privacy-wall-and-superadmin-auth",
+      "severity": "blocking",
+      "description": "`CompanyControllerIT.list_companies_returns_all_tenants_for_root_only_super_admin` codifies the surviving `/api/v1/companies` superadmin inventory behavior instead of proving that the alias fails closed."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "The mission architecture defines `/api/v1/superadmin/**` as the canonical platform control-plane host, but no shared-state note or guard explains whether `GET /api/v1/companies` is an intentional exception.",
+      "reason": "Rejected as a shared-state update because the mission guidance already defines the canonical host; the surviving `/api/v1/companies` behavior is a feature-specific blocking defect captured in the review rather than new reusable guidance."
+    }
+  ],
+  "previousRound": null
+}

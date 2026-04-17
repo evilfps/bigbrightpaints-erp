@@ -1,34 +1,21 @@
 {
   "featureId": "platform-privacy-wall-and-superadmin-auth",
-  "reviewedAt": "2026-04-17T01:35:33Z",
-  "commitId": "d0a49513fcc2409c475609e0b335a5c2f03e6726",
+  "reviewedAt": "2026-04-17T03:07:47Z",
+  "commitId": "488ae1c4f7639593b3f6168801ed1ad2ea7b0425",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
-  "status": "fail",
+  "status": "pass",
   "codeReview": {
-    "summary": "Reviewed commit d0a49513fcc2409c475609e0b335a5c2f03e6726, the worker handoff, the transcript skeleton, and the touched auth/company/admin tests. The filter hardening correctly preserves canonical `/api/v1/superadmin/**` access for root/platform-scoped superadmins, blocks tenant-attached superadmin access to tenant workflows, and retires several nested `/api/v1/companies/**` aliases to 404. However, the packet still leaves a second live cross-tenant inventory surface at `GET /api/v1/companies` for root-scoped superadmins, so the hard cut is incomplete and the feature does not fully satisfy the stated route-retirement/privacy-wall requirements.",
-    "issues": [
-      {
-        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java",
-        "line": 34,
-        "severity": "blocking",
-        "description": "`GET /api/v1/companies` still returns `companyService.findAll()` for any `ROLE_SUPER_ADMIN`, which preserves a non-canonical cross-tenant tenant-inventory surface outside `/api/v1/superadmin/**`. The feature description and mission architecture require platform-owner inventory reads to live on canonical `/api/v1/superadmin/**` routes and retire nested `/api/v1/companies/**` control-plane aliases from runtime behavior. Because root-scoped superadmins can still list all tenants through `/api/v1/companies`, the privacy-wall hard cut is incomplete and there are still two runtime truths for tenant inventory."
-      },
-      {
-        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/CompanyControllerIT.java",
-        "line": 111,
-        "severity": "blocking",
-        "description": "The new regression `list_companies_returns_all_tenants_for_root_only_super_admin` locks in the surviving `/api/v1/companies` superadmin inventory behavior instead of retiring it. That test codifies the same non-canonical route surface the feature was supposed to remove, so the packet actively preserves the duplicate control-plane host rather than proving it fails closed."
-      }
-    ]
+    "summary": "Reviewed the prior failing commit `d0a49513fcc2409c475609e0b335a5c2f03e6726`, the fix commit `488ae1c4f7639593b3f6168801ed1ad2ea7b0425`, both feature handoffs, the transcript skeleton entries for the reviewed worker sessions, and the current auth/company source and regression tests. The original failure was that root/platform superadmins could still reach cross-tenant inventory through `GET /api/v1/companies` and the regression suite preserved that alias. The fix addresses that directly: `CompanyContextFilter` now classifies `/api/v1/companies` as a superadmin-blocked tenant-business host, so superadmin requests are denied before `CompanyController` can serve the legacy list path, and `CompanyControllerIT` now proves `GET /api/v1/companies` fails closed for tenant-scoped, platform-scoped, and root-only superadmins while `GET /api/v1/superadmin/tenants` remains the canonical green cross-tenant inventory surface.",
+    "issues": []
   },
   "sharedStateObservations": [
     {
-      "area": "conventions",
-      "observation": "The mission architecture documents `/api/v1/superadmin/**` as the canonical platform control-plane host, but there is no shared-state note or guard explaining whether `GET /api/v1/companies` is an intentional exception. This packet preserves that route for root-scoped superadmins, creating runtime truth that conflicts with the documented canonical route matrix.",
-      "evidence": ".factory/library/architecture.md:32-35 defines the platform control plane under `/api/v1/superadmin/**`, while erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/CompanyController.java:27-35 still serves `GET /api/v1/companies` and erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/CompanyControllerIT.java:111-123 now codifies superadmin-wide tenant listing on that host."
+      "area": "services",
+      "observation": "Mission guidance requires running `scripts/validate_test_catalog.py` directly from the repo root during validation, and the fix-session handoff records that command as part of verification, but `.factory/services.yaml` still has no named command entry for it. Workers currently have to remember and invoke that validation ad hoc instead of using the shared command registry.",
+      "evidence": "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/AGENTS.md:88 directs workers to run `scripts/validate_test_catalog.py` from the repo root, the handoff `2026-04-17T03-00-56-898Z__platform-privacy-wall-and-superadmin-auth__829bd3d5-1e11-4314-9842-3f5fc4509fac.json` lists that command in verification, and /Users/anas/Documents/Factory/.factory/services.yaml has no `validate_test_catalog` command entry."
     }
   ],
-  "addressesFailureFrom": null,
-  "summary": "Fail. The packet hardens the canonical superadmin filter paths correctly, but it does not complete the requested hard cut because root-scoped superadmins can still read cross-tenant inventory via `GET /api/v1/companies`. That surviving duplicate host conflicts with the mission’s canonical `/api/v1/superadmin/**` route ownership and keeps the control-plane alias retirement incomplete."
+  "addressesFailureFrom": "/Users/anas/Documents/Factory/.factory/validation/platform-truth-rails-and-privacy-wall/scrutiny/reviews/platform-privacy-wall-and-superadmin-auth.json",
+  "summary": "Pass. The rerun fixes the prior blocking defect by retiring `GET /api/v1/companies` for root/platform superadmins at the filter layer and by replacing the old alias-preserving regression with coverage that proves the alias is denied while canonical tenant inventory remains available only on `GET /api/v1/superadmin/tenants`."
 }

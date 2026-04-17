@@ -19,6 +19,8 @@ commands:
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh
   openapi-refresh: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test
+  validate-test-catalog: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && python3 scripts/validate_test_catalog.py --catalog docs/CODE-RED/confidence-suite/TEST_CATALOG.json --quarantine scripts/test_quarantine.txt --tests-root erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite --gate gate-fast
   strict-runtime-smoke-check: >-
     health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && readiness=$(curl -s -o /tmp/factory-strict-readiness.out -w '%{http_code}' http://localhost:9090/actuator/health/readiness || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && [ "$readiness" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
   platform-control-proof: >-
