@@ -95,7 +95,7 @@ class CompanyControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void list_companies_allows_super_admin_without_admin_role_assignment() {
+  void list_companies_is_denied_for_tenant_scoped_super_admin_without_admin_role_assignment() {
     ResponseEntity<Map> listResp =
         rest.exchange(
             "/api/v1/companies",
@@ -104,11 +104,12 @@ class CompanyControllerIT extends AbstractIntegrationTest {
                 jsonHeaders(loginToken(HIERARCHY_SUPER_ADMIN_EMAIL, COMPANY_CODE), COMPANY_CODE)),
             Map.class);
 
-    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertPlatformOnlyDenial(listResp);
   }
 
   @Test
-  void list_companies_returns_all_tenants_for_root_only_super_admin() {
+  void list_companies_is_retired_for_root_only_super_admin_and_superadmin_tenants_remains_canonical() {
     String rootOnlySuperAdminEmail = "root-list-super-admin@bbp.com";
     dataSeeder.ensureUser(
         rootOnlySuperAdminEmail,
@@ -116,22 +117,32 @@ class CompanyControllerIT extends AbstractIntegrationTest {
         "Root List Super Admin",
         ROOT_COMPANY_CODE,
         List.of("ROLE_SUPER_ADMIN"));
+    String token = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
 
     ResponseEntity<Map> listResp =
         rest.exchange(
             "/api/v1/companies",
             HttpMethod.GET,
-            new HttpEntity<>(
-                jsonHeaders(
-                    loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE), ROOT_COMPANY_CODE)),
+            new HttpEntity<>(jsonHeaders(token, ROOT_COMPANY_CODE)),
             Map.class);
 
-    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertPlatformOnlyDenial(listResp);
+
+    ResponseEntity<Map> canonicalTenantsResp =
+        rest.exchange(
+            "/api/v1/superadmin/tenants",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(token, ROOT_COMPANY_CODE)),
+            Map.class);
+
+    assertThat(canonicalTenantsResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(canonicalTenantsResp.getBody()).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> companies =
-        (List<Map<String, Object>>) listResp.getBody().get("data");
-    assertThat(companies)
-        .extracting(company -> company.get("code").toString().toUpperCase(Locale.ROOT))
+    List<Map<String, Object>> tenants =
+        (List<Map<String, Object>>) canonicalTenantsResp.getBody().get("data");
+    assertThat(tenants)
+        .extracting(tenant -> tenant.get("companyCode").toString().toUpperCase(Locale.ROOT))
         .contains(ROOT_COMPANY_CODE, COMPANY_CODE);
   }
 
@@ -262,6 +273,20 @@ class CompanyControllerIT extends AbstractIntegrationTest {
     assertThat(supportResetResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(limitsResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void assertPlatformOnlyDenial(ResponseEntity<Map> response) {
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().get("success")).isEqualTo(Boolean.FALSE);
+    Map<String, Object> error = (Map<String, Object>) response.getBody().get("data");
+    assertThat(error).isNotNull();
+    assertThat(error.get("code")).isEqualTo("AUTH_004");
+    assertThat(error.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
+    assertThat(error.get("reasonDetail"))
+        .isEqualTo(
+            "Super Admin is limited to platform control-plane operations and cannot execute tenant"
+                + " business workflows");
   }
 
   private HttpHeaders jsonHeaders(String token, String companyCode) {

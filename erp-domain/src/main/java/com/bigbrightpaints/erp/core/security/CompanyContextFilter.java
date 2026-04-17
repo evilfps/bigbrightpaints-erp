@@ -78,6 +78,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       Set.of(
           "/api/v1/dealer-portal",
           "/api/v1/portal",
+          "/api/v1/companies",
           "/api/v1/sales",
           "/api/v1/credit",
           "/api/v1/dealers",
