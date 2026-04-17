@@ -1,0 +1,42 @@
+{
+  "milestone": "platform-truth-rails-and-privacy-wall",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-PLATFORM-001",
+    "VAL-PLATFORM-007",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/library/user-testing.md",
+      "description": "Added Flow Validator Guidance for the api-runtime surface, including single-lane isolation and privacy-wall-specific non-destructive probe rules.",
+      "source": "setup"
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "Read",
+    "Grep",
+    "Task",
+    "curl"
+  ],
+  "frictions": [
+    "The live runtime had seeded validation actors in the database but no discoverable plaintext credentials in .env; local validation-user passwords and missing MOCK-scope dealer/tenant-attached-superadmin fixtures were stabilized in the project database before curl validation ran.",
+    "MailHog reset emails masked the reset token in the HTML link, so runtime-state inspection was needed to confirm the supported recovery path and to avoid unsafe credential guessing."
+  ],
+  "blockers": [],
+  "flowReports": [
+    "/Users/anas/Documents/Factory/.factory/validation/platform-truth-rails-and-privacy-wall/user-testing/flows/privacy-wall-core.json"
+  ],
+  "previousRound": null
+}

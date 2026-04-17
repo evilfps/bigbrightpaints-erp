@@ -90,6 +90,15 @@ Rationale:
 - Pair canonical-route success proof with retired-route absence or fail-closed proof whenever a milestone retires an alias.
 - Use the canonical tenant-admin approval decision route for credit decisions; direct module-specific decision routes belong only in cleanup-retirement checks.
 
+## Flow Validator Guidance: api-runtime
+
+- Use only the approved compose-backed runtime on `localhost:8081`, `localhost:9090`, and `localhost:8025`; do not start alternate app ports or sidecar runtimes.
+- For `platform-truth-rails-and-privacy-wall`, keep the auth/privacy-wall assertions in a single validator lane because they share the same login identities, MailHog inbox, and tenant-scoped authorization surface.
+- Prefer read-only discovery of live actors (existing credentials, MailHog artifacts, or targeted read-only DB/container inspection) before attempting any mutation. If password-reset flows are required to regain access to an existing seeded actor, use the supported API + MailHog path and record which identity was changed.
+- Reuse one platform-scoped superadmin session for `auth/login -> auth/me -> /api/v1/superadmin/**` continuity checks, and keep denied-route probes to non-destructive reads from tenant-admin, tenant business, portal, dealer-portal, sales, accounting, or factory route families.
+- Do not modify tenant lifecycle, limits, modules, billing plans, or onboarding state in this lane; this milestone only needs auth continuity and privacy-wall denial proof.
+- Evidence should capture the exact auth scope used for each actor (`PLATFORM`, tenant code, or other scope) so failed/denied results can be tied back to the intended boundary.
+
 ## Known Constraints
 
 - This repository may still contain pre-hard-cut docs/OpenAPI truth until the relevant cleanup milestones land.

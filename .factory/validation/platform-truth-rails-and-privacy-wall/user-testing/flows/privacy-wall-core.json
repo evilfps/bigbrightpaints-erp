@@ -1,0 +1,219 @@
+{
+  "assertions": [
+    {
+      "evidence": {
+        "consoleErrors": "N/A (curl-based runtime validation)",
+        "network": "POST /api/v1/auth/login -> 200\nGET /api/v1/auth/me -> 200\nGET /api/v1/superadmin/dashboard -> 200\nGET /api/v1/superadmin/tenants -> 200\nGET /api/v1/superadmin/tenants/3 -> 200",
+        "rawEvidenceFiles": [
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_superadmin-login.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_me.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_dashboard.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_tenants.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_tenant_detail.json"
+        ],
+        "screenshots": []
+      },
+      "id": "VAL-PLATFORM-001",
+      "issues": null,
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Login as platform superadmin with companyCode PLATFORM",
+          "expected": "200 with access token",
+          "observed": "200 {\"tokenType\":\"Bearer\",\"accessToken\":\"<redacted>\",\"refreshToken\":\"<redacted>\",\"expiresIn\":900,\"companyCode\":\"PLATFORM\",\"displayName\":\"Validation Superadmin\",\"mustChangePassword\":false}"
+        },
+        {
+          "action": "GET /api/v1/auth/me with the same platform session",
+          "expected": "200 and platform identity state",
+          "observed": "200 {\"success\":true,\"data\":{\"email\":\"validation.superadmin@example.com\",\"displayName\":\"Validation Superadmin\",\"companyCode\":\"PLATFORM\",\"mfaEnabled\":false,\"mustChangePassword\":false,\"roles\":[\"ROLE_ADMIN\",\"ROLE_SUPER_ADMIN\"],\"permissions\":[\"dispatch.confirm\",\"factory.dispatch\",\"payroll.run\",\"portal:accounting\",\"portal:dealer\",\"portal:factory\",\"portal:sales\"]},\"timestamp\":\"2026-04-17T03:36:55.888098089Z\"}"
+        },
+        {
+          "action": "GET /api/v1/superadmin/dashboard with the same session",
+          "expected": "200 control-plane dashboard",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin dashboard fetched\",\"data\":{\"totalTenants\":3,\"activeTenants\":3,\"suspendedTenants\":0,\"deactivatedTenants\":0,\"totalActiveUsers\":6,\"totalActiveUserQuota\":5,\"totalAuditStorageBytes\":35232,\"totalStorageQuotaBytes\":0,\"totalCurrentConcurrentRequests\":0,\"totalConcurrentRequestQuota\":10,\"tenants\":[{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"region\":\"UTC\",\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"activeUsers\":1,\"activeUserQuota\":5,\"auditStorageBytes\":848,\"storageQuotaBytes\":0,\"currentConcurrentRequests\":0,\"conc"
+        },
+        {
+          "action": "GET /api/v1/superadmin/tenants with the same session",
+          "expected": "200 tenant inventory",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin tenant list fetched\",\"data\":[{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"timezone\":\"UTC\",\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"activeUserCount\":1,\"quotaMaxActiveUsers\":5,\"apiActivityCount\":4,\"quotaMaxApiRequests\":1000,\"auditStorageBytes\":848,\"quotaMaxStorageBytes\":0,\"currentConcurrentRequests\":0,\"quotaMaxConcurrentRequests\":10,\"enabledModules\":[\"MANUFACTURING\",\"PURCHASING\",\"REPORTS_ADVANCED\",\"PORTAL\"],\"mainAdmin\":{\"userId\":8,\"email\":\"dryrun.admin@example.com\",\"displayName\":\"Dryrun Temp Admin\",\"en"
+        },
+        {
+          "action": "GET /api/v1/superadmin/tenants/3 with the same session",
+          "expected": "200 tenant detail",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin tenant detail fetched\",\"data\":{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"timezone\":\"UTC\",\"stateCode\":null,\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"enabledModules\":[\"MANUFACTURING\",\"PURCHASING\",\"REPORTS_ADVANCED\",\"PORTAL\"],\"onboarding\":{\"templateCode\":\"GENERIC\",\"adminEmail\":\"dryrun.admin@example.com\",\"adminUserId\":8,\"tenantAdminProvisioned\":true,\"credentialsEmailSent\":false,\"credentialsEmailedAt\":null,\"completedAt\":\"2026-04-16T17:46:58.745606Z\"},\"mainAdmin\":{\"userId\":8,\"email\":\"dryrun.admin@example."
+        },
+        {
+          "action": "Probe superadmin routes as tenant admin/business/dealer sessions",
+          "expected": "Denied fail-closed responses",
+          "observed": "tenant_admin:/api/v1/superadmin/dashboard -> 403; tenant_business:/api/v1/superadmin/dashboard -> 403; dealer:/api/v1/superadmin/dashboard -> 403"
+        }
+      ],
+      "title": "Superadmin dashboard and tenant inventory are platform-owner only"
+    },
+    {
+      "evidence": {
+        "consoleErrors": "N/A (curl-based runtime validation)",
+        "network": "POST /api/v1/auth/login -> 200\nGET /api/v1/auth/me -> 200\nGET /api/v1/superadmin/dashboard -> 200\nGET /api/v1/superadmin/tenants -> 200",
+        "rawEvidenceFiles": [
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_superadmin-login.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_me.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_dashboard.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_tenants.json"
+        ],
+        "screenshots": []
+      },
+      "id": "VAL-CROSS-001",
+      "issues": null,
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Login as platform superadmin and reuse the same bearer token",
+          "expected": "200 login response",
+          "observed": "200 {\"tokenType\":\"Bearer\",\"accessToken\":\"<redacted>\",\"refreshToken\":\"<redacted>\",\"expiresIn\":900,\"companyCode\":\"PLATFORM\",\"displayName\":\"Validation Superadmin\",\"mustChangePassword\":false}"
+        },
+        {
+          "action": "GET /api/v1/auth/me",
+          "expected": "200 and platform identity state",
+          "observed": "200 {\"success\":true,\"data\":{\"email\":\"validation.superadmin@example.com\",\"displayName\":\"Validation Superadmin\",\"companyCode\":\"PLATFORM\",\"mfaEnabled\":false,\"mustChangePassword\":false,\"roles\":[\"ROLE_ADMIN\",\"ROLE_SUPER_ADMIN\"],\"permissions\":[\"dispatch.confirm\",\"factory.dispatch\",\"payroll.run\",\"portal:accounting\",\"portal:dealer\",\"portal:factory\",\"portal:sales\"]},\"timestamp\":\"2026-04-17T03:36:55.888098089Z\"}"
+        },
+        {
+          "action": "GET /api/v1/superadmin/dashboard",
+          "expected": "200",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin dashboard fetched\",\"data\":{\"totalTenants\":3,\"activeTenants\":3,\"suspendedTenants\":0,\"deactivatedTenants\":0,\"totalActiveUsers\":6,\"totalActiveUserQuota\":5,\"totalAuditStorageBytes\":35232,\"totalStorageQuotaBytes\":0,\"totalCurrentConcurrentRequests\":0,\"totalConcurrentRequestQuota\":10,\"tenants\":[{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"region\":\"UTC\",\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"activeUsers\":1,\"activeUserQuota\":5,\"auditStorageBytes\":848,\"storageQuotaBytes\":0,\"currentConcurrentRequests\":0,\"conc"
+        },
+        {
+          "action": "GET /api/v1/superadmin/tenants",
+          "expected": "200",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin tenant list fetched\",\"data\":[{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"timezone\":\"UTC\",\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"activeUserCount\":1,\"quotaMaxActiveUsers\":5,\"apiActivityCount\":4,\"quotaMaxApiRequests\":1000,\"auditStorageBytes\":848,\"quotaMaxStorageBytes\":0,\"currentConcurrentRequests\":0,\"quotaMaxConcurrentRequests\":10,\"enabledModules\":[\"MANUFACTURING\",\"PURCHASING\",\"REPORTS_ADVANCED\",\"PORTAL\"],\"mainAdmin\":{\"userId\":8,\"email\":\"dryrun.admin@example.com\",\"displayName\":\"Dryrun Temp Admin\",\"en"
+        }
+      ],
+      "title": "Platform first-visit auth continuity flows from login to auth/me to control-plane reads"
+    },
+    {
+      "evidence": {
+        "consoleErrors": "N/A (curl-based runtime validation)",
+        "network": "platform control-plane route -> 200\ntenant-attached superadmin /admin/support/tickets -> 403\ntenant-attached superadmin /admin/approvals -> 403\ntenant-attached superadmin /admin/self/settings -> 403\ntenant-attached superadmin /admin/audit/events -> 403",
+        "rawEvidenceFiles": [
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/tenant_attached_superadmin-login.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/tenant_attached_me.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/root_control_plane_again.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/attached__admin_support_tickets.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/attached__admin_approvals.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/attached__admin_self_settings.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/attached__admin_audit_events.json"
+        ],
+        "screenshots": []
+      },
+      "id": "VAL-CROSS-002",
+      "issues": null,
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Login as platform superadmin",
+          "expected": "200",
+          "observed": "200 {\"tokenType\":\"Bearer\",\"accessToken\":\"<redacted>\",\"refreshToken\":\"<redacted>\",\"expiresIn\":900,\"companyCode\":\"PLATFORM\",\"displayName\":\"Validation Superadmin\",\"mustChangePassword\":false}"
+        },
+        {
+          "action": "Confirm platform control-plane access remains usable",
+          "expected": "200 on a control-plane route",
+          "observed": "200 {\"success\":true,\"message\":\"Superadmin dashboard fetched\",\"data\":{\"totalTenants\":3,\"activeTenants\":3,\"suspendedTenants\":0,\"deactivatedTenants\":0,\"totalActiveUsers\":6,\"totalActiveUserQuota\":5,\"totalAuditStorageBytes\":36800,\"totalStorageQuotaBytes\":0,\"totalCurrentConcurrentRequests\":0,\"totalConcurrentRequestQuota\":10,\"tenants\":[{\"companyId\":3,\"companyCode\":\"DRYRUN-T1\",\"companyName\":\"DRYRUN Temporary Validation Tenant\",\"region\":\"UTC\",\"lifecycleState\":\"ACTIVE\",\"lifecycleReason\":null,\"activeUsers\":1,\"activeUserQuota\":5,\"auditStorageBytes\":1072,\"storageQuotaBytes\":0,\"currentConcurrentRequests\":0,\"con"
+        },
+        {
+          "action": "Login as tenant-attached superadmin on companyCode MOCK",
+          "expected": "200 with same identity scope",
+          "observed": "200 {\"tokenType\":\"Bearer\",\"accessToken\":\"<redacted>\",\"refreshToken\":\"<redacted>\",\"expiresIn\":900,\"companyCode\":\"MOCK\",\"displayName\":\"Validation Tenant Super Admin\",\"mustChangePassword\":fa"
+        },
+        {
+          "action": "GET /api/v1/admin/support/tickets as tenant-attached superadmin",
+          "expected": "deny",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"1ed3b6af-114e-45f0-a8a7-3e6d9e5d807f\"},\"timestamp\":\"2026-04-17T03:36:56.229274580Z\"}"
+        },
+        {
+          "action": "GET /api/v1/admin/approvals as tenant-attached superadmin",
+          "expected": "deny",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"9ae8ae6a-db22-48a0-82f7-4dd8d3ffe153\"},\"timestamp\":\"2026-04-17T03:36:56.242240880Z\"}"
+        },
+        {
+          "action": "GET /api/v1/admin/self/settings as tenant-attached superadmin",
+          "expected": "deny",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"a5199079-69ef-46bc-801f-e8106a0eb5e3\"},\"timestamp\":\"2026-04-17T03:36:56.255282639Z\"}"
+        },
+        {
+          "action": "GET /api/v1/admin/audit/events as tenant-attached superadmin",
+          "expected": "deny",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_TENANT_WORKFLOW_DENIED\",\"reasonDetail\":\"Access denied to tenant audit workflow for platform-only super admin\",\"traceId\":\"fbb84b65-1583-4f6b-9c4a-692d57dca3ff\"},\"timestamp\":\"2026-04-17T03:36:56.267922105Z\"}"
+        }
+      ],
+      "title": "Root platform-owner remains usable while tenant-attached superadmin is blocked from tenant workflows"
+    },
+    {
+      "evidence": {
+        "consoleErrors": "N/A (curl-based runtime validation)",
+        "network": "admin_support_tickets -> 403\nadmin_approvals -> 403\nadmin_self_settings -> 403\ndealer_portal_support_tickets -> 403\nsales_dealers -> 403\naccounting_transactions -> 403\nfactory_dashboard -> 403",
+        "rawEvidenceFiles": [
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__admin_support_tickets.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__admin_approvals.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__admin_self_settings.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__dealer_portal_support_tickets.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__sales_dealers.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__accounting_transactions.json",
+          "/Users/anas/.factory/missions/79541091-5ebe-440a-a97d-ffdf27fa0cb6/evidence/platform-truth-rails-and-privacy-wall/privacy-wall-core/platform_deny__factory_dashboard.json"
+        ],
+        "screenshots": []
+      },
+      "id": "VAL-PLATFORM-007",
+      "issues": null,
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GET http://localhost:8081/api/v1/admin/support/tickets as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"a7721c3a-2d7a-4261-956f-1fd715fb0f17\"},\"timestamp\":\"2026-04-17T03:36:56.280572696Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/admin/approvals as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"f19904cc-b410-4338-b432-02bab3369be9\"},\"timestamp\":\"2026-04-17T03:36:56.293464371Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/admin/self/settings as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"13f4df6d-225e-4177-9b2b-9a71ed5bd5d1\"},\"timestamp\":\"2026-04-17T03:36:56.306923798Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/dealer-portal/support/tickets as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"6319581d-9605-4910-8140-51496c61aac6\"},\"timestamp\":\"2026-04-17T03:36:56.319346763Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/dealers as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"eb04998f-e9a8-4052-92cd-1e2b570b8d2e\"},\"timestamp\":\"2026-04-17T03:36:56.331429643Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/accounting/audit/transactions?page=0&size=1 as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"591d7ff3-ed73-4a76-bf7a-64c467c45ace\"},\"timestamp\":\"2026-04-17T03:36:56.344338777Z\"}"
+        },
+        {
+          "action": "GET http://localhost:8081/api/v1/factory/dashboard as platform superadmin",
+          "expected": "fail-closed deny and no tenant data",
+          "observed": "403 {\"success\":false,\"message\":\"Access denied\",\"data\":{\"code\":\"AUTH_004\",\"message\":\"Access denied\",\"reason\":\"SUPER_ADMIN_PLATFORM_ONLY\",\"reasonDetail\":\"Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows\",\"traceId\":\"74d826e5-cb8b-49a9-a100-4e3dadd5aa70\"},\"timestamp\":\"2026-04-17T03:36:56.357821662Z\"}"
+        }
+      ],
+      "title": "Platform-owner is hard-blocked from tenant business and tenant-admin workflow APIs"
+    }
+  ],
+  "blockers": [],
+  "credentials": {
+    "account": "validation.superadmin@example.com",
+    "namespace": "platform-truth-rails-and-privacy-wall"
+  },
+  "frictions": [],
+  "groupId": "privacy-wall-core",
+  "summary": "Tested 4 curl-based privacy-wall assertions: platform control-plane continuity, tenant-attached superadmin tenant-workflow denial, and platform-owner fail-closed denial across tenant business/admin APIs. Raw evidence snapshots were saved under the mission evidence directory.",
+  "testedAt": "2026-04-17T03:36:56.339170Z",
+  "toolsUsed": [
+    "curl"
+  ]
+}
