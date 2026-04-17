@@ -1,6 +1,6 @@
 {
   "milestone": "platform-truth-rails-and-privacy-wall",
-  "round": 4,
+  "round": 3,
   "status": "pass",
   "validatorsRun": {
     "test": {
@@ -26,13 +26,14 @@
     "failedFeatures": []
   },
   "blockingIssues": [],
-  "appliedUpdates": [],
-  "suggestedGuidanceUpdates": [],
-  "rejectedObservations": [
+  "appliedUpdates": [
     {
-      "observation": "Mission guidance requires a named validate-test-catalog command in `.factory/services.yaml` so workers can run the repo-root catalog validation without ad hoc shell commands.",
-      "reason": "already-documented — round 3 already added `commands.validate-test-catalog`, and the current `.factory/services.yaml` includes that entry."
+      "target": "services.yaml",
+      "description": "Added a named `validate-test-catalog` command so workers can run the mission-required catalog validation directly from the shared command registry instead of invoking `scripts/validate_test_catalog.py` ad hoc.",
+      "sourceFeature": "platform-privacy-wall-and-superadmin-auth"
     }
   ],
-  "previousRound": ".factory/validation/platform-truth-rails-and-privacy-wall/scrutiny/synthesis.round-3.json"
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/platform-truth-rails-and-privacy-wall/scrutiny/synthesis.round-2.json"
 }
