@@ -1,0 +1,46 @@
+{
+  "milestone": "platform-dashboard-and-tenant-inventory",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory/erp-domain && MIGRATION_SET=v2 mvn -T5 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /Users/anas/Documents/Factory && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "platform-dashboard-and-tenant-inventory-read-model"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "platform-dashboard-and-tenant-inventory-read-model",
+      "severity": "blocking",
+      "description": "`CompanyContextFilter` does not include `PUT /api/v1/superadmin/tenants/{id}/billing-plan` in `COMPANY_BOUND_CONTROL_ROUTES`, so root/platform superadmin billing-plan writes bypass target-tenant binding and can be evaluated against the caller scope instead of the requested tenant."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "The manifest does not provide a supported command for hot-deploying the rebuilt app JAR into the existing validation container, so the worker used an ad-hoc `docker cp ... && docker restart erp_domain_app` workaround for runtime proof.",
+      "reason": "ambiguous — the review did not establish a canonical command name or whether hot-reload, compose rebuild, or restart-only should be the supported runtime proof path, so this should not be applied automatically."
+    }
+  ],
+  "previousRound": null
+}

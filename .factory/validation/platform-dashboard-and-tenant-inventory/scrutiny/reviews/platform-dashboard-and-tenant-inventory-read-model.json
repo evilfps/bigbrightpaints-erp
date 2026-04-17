@@ -1,0 +1,34 @@
+{
+  "featureId": "platform-dashboard-and-tenant-inventory-read-model",
+  "reviewedAt": "2026-04-17T06:09:30Z",
+  "commitId": "faac99d7414437843e1d5f9bb866fdb535e95ab0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The typed dashboard/list/detail and billing-plan DTO work is mostly aligned with the contract, but the new canonical billing-plan write route was not added to the company-context filter's company-bound control-route registry. That leaves the route outside the target-tenant binding and control-plane bypass path used by the other canonical tenant control writes, so root/platform superadmin billing-plan updates can be evaluated against the caller's own scope instead of the requested tenant.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java",
+        "line": 51,
+        "severity": "blocking",
+        "description": "`COMPANY_BOUND_CONTROL_ROUTES` does not include `PUT /api/v1/superadmin/tenants/{id}/billing-plan`, even though the controller exposes it at `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/SuperAdminController.java:93`. Because the filter only resolves the path-target tenant and enables control-plane bypass for routes in this registry, billing-plan writes fall through as generic `/api/v1/superadmin/**` requests with the caller's scope still bound (`ROOT`/platform). That breaks the canonical control-plane contract for root/platform superadmin mutations and can fail with the wrong company access/admission behavior instead of targeting the requested tenant."
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/company/SuperAdminControllerIT.java",
+        "line": 333,
+        "severity": "non_blocking",
+        "description": "Coverage was updated for the billing-plan happy path, but there is no companion test that the new route participates in the same control-plane binding and platform-only denial rules already asserted for dashboard/list/detail (`SuperAdminControllerIT.java:98-134`) and other bound control routes (`erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java:91-166`). That gap is why the missing `CompanyContextFilter` binding for `/billing-plan` shipped unnoticed."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "services",
+      "observation": "The manifest does not provide a supported command for hot-deploying the rebuilt app JAR into the existing validation container, so the worker had to use an ad-hoc `docker cp ... && docker restart erp_domain_app` workaround for runtime proof.",
+      "evidence": "The handoff `skillFeedback.deviations` says runtime proof used `docker cp` + `docker restart` because manifest compose paths were blocked. `.factory/services.yaml` lists compile/test/openapi/contract commands but no equivalent runtime hot-reload or app-restart command."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. The new billing-plan endpoint is implemented and documented, but the company-context filter was not taught that `/api/v1/superadmin/tenants/{id}/billing-plan` is a company-bound control-plane route. That creates a control-plane binding regression for root/platform superadmin writes, and the test updates only covered the happy path so the omission was not caught."
+}
