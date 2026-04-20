@@ -575,7 +575,13 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
   @Test
   @DisplayName("Locked periods reject backdated postings without override")
   void periodLockBlocksBackdatedPosting() {
-    LocalDate lockedDate = LocalDate.now().minusMonths(1).withDayOfMonth(10);
+    LocalDate lockedDate = LocalDate.now().minusDays(29);
+    AccountingPeriod existingPeriod =
+        accountingPeriodRepository
+            .findByCompanyAndYearAndMonth(company, lockedDate.getYear(), lockedDate.getMonthValue())
+            .orElse(null);
+    AccountingPeriodStatus originalStatus =
+        existingPeriod != null ? existingPeriod.getStatus() : null;
     AccountingPeriod period = ensureLockedPeriod(lockedDate);
     JournalEntryRequest request =
         new JournalEntryRequest(
@@ -597,10 +603,18 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
                     BigDecimal.ZERO,
                     new BigDecimal("100.00"))));
 
-    assertThatThrownBy(() -> accountingService.createJournalEntry(request))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("locked/closed");
-    accountingPeriodRepository.delete(period);
+    try {
+      assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+          .isInstanceOf(ApplicationException.class)
+          .hasMessageContaining("locked/closed");
+    } finally {
+      if (existingPeriod == null) {
+        accountingPeriodRepository.delete(period);
+      } else {
+        period.setStatus(originalStatus);
+        accountingPeriodRepository.save(period);
+      }
+    }
   }
 
   @Test
