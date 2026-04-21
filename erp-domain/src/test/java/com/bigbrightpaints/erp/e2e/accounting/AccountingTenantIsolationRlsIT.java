@@ -13,12 +13,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -56,6 +58,11 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private AccountRepository accountRepository;
   @Autowired private DealerRepository dealerRepository;
+
+  @AfterEach
+  void clearCompanyContext() {
+    CompanyContextHolder.clear();
+  }
 
   @Test
   void accountingTruthTables_enableForcedRlsAndPolicies() {
@@ -209,6 +216,189 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     long tenantBForeignVisible =
         withTenantContext(
             companyB.getId(),
+            connection ->
+                queryForLong(
+                    connection,
+                    "SELECT COUNT(*) FROM journal_entries WHERE company_id = ?",
+                    companyA.getId()));
+
+    assertThat(tenantBOwnVisible).isGreaterThanOrEqualTo(1L);
+    assertThat(tenantBForeignVisible).isZero();
+  }
+
+  @Test
+  void appDatasourceBinding_appliesCompanyContextHolderAndFailsClosedWhenContextIsMissingOrBad() {
+    ensureRlsProbeRole();
+
+    String suffix = Long.toString(System.nanoTime(), 36).toUpperCase(Locale.ROOT);
+    Company companyA = dataSeeder.ensureCompany("RLSCTXA-" + suffix, "RLS CTX A " + suffix);
+    Company companyB = dataSeeder.ensureCompany("RLSCTXB-" + suffix, "RLS CTX B " + suffix);
+
+    Account accountA = ensureAccount(companyA, "RLS-CTX-CASH-A-" + suffix);
+    Account accountB = ensureAccount(companyB, "RLS-CTX-CASH-B-" + suffix);
+    Dealer dealerA = ensureDealer(companyA, "RLS-CTX-DEALER-A-" + suffix);
+    Dealer dealerB = ensureDealer(companyB, "RLS-CTX-DEALER-B-" + suffix);
+
+    long entryA =
+        insertJournalEntry(
+            companyA.getId(), "RLS-CTX-JE-A-" + suffix, "tenant A session binding seed " + suffix);
+    long entryB =
+        insertJournalEntry(
+            companyB.getId(), "RLS-CTX-JE-B-" + suffix, "tenant B session binding seed " + suffix);
+    insertJournalLine(entryA, accountA.getId(), new BigDecimal("15.00"), BigDecimal.ZERO);
+    insertJournalLine(entryB, accountB.getId(), new BigDecimal("17.00"), BigDecimal.ZERO);
+
+    long dealerLedgerA =
+        insertDealerLedgerEntry(
+            companyA.getId(), dealerA.getId(), entryA, "RLS-CTX-LEDGER-A-" + suffix);
+    long dealerLedgerB =
+        insertDealerLedgerEntry(
+            companyB.getId(), dealerB.getId(), entryB, "RLS-CTX-LEDGER-B-" + suffix);
+
+    CompanyContextHolder.clear();
+    long visibleWithoutContext =
+        withProbeRole(
+            connection -> queryForLong(connection, "SELECT COUNT(*) FROM journal_entries"));
+    assertThat(visibleWithoutContext).isZero();
+    int updatesWithoutContext =
+        withProbeRole(
+            connection ->
+                executeUpdate(
+                    connection,
+                    "UPDATE journal_entries SET memo = memo || ' / no-context' WHERE id = ?",
+                    entryA));
+    assertThat(updatesWithoutContext).isZero();
+    assertThatThrownBy(
+            () ->
+                withProbeRole(
+                    connection -> {
+                      insertJournalEntry(
+                          connection,
+                          companyA.getId(),
+                          "RLS-CTX-NO-CONTEXT-" + suffix,
+                          "missing context blocked");
+                      return null;
+                    }))
+        .isInstanceOf(DataAccessException.class);
+
+    CompanyContextHolder.setCompanyCode("BAD CONTEXT !");
+    long visibleWithMalformedContext =
+        withProbeRole(
+            connection -> queryForLong(connection, "SELECT COUNT(*) FROM journal_entries"));
+    assertThat(visibleWithMalformedContext).isZero();
+    assertThatThrownBy(
+            () ->
+                withProbeRole(
+                    connection -> {
+                      insertJournalEntry(
+                          connection,
+                          companyA.getId(),
+                          "RLS-CTX-BAD-CONTEXT-" + suffix,
+                          "malformed context blocked");
+                      return null;
+                    }))
+        .isInstanceOf(DataAccessException.class);
+
+    CompanyContextHolder.setCompanyCode(companyA.getCode());
+    String boundCompanyContext =
+        withProbeRole(
+            connection ->
+                queryForString(
+                    connection, "SELECT current_setting('app.current_company_id', true)"));
+    assertThat(boundCompanyContext).isEqualTo(companyA.getCode());
+
+    TenantProbe tenantAProbe =
+        withProbeRole(
+            connection ->
+                new TenantProbe(
+                    queryForLong(
+                        connection,
+                        "SELECT COUNT(*) FROM journal_entries WHERE company_id = ?",
+                        companyA.getId()),
+                    queryForLong(
+                        connection,
+                        "SELECT COUNT(*) FROM journal_entries WHERE company_id = ?",
+                        companyB.getId()),
+                    queryForLong(
+                        connection,
+                        """
+                        SELECT COUNT(*)
+                        FROM journal_lines jl
+                        JOIN journal_entries je ON je.id = jl.journal_entry_id
+                        WHERE je.company_id = ?
+                        """,
+                        companyB.getId()),
+                    queryForLong(
+                        connection,
+                        "SELECT COUNT(*) FROM dealer_ledger_entries WHERE company_id = ?",
+                        companyB.getId()),
+                    executeUpdate(
+                        connection,
+                        "UPDATE journal_entries SET memo = memo || ' / own live context' WHERE id ="
+                            + " ?",
+                        entryA),
+                    executeUpdate(
+                        connection,
+                        "UPDATE journal_entries SET memo = memo || ' / foreign live context' WHERE"
+                            + " id = ?",
+                        entryB),
+                    executeUpdate(
+                        connection,
+                        "UPDATE dealer_ledger_entries SET memo = 'foreign live context update'"
+                            + " WHERE id = ?",
+                        dealerLedgerB),
+                    executeUpdate(
+                        connection,
+                        "UPDATE dealer_ledger_entries SET memo = 'own live context update' WHERE id"
+                            + " = ?",
+                        dealerLedgerA)));
+
+    assertThat(tenantAProbe.visibleOwnJournalEntries()).isGreaterThanOrEqualTo(1L);
+    assertThat(tenantAProbe.visibleForeignJournalEntries()).isZero();
+    assertThat(tenantAProbe.visibleForeignJournalLines()).isZero();
+    assertThat(tenantAProbe.visibleForeignDealerLedgerRows()).isZero();
+    assertThat(tenantAProbe.ownJournalEntryUpdates()).isEqualTo(1);
+    assertThat(tenantAProbe.foreignJournalEntryUpdates()).isZero();
+    assertThat(tenantAProbe.foreignDealerLedgerUpdates()).isZero();
+    assertThat(tenantAProbe.ownDealerLedgerUpdates()).isEqualTo(1);
+
+    assertThatThrownBy(
+            () ->
+                withProbeRole(
+                    connection -> {
+                      insertJournalEntry(
+                          connection,
+                          companyB.getId(),
+                          "RLS-CTX-BLOCK-WRITE-JE-" + suffix,
+                          "live context cross-tenant write blocked");
+                      return null;
+                    }))
+        .isInstanceOf(DataAccessException.class);
+
+    assertThatThrownBy(
+            () ->
+                withProbeRole(
+                    connection -> {
+                      insertDealerLedgerEntry(
+                          connection,
+                          companyB.getId(),
+                          dealerB.getId(),
+                          entryB,
+                          "RLS-CTX-BLOCK-WRITE-LEDGER-" + suffix);
+                      return null;
+                    }))
+        .isInstanceOf(DataAccessException.class);
+
+    CompanyContextHolder.setCompanyCode(companyB.getCode());
+    long tenantBOwnVisible =
+        withProbeRole(
+            connection ->
+                queryForLong(
+                    connection,
+                    "SELECT COUNT(*) FROM journal_entries WHERE company_id = ?",
+                    companyB.getId()));
+    long tenantBForeignVisible =
+        withProbeRole(
             connection ->
                 queryForLong(
                     connection,
@@ -379,6 +569,19 @@ RETURNING id
     }
   }
 
+  private String queryForString(Connection connection, String sql, Object... params)
+      throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(sql)) {
+      for (int i = 0; i < params.length; i++) {
+        statement.setObject(i + 1, params[i]);
+      }
+      try (ResultSet resultSet = statement.executeQuery()) {
+        resultSet.next();
+        return resultSet.getString(1);
+      }
+    }
+  }
+
   private int executeUpdate(Connection connection, String sql, Object... params)
       throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -387,6 +590,23 @@ RETURNING id
       }
       return statement.executeUpdate();
     }
+  }
+
+  private <T> T withProbeRole(TenantConnectionCallback<T> callback) {
+    return jdbcTemplate.execute(
+        (Connection connection) -> {
+          try (PreparedStatement setRole =
+              connection.prepareStatement("SET ROLE " + RLS_PROBE_ROLE)) {
+            setRole.execute();
+          }
+          try {
+            return callback.doInConnection(connection);
+          } finally {
+            try (PreparedStatement resetRole = connection.prepareStatement("RESET ROLE")) {
+              resetRole.execute();
+            }
+          }
+        });
   }
 
   private <T> T withTenantContext(Long companyId, TenantConnectionCallback<T> callback) {
