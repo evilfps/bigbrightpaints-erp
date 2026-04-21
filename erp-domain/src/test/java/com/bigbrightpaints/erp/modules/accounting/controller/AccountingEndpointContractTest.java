@@ -447,10 +447,9 @@ class AccountingEndpointContractTest {
   }
 
   @Test
-  void reverseJournalEntry_delegatesToJournalEntryService() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
-    JournalController controller =
-        newJournalController(mock(AccountingService.class), journalEntryService, null, null);
+  void reverseJournalEntry_delegatesToAccountingService() {
+    AccountingService accountingService = mock(AccountingService.class);
+    JournalController controller = newJournalController(accountingService, null, null, null);
     JournalEntryReversalRequest request =
         new JournalEntryReversalRequest(
             LocalDate.of(2026, 2, 28), false, "Correction", "Reversal", false);
@@ -481,12 +480,13 @@ class AccountingEndpointContractTest {
             null,
             null,
             null);
-    when(journalEntryService.reverseJournalEntry(200L, request)).thenReturn(expected);
+    when(accountingService.reverseJournalEntry(200L, request)).thenReturn(expected);
 
     ApiResponse<JournalEntryDto> body = controller.reverseJournalEntry(200L, request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualTo(expected);
+    verify(accountingService).reverseJournalEntry(200L, request);
   }
 
   @Test
@@ -1161,7 +1161,6 @@ class AccountingEndpointContractTest {
       AccountingFacade accountingFacade) {
     return new JournalController(
         accountingService != null ? accountingService : mock(AccountingService.class),
-        journalEntryService != null ? journalEntryService : mock(JournalEntryService.class),
         creditDebitNoteService != null
             ? creditDebitNoteService
             : mock(CreditDebitNoteService.class),

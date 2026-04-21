@@ -35,6 +35,9 @@ import com.bigbrightpaints.erp.core.audittrail.AuditActionEventRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
@@ -64,6 +67,7 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private AccountRepository accountRepository;
+  @Autowired private AccountingPeriodRepository accountingPeriodRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private JournalReferenceMappingRepository journalReferenceMappingRepository;
   @Autowired private JournalLineRepository journalLineRepository;
@@ -749,6 +753,189 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName(
+      "Journal Reversal: partial reversal scales counter-entry lines to requested percentage")
+  void journalReversal_PartialReversalScalesCounterEntry() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Long originalEntryId = createBalancedJournalEntry(company, new BigDecimal("1000.00"));
+
+    Map<String, Object> partialRequest = new HashMap<>();
+    partialRequest.put("reversalDate", LocalDate.now());
+    partialRequest.put("reason", "Half correction");
+    partialRequest.put("reversalPercentage", new BigDecimal("50.00"));
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries/" + originalEntryId + "/reverse",
+            HttpMethod.POST,
+            new HttpEntity<>(partialRequest, headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    Long reversalEntryId =
+        ((Number) ((Map<?, ?>) response.getBody().get("data")).get("id")).longValue();
+    JournalEntry reversalEntry = journalEntryRepository.findById(reversalEntryId).orElseThrow();
+    BigDecimal totalReversalDebit =
+        reversalEntry.getLines().stream()
+            .map(JournalLine::getDebit)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal totalReversalCredit =
+        reversalEntry.getLines().stream()
+            .map(JournalLine::getCredit)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    assertThat(totalReversalDebit).isEqualByComparingTo("500.00");
+    assertThat(totalReversalCredit).isEqualByComparingTo("500.00");
+
+    JournalEntry originalEntry = journalEntryRepository.findById(originalEntryId).orElseThrow();
+    assertThat(originalEntry.getStatus()).isEqualTo(JournalEntryStatus.REVERSED);
+  }
+
+  @Test
+  @DisplayName(
+      "Journal Reversal: closed period needs explicit admin override and emits compliance audit")
+  void journalReversal_ClosedPeriodRequiresExplicitAdminOverride() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Long originalEntryId = createBalancedJournalEntry(company, new BigDecimal("780.00"));
+    AccountingPeriodStatus priorStatus =
+        setJournalEntryPeriodStatus(company, originalEntryId, AccountingPeriodStatus.CLOSED);
+    try {
+      Map<String, Object> noOverrideRequest = new HashMap<>();
+      noOverrideRequest.put("reversalDate", LocalDate.now());
+      noOverrideRequest.put("reason", "Closed period correction attempt without override");
+      ResponseEntity<String> noOverrideResponse =
+          rest.exchange(
+              "/api/v1/accounting/journal-entries/" + originalEntryId + "/reverse",
+              HttpMethod.POST,
+              new HttpEntity<>(noOverrideRequest, headers),
+              String.class);
+
+      assertThat(noOverrideResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+      assertThat(noOverrideResponse.getBody()).contains("CLOSED period");
+      JournalEntry originalEntryAfterReject =
+          journalEntryRepository.findById(originalEntryId).orElseThrow();
+      assertThat(originalEntryAfterReject.getStatus()).isEqualTo(JournalEntryStatus.POSTED);
+      assertThat(
+              journalEntryRepository.findByCompanyAndReversalOf(company, originalEntryAfterReject))
+          .isEmpty();
+
+      Map<String, Object> overrideRequest = new HashMap<>();
+      overrideRequest.put("reversalDate", LocalDate.now());
+      overrideRequest.put("reason", "Approved closed period correction");
+      overrideRequest.put("adminOverride", true);
+      ResponseEntity<Map> overrideResponse =
+          rest.exchange(
+              "/api/v1/accounting/journal-entries/" + originalEntryId + "/reverse",
+              HttpMethod.POST,
+              new HttpEntity<>(overrideRequest, headers),
+              Map.class);
+
+      assertThat(overrideResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+      Long reversalEntryId =
+          ((Number) ((Map<?, ?>) overrideResponse.getBody().get("data")).get("id")).longValue();
+      JournalEntry refreshedOriginal =
+          journalEntryRepository.findById(originalEntryId).orElseThrow();
+      JournalEntry reversalEntry = journalEntryRepository.findById(reversalEntryId).orElseThrow();
+      assertThat(refreshedOriginal.getStatus()).isEqualTo(JournalEntryStatus.REVERSED);
+      assertThat(reversalEntry.getReversalOf()).isNotNull();
+      assertThat(reversalEntry.getReversalOf().getId()).isEqualTo(originalEntryId);
+
+      AuditActionEvent overrideAudit =
+          awaitAccountingJournalActionEvent(
+              company.getId(), originalEntryId, "JOURNAL_REVERSAL_ADMIN_OVERRIDE");
+      assertThat(loadAuditMetadata(overrideAudit.getId()))
+          .containsEntry("adminOverrideRequested", "true")
+          .containsEntry("adminOverrideAuthorized", "true");
+    } finally {
+      setJournalEntryPeriodStatus(company, originalEntryId, priorStatus);
+    }
+  }
+
+  @Test
+  @DisplayName("Journal Reversal: locked period always rejects reversal even with admin override")
+  void journalReversal_LockedPeriodAlwaysRejects() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Long originalEntryId = createBalancedJournalEntry(company, new BigDecimal("640.00"));
+    AccountingPeriodStatus priorStatus =
+        setJournalEntryPeriodStatus(company, originalEntryId, AccountingPeriodStatus.LOCKED);
+    try {
+      Map<String, Object> lockRequest = new HashMap<>();
+      lockRequest.put("reversalDate", LocalDate.now());
+      lockRequest.put("reason", "Attempt locked reversal");
+      lockRequest.put("adminOverride", true);
+
+      ResponseEntity<String> response =
+          rest.exchange(
+              "/api/v1/accounting/journal-entries/" + originalEntryId + "/reverse",
+              HttpMethod.POST,
+              new HttpEntity<>(lockRequest, headers),
+              String.class);
+
+      assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+      assertThat(response.getBody()).contains("LOCKED period");
+      JournalEntry originalEntry = journalEntryRepository.findById(originalEntryId).orElseThrow();
+      assertThat(originalEntry.getStatus()).isEqualTo(JournalEntryStatus.POSTED);
+      assertThat(journalEntryRepository.findByCompanyAndReversalOf(company, originalEntry))
+          .isEmpty();
+    } finally {
+      setJournalEntryPeriodStatus(company, originalEntryId, priorStatus);
+    }
+  }
+
+  @Test
+  @DisplayName("Journal Reversal: already reversed and voided entries reject follow-up reversals")
+  void journalReversal_AlreadyReversedOrVoidedRejectsWithoutDuplicates() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+    Long reversedEntryId = createBalancedJournalEntry(company, new BigDecimal("510.00"));
+    Map<String, Object> reverseRequest =
+        Map.of("reversalDate", LocalDate.now(), "reason", "Initial reversal");
+    ResponseEntity<Map> firstReverse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries/" + reversedEntryId + "/reverse",
+            HttpMethod.POST,
+            new HttpEntity<>(reverseRequest, headers),
+            Map.class);
+    assertThat(firstReverse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<String> duplicateReverse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries/" + reversedEntryId + "/reverse",
+            HttpMethod.POST,
+            new HttpEntity<>(reverseRequest, headers),
+            String.class);
+    assertThat(duplicateReverse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(duplicateReverse.getBody()).contains("already been reversed");
+    JournalEntry reversedEntry = journalEntryRepository.findById(reversedEntryId).orElseThrow();
+    assertThat(journalEntryRepository.findByCompanyAndReversalOf(company, reversedEntry))
+        .hasSize(1);
+
+    Long voidedEntryId = createBalancedJournalEntry(company, new BigDecimal("475.00"));
+    Map<String, Object> voidRequest = new HashMap<>();
+    voidRequest.put("reversalDate", LocalDate.now());
+    voidRequest.put("voidOnly", true);
+    voidRequest.put("reason", "Initial void correction");
+    ResponseEntity<Map> firstVoid =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries/" + voidedEntryId + "/reverse",
+            HttpMethod.POST,
+            new HttpEntity<>(voidRequest, headers),
+            Map.class);
+    assertThat(firstVoid.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<String> duplicateVoid =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries/" + voidedEntryId + "/reverse",
+            HttpMethod.POST,
+            new HttpEntity<>(voidRequest, headers),
+            String.class);
+    assertThat(duplicateVoid.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(duplicateVoid.getBody()).contains("already voided");
+    JournalEntry voidedEntry = journalEntryRepository.findById(voidedEntryId).orElseThrow();
+    assertThat(journalEntryRepository.findByCompanyAndReversalOf(company, voidedEntry)).hasSize(1);
+  }
+
+  @Test
   @DisplayName("Financial Reports: Profit & Loss and Balance Sheet are Accurate")
   void financialReports_ProfitLoss_BalanceSheet_Accurate() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
@@ -1037,6 +1224,20 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     return ((Number) ((Map<?, ?>) response.getBody().get("data")).get("id")).longValue();
   }
 
+  private AccountingPeriodStatus setJournalEntryPeriodStatus(
+      Company company, Long journalEntryId, AccountingPeriodStatus status) {
+    JournalEntry entry = journalEntryRepository.findById(journalEntryId).orElseThrow();
+    Long periodId =
+        entry.getAccountingPeriod() != null ? entry.getAccountingPeriod().getId() : null;
+    assertThat(periodId).isNotNull();
+    AccountingPeriod period =
+        accountingPeriodRepository.findByCompanyAndId(company, periodId).orElseThrow();
+    AccountingPeriodStatus previousStatus = period.getStatus();
+    period.setStatus(status);
+    accountingPeriodRepository.saveAndFlush(period);
+    return previousStatus;
+  }
+
   private AuditActionEvent awaitAccountingJournalAuditEvent(Long companyId, String entityId) {
     Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
     while (Instant.now().isBefore(deadline)) {
@@ -1056,6 +1257,33 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     }
     throw new AssertionError(
         "Accounting journal audit event not found for entityId="
+            + entityId
+            + ", companyId="
+            + companyId);
+  }
+
+  private AuditActionEvent awaitAccountingJournalActionEvent(
+      Long companyId, Long entityId, String action) {
+    Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
+    while (Instant.now().isBefore(deadline)) {
+      Optional<AuditActionEvent> match =
+          auditActionEventRepository
+              .findTopByCompanyIdAndModuleIgnoreCaseAndActionIgnoreCaseAndEntityTypeIgnoreCaseAndEntityIdOrderByOccurredAtDesc(
+                  companyId, "ACCOUNTING", action, "JOURNAL_ENTRY", String.valueOf(entityId));
+      if (match.isPresent()) {
+        return match.get();
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+        throw new AssertionError("Interrupted while waiting for accounting action audit event", ex);
+      }
+    }
+    throw new AssertionError(
+        "Accounting action audit event not found for action="
+            + action
+            + ", entityId="
             + entityId
             + ", companyId="
             + companyId);
