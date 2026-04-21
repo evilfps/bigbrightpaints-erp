@@ -65,7 +65,7 @@ public class JournalController {
       @RequestParam(defaultValue = "100") int size) {
     return ResponseEntity.ok(
         ApiResponse.success(
-            journalEntryService.listJournalEntries(dealerId, supplierId, page, size, source)));
+            accountingService.listJournalEntries(dealerId, supplierId, page, size, source)));
   }
 
   @GetMapping("/journals")
@@ -98,7 +98,7 @@ public class JournalController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Journal entry posted",
-            accountingFacade.createManualJournalEntry(
+            accountingService.createManualJournalEntry(
                 sanitizeManualJournalRequest(request), idempotencyKey)));
   }
 

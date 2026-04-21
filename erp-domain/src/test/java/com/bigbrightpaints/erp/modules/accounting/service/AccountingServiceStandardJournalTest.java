@@ -13,10 +13,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceStandardJournalTest {
@@ -27,6 +30,11 @@ class AccountingServiceStandardJournalTest {
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
+  @Mock private TaxService taxService;
+  @Mock private TemporalBalanceService temporalBalanceService;
+  @Mock private ConfigurationHealthService configurationHealthService;
+  @Mock private CompanyContextService companyContextService;
+  @Mock private CompanyClock companyClock;
 
   private AccountingService accountingService;
 
@@ -39,7 +47,12 @@ class AccountingServiceStandardJournalTest {
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
-            inventoryAccountingService);
+            inventoryAccountingService,
+            taxService,
+            temporalBalanceService,
+            configurationHealthService,
+            companyContextService,
+            companyClock);
   }
 
   @Test

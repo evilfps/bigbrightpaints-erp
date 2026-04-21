@@ -24,13 +24,8 @@ import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
-import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
-import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
-import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
@@ -382,16 +377,13 @@ class AccountingApplicationExceptionAdviceTest {
 
   @Test
   void configurationHealth_applicationExceptionUsesAccountingAdviceEnvelope() throws Exception {
-    ConfigurationHealthService configurationHealthService = mock(ConfigurationHealthService.class);
-    CompanyContextService companyContextService = mock(CompanyContextService.class);
-    when(companyContextService.requireCurrentCompany())
+    AccountingService accountingService = mock(AccountingService.class);
+    when(accountingService.getConfigurationHealthReport())
         .thenThrow(
             new ApplicationException(
                 ErrorCode.BUSINESS_INVALID_STATE, "Configuration health is unavailable"));
 
-    MockMvcBuilders.standaloneSetup(
-            new AccountingConfigurationController(
-                configurationHealthService, companyContextService))
+    MockMvcBuilders.standaloneSetup(new AccountingConfigurationController(accountingService))
         .setControllerAdvice(advice(), globalExceptionHandler())
         .build()
         .perform(get("/api/v1/accounting/configuration/health"))
@@ -447,13 +439,9 @@ class AccountingApplicationExceptionAdviceTest {
   private StatementReportController statementReportController() {
     return new StatementReportController(
         new StatementReportControllerSupport(
-            mock(TaxService.class),
-            mock(JournalEntryService.class),
+            mock(AccountingService.class),
             mock(SalesReturnService.class),
             mock(StatementService.class),
-            mock(TemporalBalanceService.class),
-            mock(CompanyContextService.class),
-            mock(CompanyClock.class),
             mock(AuditService.class)));
   }
 

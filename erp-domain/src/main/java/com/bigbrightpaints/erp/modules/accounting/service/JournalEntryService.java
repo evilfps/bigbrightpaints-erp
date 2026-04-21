@@ -67,6 +67,7 @@ public class JournalEntryService {
     return journalPostingService.createStandardJournal(request);
   }
 
+  @Transactional(readOnly = true)
   public PageResponse<JournalListItemDto> listJournals(
       LocalDate fromDate,
       LocalDate toDate,

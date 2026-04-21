@@ -1,11 +1,18 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
@@ -17,6 +24,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DebitNoteRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -29,6 +38,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
@@ -40,6 +51,11 @@ public class AccountingService {
   private final SettlementService settlementService;
   private final CreditDebitNoteService creditDebitNoteService;
   private final InventoryAccountingService inventoryAccountingService;
+  private final TaxService taxService;
+  private final TemporalBalanceService temporalBalanceService;
+  private final ConfigurationHealthService configurationHealthService;
+  private final CompanyContextService companyContextService;
+  private final CompanyClock companyClock;
 
   @Autowired
   public AccountingService(
@@ -48,13 +64,23 @@ public class AccountingService {
       DealerReceiptService dealerReceiptService,
       SettlementService settlementService,
       CreditDebitNoteService creditDebitNoteService,
-      InventoryAccountingService inventoryAccountingService) {
+      InventoryAccountingService inventoryAccountingService,
+      TaxService taxService,
+      TemporalBalanceService temporalBalanceService,
+      ConfigurationHealthService configurationHealthService,
+      CompanyContextService companyContextService,
+      CompanyClock companyClock) {
     this.accountResolutionOwnerService = accountResolutionOwnerService;
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
     this.settlementService = settlementService;
     this.creditDebitNoteService = creditDebitNoteService;
     this.inventoryAccountingService = inventoryAccountingService;
+    this.taxService = taxService;
+    this.temporalBalanceService = temporalBalanceService;
+    this.configurationHealthService = configurationHealthService;
+    this.companyContextService = companyContextService;
+    this.companyClock = companyClock;
   }
 
   public List<AccountDto> listAccounts() {
@@ -68,6 +94,11 @@ public class AccountingService {
   public List<JournalEntryDto> listJournalEntries(
       Long dealerId, Long supplierId, int page, int size) {
     return journalEntryService.listJournalEntries(dealerId, supplierId, page, size);
+  }
+
+  public List<JournalEntryDto> listJournalEntries(
+      Long dealerId, Long supplierId, int page, int size, String source) {
+    return journalEntryService.listJournalEntries(dealerId, supplierId, page, size, source);
   }
 
   public List<JournalEntryDto> listJournalEntries(Long dealerId) {
@@ -103,6 +134,50 @@ public class AccountingService {
 
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     return journalEntryService.reverseJournalEntry(entryId, request);
+  }
+
+  public GstReturnDto generateGstReturn(YearMonth period) {
+    return taxService.generateGstReturn(period);
+  }
+
+  public GstReconciliationDto getGstReconciliation(YearMonth period) {
+    return taxService.generateGstReconciliation(period);
+  }
+
+  public BigDecimal getBalanceAsOf(Long accountId, LocalDate date) {
+    return temporalBalanceService.getBalanceAsOfDate(accountId, date);
+  }
+
+  public TemporalBalanceService.TrialBalanceSnapshot getTrialBalanceAsOf(LocalDate date) {
+    return temporalBalanceService.getTrialBalanceAsOf(date);
+  }
+
+  public TemporalBalanceService.AccountActivityReport getAccountActivity(
+      Long accountId, LocalDate startDate, LocalDate endDate) {
+    return temporalBalanceService.getAccountActivity(accountId, startDate, endDate);
+  }
+
+  public TemporalBalanceService.BalanceComparison compareBalances(
+      Long accountId, LocalDate from, LocalDate to) {
+    return temporalBalanceService.compareBalances(accountId, from, to);
+  }
+
+  public Map<String, Object> getAccountingDateContext() {
+    Company company = companyContextService.requireCurrentCompany();
+    LocalDate today = companyClock.today(company);
+    Instant now = companyClock.now(company);
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("companyId", company != null ? company.getId() : null);
+    payload.put("companyCode", company != null ? company.getCode() : null);
+    payload.put("timezone", company != null ? company.getTimezone() : null);
+    payload.put("today", today);
+    payload.put("now", now);
+    return payload;
+  }
+
+  public ConfigurationHealthService.ConfigurationHealthReport getConfigurationHealthReport() {
+    return configurationHealthService.evaluateCompany(
+        companyContextService.requireCurrentCompany());
   }
 
   JournalEntryDto reverseClosingEntryForPeriodReopen(

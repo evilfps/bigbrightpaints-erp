@@ -51,7 +51,6 @@ import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
-import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollPaymentRequest;
@@ -65,11 +64,11 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 class AccountingEndpointContractTest {
 
   @Test
-  void createJournalEntry_delegatesToAccountingFacadeWithReferenceAsIdempotencyKey() {
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+  void createJournalEntry_delegatesToAccountingServiceWithReferenceAsIdempotencyKey() {
+    AccountingService accountingService = mock(AccountingService.class);
     JournalController controller =
         newJournalController(
-            mock(AccountingService.class), mock(JournalEntryService.class), null, accountingFacade);
+            accountingService, mock(JournalEntryService.class), null, mock(AccountingFacade.class));
     JournalEntryRequest request =
         new JournalEntryRequest(
             "manual-100",
@@ -112,7 +111,7 @@ class AccountingEndpointContractTest {
             null);
     ArgumentCaptor<JournalEntryRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
-    when(accountingFacade.createManualJournalEntry(
+    when(accountingService.createManualJournalEntry(
             any(JournalEntryRequest.class), eq("manual-100")))
         .thenReturn(expected);
 
@@ -121,7 +120,7 @@ class AccountingEndpointContractTest {
     assertThat(body).isNotNull();
     assertThat(body.success()).isTrue();
     assertThat(body.data()).isEqualTo(expected);
-    verify(accountingFacade).createManualJournalEntry(requestCaptor.capture(), eq("manual-100"));
+    verify(accountingService).createManualJournalEntry(requestCaptor.capture(), eq("manual-100"));
     assertThat(requestCaptor.getValue().referenceNumber()).isNull();
     assertThat(requestCaptor.getValue().entryDate()).isEqualTo(request.entryDate());
     assertThat(requestCaptor.getValue().memo()).isEqualTo(request.memo());
@@ -161,10 +160,10 @@ class AccountingEndpointContractTest {
 
   @Test
   void createJournalEntry_allowsNullSupplierForApAdjacentManualPosting() {
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    AccountingService accountingService = mock(AccountingService.class);
     JournalController controller =
         newJournalController(
-            mock(AccountingService.class), mock(JournalEntryService.class), null, accountingFacade);
+            accountingService, mock(JournalEntryService.class), null, mock(AccountingFacade.class));
     JournalEntryRequest request =
         new JournalEntryRequest(
             "client-ap-accrual-001",
@@ -179,7 +178,7 @@ class AccountingEndpointContractTest {
                 new JournalEntryRequest.JournalLineRequest(
                     202L, "AP accrual", BigDecimal.ZERO, new BigDecimal("500.00"))));
     JournalEntryDto expected = expectedJournal(612L, "JRN-612");
-    when(accountingFacade.createManualJournalEntry(
+    when(accountingService.createManualJournalEntry(
             any(JournalEntryRequest.class), eq("client-ap-accrual-001")))
         .thenReturn(expected);
 
@@ -191,7 +190,7 @@ class AccountingEndpointContractTest {
 
     ArgumentCaptor<JournalEntryRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
-    verify(accountingFacade)
+    verify(accountingService)
         .createManualJournalEntry(requestCaptor.capture(), eq("client-ap-accrual-001"));
     JournalEntryRequest sanitized = requestCaptor.getValue();
     assertThat(sanitized.supplierId()).isNull();
@@ -337,43 +336,42 @@ class AccountingEndpointContractTest {
 
   @Test
   void getBalanceAsOf_parsesRequiredDate() {
-    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
-    when(temporalBalanceService.getBalanceAsOfDate(9L, LocalDate.of(2026, 3, 31)))
+    AccountingService accountingService = mock(AccountingService.class);
+    when(accountingService.getBalanceAsOf(9L, LocalDate.of(2026, 3, 31)))
         .thenReturn(new BigDecimal("42.00"));
 
     ApiResponse<BigDecimal> body =
-        controllerWithTemporalBalanceService(temporalBalanceService)
+        controllerWithAccountingService(accountingService)
             .getBalanceAsOf(9L, " 2026-03-31 ")
             .getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualByComparingTo("42.00");
-    verify(temporalBalanceService).getBalanceAsOfDate(9L, LocalDate.of(2026, 3, 31));
+    verify(accountingService).getBalanceAsOf(9L, LocalDate.of(2026, 3, 31));
   }
 
   @Test
   void getTrialBalanceAsOf_parsesRequiredDate() {
-    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     TemporalBalanceService.TrialBalanceSnapshot expected =
         new TemporalBalanceService.TrialBalanceSnapshot(
             LocalDate.of(2026, 3, 31), List.of(), BigDecimal.ONE, BigDecimal.ONE);
-    when(temporalBalanceService.getTrialBalanceAsOf(LocalDate.of(2026, 3, 31)))
-        .thenReturn(expected);
+    when(accountingService.getTrialBalanceAsOf(LocalDate.of(2026, 3, 31))).thenReturn(expected);
 
     ApiResponse<TemporalBalanceService.TrialBalanceSnapshot> body =
-        controllerWithTemporalBalanceService(temporalBalanceService)
+        controllerWithAccountingService(accountingService)
             .getTrialBalanceAsOf(" 2026-03-31 ")
             .getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isSameAs(expected);
-    verify(temporalBalanceService).getTrialBalanceAsOf(LocalDate.of(2026, 3, 31));
+    verify(accountingService).getTrialBalanceAsOf(LocalDate.of(2026, 3, 31));
   }
 
   @Test
   void getAccountActivity_wrapsInvalidDateFormat() {
     StatementReportController controller =
-        controllerWithTemporalBalanceService(mock(TemporalBalanceService.class));
+        controllerWithAccountingService(mock(AccountingService.class));
 
     assertThatThrownBy(() -> controller.getAccountActivity(9L, "bad", "2026-03-31", null, null))
         .isInstanceOf(ApplicationException.class)
@@ -390,7 +388,7 @@ class AccountingEndpointContractTest {
 
   @Test
   void getAccountActivity_parsesRequiredDates() {
-    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     TemporalBalanceService.AccountActivityReport expected =
         new TemporalBalanceService.AccountActivityReport(
             "AR-009",
@@ -403,12 +401,12 @@ class AccountingEndpointContractTest {
             new BigDecimal("18.00"),
             new BigDecimal("2.00"),
             List.of());
-    when(temporalBalanceService.getAccountActivity(
+    when(accountingService.getAccountActivity(
             9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
         .thenReturn(expected);
 
     ApiResponse<StatementReportControllerSupport.AccountActivitySummaryResponse> body =
-        controllerWithTemporalBalanceService(temporalBalanceService)
+        controllerWithAccountingService(accountingService)
             .getAccountActivity(9L, " 2026-03-01 ", "2026-03-31 ", null, null)
             .getBody();
 
@@ -417,13 +415,13 @@ class AccountingEndpointContractTest {
     assertThat(body.data().totalCredits()).isEqualByComparingTo("18.00");
     assertThat(body.data().netMovement()).isEqualByComparingTo("2.00");
     assertThat(body.data().transactionCount()).isEqualTo(0);
-    verify(temporalBalanceService)
+    verify(accountingService)
         .getAccountActivity(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
   @Test
   void compareBalances_parsesRequiredDates() {
-    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     TemporalBalanceService.BalanceComparison expected =
         new TemporalBalanceService.BalanceComparison(
             9L,
@@ -432,12 +430,11 @@ class AccountingEndpointContractTest {
             LocalDate.of(2026, 3, 31),
             new BigDecimal("12.00"),
             new BigDecimal("2.00"));
-    when(temporalBalanceService.compareBalances(
-            9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
+    when(accountingService.compareBalances(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
         .thenReturn(expected);
 
     ApiResponse<StatementReportControllerSupport.BalanceComparisonResponse> body =
-        controllerWithTemporalBalanceService(temporalBalanceService)
+        controllerWithAccountingService(accountingService)
             .compareBalances(9L, " 2026-03-01 ", "2026-03-31 ", null, null)
             .getBody();
 
@@ -445,7 +442,7 @@ class AccountingEndpointContractTest {
     assertThat(body.data().fromBalance()).isEqualByComparingTo("10.00");
     assertThat(body.data().toBalance()).isEqualByComparingTo("12.00");
     assertThat(body.data().change()).isEqualByComparingTo("2.00");
-    verify(temporalBalanceService)
+    verify(accountingService)
         .compareBalances(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
@@ -494,27 +491,27 @@ class AccountingEndpointContractTest {
 
   @Test
   void listSalesReturns_usesSalesReturnReferencePrefix() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     StatementReportController controller =
-        newStatementController(journalEntryService, mock(SalesReturnService.class));
+        newStatementController(accountingService, mock(SalesReturnService.class));
 
     controller.listSalesReturns();
 
-    verify(journalEntryService).listJournalEntriesByReferencePrefix("CRN-");
+    verify(accountingService).listJournalEntriesByReferencePrefix("CRN-");
   }
 
   @Test
   void listSalesReturns_filtersOutCogsAndOrphanedCreditNotes() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     StatementReportController controller =
-        newStatementController(journalEntryService, mock(SalesReturnService.class));
+        newStatementController(accountingService, mock(SalesReturnService.class));
     JournalEntryDto legacySalesReturn = journalEntry(301L, "CRN-100", 11L, null, "Sales return");
     JournalEntryDto correctionLinkedSalesReturn =
         journalEntry(302L, "CRN-101", null, "SALES_RETURN", "Correction-linked sales return");
     JournalEntryDto cogsEntry = journalEntry(303L, "CRN-100-COGS-0", null, null, "COGS reversal");
     JournalEntryDto orphanedCreditNote =
         journalEntry(304L, "CRN-ORPHAN-1", null, null, "Orphaned credit note");
-    when(journalEntryService.listJournalEntriesByReferencePrefix("CRN-"))
+    when(accountingService.listJournalEntriesByReferencePrefix("CRN-"))
         .thenReturn(
             List.of(legacySalesReturn, correctionLinkedSalesReturn, cogsEntry, orphanedCreditNote));
 
@@ -526,16 +523,16 @@ class AccountingEndpointContractTest {
 
   @Test
   void listSalesReturns_filtersNullBlankAndNonCrnEntries() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    AccountingService accountingService = mock(AccountingService.class);
     StatementReportController controller =
-        newStatementController(journalEntryService, mock(SalesReturnService.class));
+        newStatementController(accountingService, mock(SalesReturnService.class));
     JournalEntryDto blankReference = journalEntry(305L, "   ", 12L, null, "Blank reference");
     JournalEntryDto nonCrnReference =
         journalEntry(306L, "DN-200", 12L, "SALES_RETURN", "Wrong prefix");
     JournalEntryDto validSalesReturn =
         journalEntry(307L, "CRN-200", 12L, null, "Valid sales return");
 
-    when(journalEntryService.listJournalEntriesByReferencePrefix("CRN-"))
+    when(accountingService.listJournalEntriesByReferencePrefix("CRN-"))
         .thenReturn(
             java.util.Arrays.asList(null, blankReference, nonCrnReference, validSalesReturn));
 
@@ -549,7 +546,7 @@ class AccountingEndpointContractTest {
   void previewSalesReturn_delegatesToSalesReturnService() {
     SalesReturnService salesReturnService = mock(SalesReturnService.class);
     StatementReportController controller =
-        newStatementController(mock(JournalEntryService.class), salesReturnService);
+        newStatementController(mock(AccountingService.class), salesReturnService);
     SalesReturnRequest request =
         new SalesReturnRequest(
             10L,
@@ -567,11 +564,11 @@ class AccountingEndpointContractTest {
   }
 
   @Test
-  void createJournalEntry_delegatesToAccountingFacadeWithSanitizedManualPayload() {
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+  void createJournalEntry_delegatesToAccountingServiceWithSanitizedManualPayload() {
+    AccountingService accountingService = mock(AccountingService.class);
     JournalController controller =
         newJournalController(
-            mock(AccountingService.class), mock(JournalEntryService.class), null, accountingFacade);
+            accountingService, mock(JournalEntryService.class), null, mock(AccountingFacade.class));
     JournalEntryRequest request =
         new JournalEntryRequest(
             "BRIDGE-ENTRY-1",
@@ -610,7 +607,7 @@ class AccountingEndpointContractTest {
             null,
             null,
             null);
-    when(accountingFacade.createManualJournalEntry(
+    when(accountingService.createManualJournalEntry(
             any(JournalEntryRequest.class), eq("BRIDGE-ENTRY-1")))
         .thenReturn(expected);
 
@@ -620,7 +617,7 @@ class AccountingEndpointContractTest {
     assertThat(body.data()).isEqualTo(expected);
     ArgumentCaptor<JournalEntryRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
-    verify(accountingFacade)
+    verify(accountingService)
         .createManualJournalEntry(requestCaptor.capture(), eq("BRIDGE-ENTRY-1"));
     JournalEntryRequest sanitized = requestCaptor.getValue();
     assertThat(sanitized.referenceNumber()).isNull();
@@ -632,10 +629,10 @@ class AccountingEndpointContractTest {
 
   @Test
   void createJournalEntry_keepsAttachmentReferencesWhileSanitizingManualFields() {
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    AccountingService accountingService = mock(AccountingService.class);
     JournalController controller =
         newJournalController(
-            mock(AccountingService.class), mock(JournalEntryService.class), null, accountingFacade);
+            accountingService, mock(JournalEntryService.class), null, mock(AccountingFacade.class));
     JournalEntryRequest request =
         new JournalEntryRequest(
             "MANUAL-2026-0001",
@@ -655,7 +652,7 @@ class AccountingEndpointContractTest {
             "SRC-1",
             "AUTOMATED",
             List.of("scan-1", "scan-2"));
-    when(accountingFacade.createManualJournalEntry(
+    when(accountingService.createManualJournalEntry(
             any(JournalEntryRequest.class), eq("MANUAL-2026-0001")))
         .thenReturn(expectedJournal(611L, "MANUAL-2026-0001"));
 
@@ -663,7 +660,7 @@ class AccountingEndpointContractTest {
 
     ArgumentCaptor<JournalEntryRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
-    verify(accountingFacade)
+    verify(accountingService)
         .createManualJournalEntry(requestCaptor.capture(), eq("MANUAL-2026-0001"));
     JournalEntryRequest sanitized = requestCaptor.getValue();
     assertThat(sanitized.referenceNumber()).isNull();
@@ -674,13 +671,13 @@ class AccountingEndpointContractTest {
   }
 
   @Test
-  void journalEntries_delegatesToJournalEntryService() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+  void journalEntries_delegatesToAccountingService() {
+    AccountingService accountingService = mock(AccountingService.class);
     List<JournalEntryDto> expected = List.of(expectedJournal(81L, "JRN-81"));
-    when(journalEntryService.listJournalEntries(1L, 2L, 3, 4, null)).thenReturn(expected);
+    when(accountingService.listJournalEntries(1L, 2L, 3, 4, null)).thenReturn(expected);
 
     ApiResponse<List<JournalEntryDto>> body =
-        newJournalController(mock(AccountingService.class), journalEntryService, null, null)
+        newJournalController(accountingService, mock(JournalEntryService.class), null, null)
             .journalEntries(1L, 2L, null, 3, 4)
             .getBody();
 
@@ -689,14 +686,13 @@ class AccountingEndpointContractTest {
   }
 
   @Test
-  void journalEntries_withSourceFilter_delegatesToJournalEntryService() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+  void journalEntries_withSourceFilter_delegatesToAccountingService() {
+    AccountingService accountingService = mock(AccountingService.class);
     List<JournalEntryDto> expected = List.of(expectedJournal(82L, "PACK-1"));
-    when(journalEntryService.listJournalEntries(null, null, 0, 100, "PACKING"))
-        .thenReturn(expected);
+    when(accountingService.listJournalEntries(null, null, 0, 100, "PACKING")).thenReturn(expected);
 
     ApiResponse<List<JournalEntryDto>> body =
-        newJournalController(mock(AccountingService.class), journalEntryService, null, null)
+        newJournalController(accountingService, mock(JournalEntryService.class), null, null)
             .journalEntries(null, null, "PACKING", 0, 100)
             .getBody();
 
@@ -705,13 +701,13 @@ class AccountingEndpointContractTest {
   }
 
   @Test
-  void journalEntries_withDealerAndSourceFilter_delegatesToJournalEntryService() {
-    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+  void journalEntries_withDealerAndSourceFilter_delegatesToAccountingService() {
+    AccountingService accountingService = mock(AccountingService.class);
     List<JournalEntryDto> expected = List.of(expectedJournal(83L, "PACK-D-1"));
-    when(journalEntryService.listJournalEntries(19L, null, 2, 25, "PACKING")).thenReturn(expected);
+    when(accountingService.listJournalEntries(19L, null, 2, 25, "PACKING")).thenReturn(expected);
 
     ApiResponse<List<JournalEntryDto>> body =
-        newJournalController(mock(AccountingService.class), journalEntryService, null, null)
+        newJournalController(accountingService, mock(JournalEntryService.class), null, null)
             .journalEntries(19L, null, "PACKING", 2, 25)
             .getBody();
 
@@ -1177,16 +1173,12 @@ class AccountingEndpointContractTest {
   }
 
   private StatementReportController newStatementController(
-      JournalEntryService journalEntryService, SalesReturnService salesReturnService) {
+      AccountingService accountingService, SalesReturnService salesReturnService) {
     return new StatementReportController(
         new StatementReportControllerSupport(
-            mock(TaxService.class),
-            journalEntryService,
+            accountingService != null ? accountingService : mock(AccountingService.class),
             salesReturnService,
             mock(StatementService.class),
-            mock(TemporalBalanceService.class),
-            mock(CompanyContextService.class),
-            mock(CompanyClock.class),
             mock(AuditService.class)));
   }
 
@@ -1194,27 +1186,19 @@ class AccountingEndpointContractTest {
       StatementService statementService) {
     return new StatementReportController(
         new StatementReportControllerSupport(
-            mock(TaxService.class),
-            mock(JournalEntryService.class),
+            mock(AccountingService.class),
             mock(SalesReturnService.class),
             statementService,
-            mock(TemporalBalanceService.class),
-            mock(CompanyContextService.class),
-            mock(CompanyClock.class),
             mock(AuditService.class)));
   }
 
-  private StatementReportController controllerWithTemporalBalanceService(
-      TemporalBalanceService temporalBalanceService) {
+  private StatementReportController controllerWithAccountingService(
+      AccountingService accountingService) {
     return new StatementReportController(
         new StatementReportControllerSupport(
-            mock(TaxService.class),
-            mock(JournalEntryService.class),
+            accountingService != null ? accountingService : mock(AccountingService.class),
             mock(SalesReturnService.class),
             mock(StatementService.class),
-            temporalBalanceService,
-            mock(CompanyContextService.class),
-            mock(CompanyClock.class),
             mock(AuditService.class)));
   }
 

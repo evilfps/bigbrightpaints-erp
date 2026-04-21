@@ -17,14 +17,10 @@ import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.controller.StatementReportController;
 import com.bigbrightpaints.erp.modules.accounting.controller.StatementReportControllerSupport;
-import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
-import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
-import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 
 @Tag("critical")
@@ -80,13 +76,9 @@ class TS_AccountingExportAuditRuntimeCoverageTest {
       StatementService statementService, AuditService auditService) {
     return new StatementReportController(
         new StatementReportControllerSupport(
-            mock(TaxService.class),
-            mock(JournalEntryService.class),
+            mock(AccountingService.class),
             mock(SalesReturnService.class),
             statementService,
-            mock(TemporalBalanceService.class),
-            mock(CompanyContextService.class),
-            mock(CompanyClock.class),
             auditService));
   }
 }

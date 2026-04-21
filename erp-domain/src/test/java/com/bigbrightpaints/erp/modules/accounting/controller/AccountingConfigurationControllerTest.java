@@ -13,37 +13,29 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService.ConfigurationHealthReport;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingConfigurationControllerTest {
 
-  @Mock private ConfigurationHealthService configurationHealthService;
-  @Mock private CompanyContextService companyContextService;
+  @Mock private AccountingService accountingService;
 
   @Test
   void health_returnsCompanyScopedHealthReport() {
-    Company company = new Company();
-    company.setCode("BBP");
-    ConfigurationHealthService.ConfigurationHealthReport report =
-        new ConfigurationHealthService.ConfigurationHealthReport(true, List.of());
-    when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(configurationHealthService.evaluateCompany(company)).thenReturn(report);
+    ConfigurationHealthReport report = new ConfigurationHealthReport(true, List.of());
+    when(accountingService.getConfigurationHealthReport()).thenReturn(report);
     AccountingConfigurationController controller =
-        new AccountingConfigurationController(configurationHealthService, companyContextService);
+        new AccountingConfigurationController(accountingService);
 
-    ResponseEntity<ApiResponse<ConfigurationHealthService.ConfigurationHealthReport>> response =
-        controller.health();
+    ResponseEntity<ApiResponse<ConfigurationHealthReport>> response = controller.health();
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().success()).isTrue();
     assertThat(response.getBody().message()).isEqualTo("Configuration health report");
     assertThat(response.getBody().data()).isSameAs(report);
-    verify(companyContextService).requireCurrentCompany();
-    verify(configurationHealthService).evaluateCompany(company);
+    verify(accountingService).getConfigurationHealthReport();
   }
 }
