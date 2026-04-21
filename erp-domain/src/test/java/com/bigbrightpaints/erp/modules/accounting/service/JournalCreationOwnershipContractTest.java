@@ -41,7 +41,7 @@ class JournalCreationOwnershipContractTest {
     assertThat(AccountingService.class.getSuperclass()).isEqualTo(Object.class);
     assertThat(fieldTypes(AccountingService.class))
         .contains(
-            AccountCatalogService.class,
+            AccountResolutionOwnerService.class,
             JournalEntryService.class,
             DealerReceiptService.class,
             SettlementService.class,

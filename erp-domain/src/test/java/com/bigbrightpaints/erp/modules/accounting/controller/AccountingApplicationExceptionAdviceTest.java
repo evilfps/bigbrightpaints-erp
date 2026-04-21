@@ -100,6 +100,28 @@ class AccountingApplicationExceptionAdviceTest {
   }
 
   @Test
+  void handleApplicationException_businessDuplicateMapsToConflictEnvelope() {
+    AccountingApplicationExceptionAdvice advice = advice();
+    ApplicationException ex =
+        new ApplicationException(
+            ErrorCode.BUSINESS_DUPLICATE_ENTRY, "Account code 'AST-100' already exists");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRequestURI("/api/v1/accounting/accounts");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        advice.handleApplicationException(ex, request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    ApiResponse<Map<String, Object>> body = response.getBody();
+    assertThat(body).isNotNull();
+    assertThat(body.success()).isFalse();
+    assertThat(body.data())
+        .containsEntry("code", ErrorCode.BUSINESS_DUPLICATE_ENTRY.getCode())
+        .containsEntry("reason", "Account code 'AST-100' already exists")
+        .containsEntry("path", "/api/v1/accounting/accounts");
+  }
+
+  @Test
   void handleApplicationException_preservesPartnerReplayDetailsForSupplierPath() {
     AccountingApplicationExceptionAdvice advice = advice();
     ApplicationException ex =

@@ -34,7 +34,7 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 @Service
 public class AccountingService {
 
-  private final AccountCatalogService accountCatalogService;
+  private final AccountResolutionOwnerService accountResolutionOwnerService;
   private final JournalEntryService journalEntryService;
   private final DealerReceiptService dealerReceiptService;
   private final SettlementService settlementService;
@@ -43,13 +43,13 @@ public class AccountingService {
 
   @Autowired
   public AccountingService(
-      AccountCatalogService accountCatalogService,
+      AccountResolutionOwnerService accountResolutionOwnerService,
       JournalEntryService journalEntryService,
       DealerReceiptService dealerReceiptService,
       SettlementService settlementService,
       CreditDebitNoteService creditDebitNoteService,
       InventoryAccountingService inventoryAccountingService) {
-    this.accountCatalogService = accountCatalogService;
+    this.accountResolutionOwnerService = accountResolutionOwnerService;
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
     this.settlementService = settlementService;
@@ -58,11 +58,11 @@ public class AccountingService {
   }
 
   public List<AccountDto> listAccounts() {
-    return accountCatalogService.listAccounts();
+    return accountResolutionOwnerService.listAccounts();
   }
 
   public AccountDto createAccount(AccountRequest request) {
-    return accountCatalogService.createAccount(request);
+    return accountResolutionOwnerService.createAccount(request);
   }
 
   public List<JournalEntryDto> listJournalEntries(

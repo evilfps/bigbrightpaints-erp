@@ -35,9 +35,18 @@ public class AccountingApplicationExceptionAdvice {
     HttpStatus status =
         errorCode == ErrorCode.BUSINESS_ENTITY_NOT_FOUND || errorCode == ErrorCode.FILE_NOT_FOUND
             ? HttpStatus.NOT_FOUND
-            : errorCode != null && errorCode.getCode().startsWith("CONC_")
+            : shouldUseMappedStatus(errorCode)
                 ? AccountingApplicationExceptionResponses.determineHttpStatus(errorCode)
                 : HttpStatus.BAD_REQUEST;
     return globalExceptionHandler.buildApplicationExceptionResponse(ex, request, status);
+  }
+
+  private boolean shouldUseMappedStatus(ErrorCode errorCode) {
+    if (errorCode == null) {
+      return false;
+    }
+    return errorCode.getCode().startsWith("CONC_")
+        || errorCode == ErrorCode.BUSINESS_DUPLICATE_ENTRY
+        || errorCode == ErrorCode.DUPLICATE_ENTITY;
   }
 }

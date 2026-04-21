@@ -26,7 +26,7 @@ class AccountingServiceBenchmarkTest {
 
   private static final LocalDate TODAY = LocalDate.of(2025, 12, 15);
 
-  @Mock private AccountCatalogService accountCatalogService;
+  @Mock private AccountResolutionOwnerService accountResolutionOwnerService;
   @Mock private JournalEntryService journalEntryService;
   @Mock private DealerReceiptService dealerReceiptService;
   @Mock private SettlementService settlementService;
@@ -39,7 +39,7 @@ class AccountingServiceBenchmarkTest {
   void setup() {
     accountingService =
         new AccountingService(
-            accountCatalogService,
+            accountResolutionOwnerService,
             journalEntryService,
             dealerReceiptService,
             settlementService,

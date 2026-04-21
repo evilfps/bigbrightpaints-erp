@@ -21,7 +21,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceStandardJournalTest {
 
-  @Mock private AccountCatalogService accountCatalogService;
+  @Mock private AccountResolutionOwnerService accountResolutionOwnerService;
   @Mock private JournalEntryService journalEntryService;
   @Mock private DealerReceiptService dealerReceiptService;
   @Mock private SettlementService settlementService;
@@ -34,7 +34,7 @@ class AccountingServiceStandardJournalTest {
   void setUp() {
     accountingService =
         new AccountingService(
-            accountCatalogService,
+            accountResolutionOwnerService,
             journalEntryService,
             dealerReceiptService,
             settlementService,

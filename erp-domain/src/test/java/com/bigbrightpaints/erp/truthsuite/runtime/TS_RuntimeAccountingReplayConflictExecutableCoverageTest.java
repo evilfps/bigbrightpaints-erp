@@ -66,7 +66,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
     assertThat(fieldTypes)
         .contains(
-            "AccountCatalogService",
+            "AccountResolutionOwnerService",
             JournalEntryService.class.getSimpleName(),
             DealerReceiptService.class.getSimpleName(),
             SettlementService.class.getSimpleName(),
