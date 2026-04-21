@@ -34,7 +34,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
-import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
@@ -43,8 +43,6 @@ import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLooku
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryPhysicalCountService;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
@@ -73,11 +71,8 @@ class ReportServiceAccountStatementTest {
   @Mock private ProfitLossReportQueryService profitLossReportQueryService;
   @Mock private BalanceSheetReportQueryService balanceSheetReportQueryService;
   @Mock private AgedDebtorsReportQueryService agedDebtorsReportQueryService;
-  @Mock private InvoiceRepository invoiceRepository;
-  @Mock private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+  @Mock private TaxService taxService;
   @Mock private InventoryPhysicalCountService inventoryPhysicalCountService;
-
-  private final GstService gstService = new GstService();
   private ReportService reportService;
   private Company company;
 
@@ -107,9 +102,7 @@ class ReportServiceAccountStatementTest {
             profitLossReportQueryService,
             balanceSheetReportQueryService,
             agedDebtorsReportQueryService,
-            invoiceRepository,
-            rawMaterialPurchaseRepository,
-            gstService,
+            taxService,
             inventoryPhysicalCountService);
     company = new Company();
     ReflectionTestUtils.setField(company, "id", 501L);

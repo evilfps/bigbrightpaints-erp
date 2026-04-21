@@ -41,10 +41,11 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
-import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
+import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
@@ -65,12 +66,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryPhysicalCountService;
-import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.*;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -100,9 +95,7 @@ public class ReportService {
   private final ProfitLossReportQueryService profitLossReportQueryService;
   private final BalanceSheetReportQueryService balanceSheetReportQueryService;
   private final AgedDebtorsReportQueryService agedDebtorsReportQueryService;
-  private final InvoiceRepository invoiceRepository;
-  private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
-  private final GstService gstService;
+  private final TaxService taxService;
   private final InventoryPhysicalCountService inventoryPhysicalCountService;
   private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
 
@@ -133,9 +126,7 @@ public class ReportService {
       ProfitLossReportQueryService profitLossReportQueryService,
       BalanceSheetReportQueryService balanceSheetReportQueryService,
       AgedDebtorsReportQueryService agedDebtorsReportQueryService,
-      InvoiceRepository invoiceRepository,
-      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
-      GstService gstService,
+      TaxService taxService,
       InventoryPhysicalCountService inventoryPhysicalCountService) {
     this.companyContextService = companyContextService;
     this.accountRepository = accountRepository;
@@ -159,9 +150,7 @@ public class ReportService {
     this.profitLossReportQueryService = profitLossReportQueryService;
     this.balanceSheetReportQueryService = balanceSheetReportQueryService;
     this.agedDebtorsReportQueryService = agedDebtorsReportQueryService;
-    this.invoiceRepository = invoiceRepository;
-    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
-    this.gstService = gstService;
+    this.taxService = taxService;
     this.inventoryPhysicalCountService = inventoryPhysicalCountService;
   }
 
@@ -234,155 +223,36 @@ public class ReportService {
   public GstReturnReportDto gstReturn(Long periodId) {
     Company company = companyContextService.requireCurrentCompany();
     AccountingPeriod period = resolveRequestedPeriod(company, periodId);
-    LocalDate startDate = period.getStartDate();
-    LocalDate endDate = period.getEndDate();
-
-    List<Invoice> invoices =
-        invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, startDate, endDate);
-    List<RawMaterialPurchase> purchases =
-        rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, startDate, endDate);
-
-    Map<BigDecimal, GstRateAccumulator> accumulatorsByRate = new LinkedHashMap<>();
-    List<GstReturnReportDto.GstTransactionDetail> transactionDetails = new ArrayList<>();
-
-    for (Invoice invoice : invoices) {
-      if (!isIncludedInvoiceStatus(invoice.getStatus())) {
-        continue;
-      }
-      for (InvoiceLine line : invoice.getLines()) {
-        LineTaxBreakdown breakdown = resolveInvoiceTaxBreakdown(company, invoice, line);
-        if (!breakdown.hasTax()) {
-          continue;
-        }
-        BigDecimal taxRate = normalizeRate(line != null ? line.getTaxRate() : null);
-        GstRateAccumulator accumulator =
-            accumulatorsByRate.computeIfAbsent(taxRate, ignored -> new GstRateAccumulator(taxRate));
-        accumulator.addOutput(
-            breakdown.taxableAmount(), breakdown.cgst(), breakdown.sgst(), breakdown.igst());
-
-        transactionDetails.add(
-            new GstReturnReportDto.GstTransactionDetail(
-                "SALES_INVOICE",
-                invoice.getId(),
-                invoice.getInvoiceNumber(),
-                invoice.getIssueDate(),
-                invoice.getDealer() != null ? invoice.getDealer().getName() : null,
-                taxRate,
-                breakdown.taxableAmount(),
-                breakdown.cgst(),
-                breakdown.sgst(),
-                breakdown.igst(),
-                breakdown.totalTax(),
-                "OUTPUT"));
-      }
-    }
-
-    for (RawMaterialPurchase purchase : purchases) {
-      if (!isIncludedPurchaseStatus(purchase.getStatus())) {
-        continue;
-      }
-      for (RawMaterialPurchaseLine line : purchase.getLines()) {
-        LineTaxBreakdown breakdown = resolvePurchaseTaxBreakdown(company, purchase, line);
-        if (!breakdown.hasTax()) {
-          continue;
-        }
-        BigDecimal taxRate = normalizeRate(line != null ? line.getTaxRate() : null);
-        GstRateAccumulator accumulator =
-            accumulatorsByRate.computeIfAbsent(taxRate, ignored -> new GstRateAccumulator(taxRate));
-        accumulator.addInput(
-            breakdown.taxableAmount(), breakdown.cgst(), breakdown.sgst(), breakdown.igst());
-
-        transactionDetails.add(
-            new GstReturnReportDto.GstTransactionDetail(
-                "PURCHASE_INVOICE",
-                purchase.getId(),
-                purchase.getInvoiceNumber(),
-                purchase.getInvoiceDate(),
-                purchase.getSupplier() != null ? purchase.getSupplier().getName() : null,
-                taxRate,
-                breakdown.taxableAmount(),
-                breakdown.cgst(),
-                breakdown.sgst(),
-                breakdown.igst(),
-                breakdown.totalTax(),
-                "INPUT"));
-      }
-    }
-
-    List<GstReturnReportDto.GstRateSummary> rateSummaries =
-        accumulatorsByRate.values().stream()
-            .sorted(Comparator.comparing(GstRateAccumulator::taxRate))
-            .map(GstRateAccumulator::toSummary)
-            .toList();
-
-    BigDecimal outputCgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::outputCgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal outputSgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::outputSgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal outputIgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::outputIgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal inputCgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::inputCgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal inputSgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::inputSgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal inputIgst =
-        rateSummaries.stream()
-            .map(GstReturnReportDto.GstRateSummary::inputIgst)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    YearMonth periodMonth = YearMonth.of(period.getYear(), period.getMonth());
+    GstReconciliationDto reconciliation = taxService.generateGstReconciliation(periodMonth);
+    LocalDate startDate =
+        reconciliation != null && reconciliation.getPeriodStart() != null
+            ? reconciliation.getPeriodStart()
+            : period.getStartDate();
+    LocalDate endDate =
+        reconciliation != null && reconciliation.getPeriodEnd() != null
+            ? reconciliation.getPeriodEnd()
+            : period.getEndDate();
 
     GstReturnReportDto.GstComponentSummary outputTax =
-        componentSummary(outputCgst, outputSgst, outputIgst);
+        mapComponentSummary(reconciliation != null ? reconciliation.getCollected() : null);
     GstReturnReportDto.GstComponentSummary inputTaxCredit =
-        componentSummary(inputCgst, inputSgst, inputIgst);
+        mapComponentSummary(reconciliation != null ? reconciliation.getInputTaxCredit() : null);
     GstReturnReportDto.GstComponentSummary netLiability =
-        componentSummary(
-            outputTax.cgst().subtract(inputTaxCredit.cgst()),
-            outputTax.sgst().subtract(inputTaxCredit.sgst()),
-            outputTax.igst().subtract(inputTaxCredit.igst()));
+        mapComponentSummary(reconciliation != null ? reconciliation.getNetLiability() : null);
 
     ReportMetadata metadata =
         new ReportMetadata(
             endDate,
             startDate,
             endDate,
-            period.getStatus() == AccountingPeriodStatus.CLOSED
-                ? ReportSource.SNAPSHOT
-                : ReportSource.LIVE,
+            ReportSource.LIVE,
             period.getId(),
             period.getStatus() != null ? period.getStatus().name() : null,
             null,
             true,
             true,
             null);
-
-    List<GstReturnReportDto.GstTransactionDetail> orderedDetails =
-        transactionDetails.stream()
-            .sorted(
-                Comparator.comparing(
-                        GstReturnReportDto.GstTransactionDetail::transactionDate,
-                        Comparator.nullsLast(Comparator.naturalOrder()))
-                    .thenComparing(
-                        GstReturnReportDto.GstTransactionDetail::sourceType,
-                        Comparator.nullsLast(String::compareToIgnoreCase))
-                    .thenComparing(
-                        GstReturnReportDto.GstTransactionDetail::referenceNumber,
-                        Comparator.nullsLast(String::compareToIgnoreCase))
-                    .thenComparing(
-                        GstReturnReportDto.GstTransactionDetail::sourceId,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-            .toList();
 
     return new GstReturnReportDto(
         period.getId(),
@@ -392,8 +262,8 @@ public class ReportService {
         outputTax,
         inputTaxCredit,
         netLiability,
-        rateSummaries,
-        orderedDetails,
+        List.of(),
+        List.of(),
         metadata);
   }
 
@@ -518,156 +388,13 @@ public class ReportService {
                     "Accounting period not found for company"));
   }
 
-  private LineTaxBreakdown resolveInvoiceTaxBreakdown(
-      Company company, Invoice invoice, InvoiceLine line) {
-    if (line == null) {
-      return LineTaxBreakdown.zero();
-    }
-    BigDecimal taxAmount = safe(line.getTaxAmount());
-    if (taxAmount.compareTo(BigDecimal.ZERO) <= 0) {
-      return LineTaxBreakdown.zero();
-    }
-
-    BigDecimal taxable = requireInvoiceTaxableAmount(invoice, line);
-    BigDecimal cgst = safe(line.getCgstAmount());
-    BigDecimal sgst = safe(line.getSgstAmount());
-    BigDecimal igst = safe(line.getIgstAmount());
-    if (cgst.add(sgst).add(igst).compareTo(BigDecimal.ZERO) > 0) {
-      return new LineTaxBreakdown(
-          roundCurrency(taxable), roundCurrency(cgst), roundCurrency(sgst), roundCurrency(igst));
-    }
-
-    GstService.GstBreakdown split =
-        gstService.splitTaxAmount(
-            taxable,
-            taxAmount,
-            company.getStateCode(),
-            invoice != null && invoice.getDealer() != null
-                ? invoice.getDealer().getStateCode()
-                : null);
-    return new LineTaxBreakdown(
-        roundCurrency(split.taxableAmount()),
-        roundCurrency(split.cgst()),
-        roundCurrency(split.sgst()),
-        roundCurrency(split.igst()));
-  }
-
-  private LineTaxBreakdown resolvePurchaseTaxBreakdown(
-      Company company, RawMaterialPurchase purchase, RawMaterialPurchaseLine line) {
-    if (line == null) {
-      return LineTaxBreakdown.zero();
-    }
-    BigDecimal taxAmount = safe(line.getTaxAmount());
-    if (taxAmount.compareTo(BigDecimal.ZERO) <= 0) {
-      return LineTaxBreakdown.zero();
-    }
-
-    BigDecimal retainedRatio =
-        resolveRetainedQuantityRatio(line.getQuantity(), line.getReturnedQuantity());
-    if (retainedRatio.compareTo(BigDecimal.ZERO) <= 0) {
-      return LineTaxBreakdown.zero();
-    }
-
-    BigDecimal taxable =
-        roundCurrency(safe(line.getCostPerUnit()).multiply(safe(line.getQuantity())));
-    BigDecimal netTax = roundCurrency(taxAmount.multiply(retainedRatio));
-    BigDecimal netTaxable = roundCurrency(taxable.multiply(retainedRatio));
-
-    BigDecimal cgst = safe(line.getCgstAmount());
-    BigDecimal sgst = safe(line.getSgstAmount());
-    BigDecimal igst = safe(line.getIgstAmount());
-    if (cgst.add(sgst).add(igst).compareTo(BigDecimal.ZERO) > 0) {
-      return new LineTaxBreakdown(
-          netTaxable,
-          roundCurrency(cgst.multiply(retainedRatio)),
-          roundCurrency(sgst.multiply(retainedRatio)),
-          roundCurrency(igst.multiply(retainedRatio)));
-    }
-
-    GstService.GstBreakdown split =
-        gstService.splitTaxAmount(
-            netTaxable,
-            netTax,
-            company.getStateCode(),
-            purchase != null && purchase.getSupplier() != null
-                ? purchase.getSupplier().getStateCode()
-                : null);
-    return new LineTaxBreakdown(
-        roundCurrency(split.taxableAmount()),
-        roundCurrency(split.cgst()),
-        roundCurrency(split.sgst()),
-        roundCurrency(split.igst()));
-  }
-
-  private BigDecimal resolveRetainedQuantityRatio(
-      BigDecimal quantity, BigDecimal returnedQuantity) {
-    BigDecimal totalQuantity = safe(quantity);
-    if (totalQuantity.compareTo(BigDecimal.ZERO) <= 0) {
-      return BigDecimal.ONE;
-    }
-    BigDecimal returned = safe(returnedQuantity);
-    if (returned.compareTo(BigDecimal.ZERO) < 0) {
-      returned = BigDecimal.ZERO;
-    }
-    BigDecimal retained = totalQuantity.subtract(returned);
-    if (retained.compareTo(BigDecimal.ZERO) <= 0) {
-      return BigDecimal.ZERO;
-    }
-    if (retained.compareTo(totalQuantity) >= 0) {
-      return BigDecimal.ONE;
-    }
-    return retained.divide(totalQuantity, 12, RoundingMode.HALF_UP);
-  }
-
-  private BigDecimal requireInvoiceTaxableAmount(Invoice invoice, InvoiceLine line) {
-    BigDecimal explicitTaxable = line.getTaxableAmount();
-    if (explicitTaxable != null && explicitTaxable.compareTo(BigDecimal.ZERO) >= 0) {
-      return roundCurrency(explicitTaxable);
-    }
-    String invoiceReference =
-        invoice != null && invoice.getInvoiceNumber() != null
-            ? invoice.getInvoiceNumber()
-            : "unknown";
-    throw new ApplicationException(
-        ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-        "Invoice line taxable amount is required and must be non-negative for GST reporting."
-            + " Invoice: "
-            + invoiceReference);
-  }
-
-  private boolean isIncludedInvoiceStatus(String status) {
-    if (status == null) {
-      return true;
-    }
-    String normalized = status.trim().toUpperCase(Locale.ROOT);
-    return !normalized.equals("DRAFT")
-        && !normalized.equals("VOID")
-        && !normalized.equals("REVERSED")
-        && !normalized.equals("CANCELLED");
-  }
-
-  private boolean isIncludedPurchaseStatus(String status) {
-    if (status == null) {
-      return true;
-    }
-    String normalized = status.trim().toUpperCase(Locale.ROOT);
-    return !normalized.equals("DRAFT")
-        && !normalized.equals("VOID")
-        && !normalized.equals("REVERSED")
-        && !normalized.equals("CANCELLED");
-  }
-
-  private GstReturnReportDto.GstComponentSummary componentSummary(
-      BigDecimal cgst, BigDecimal sgst, BigDecimal igst) {
-    BigDecimal roundedCgst = roundCurrency(safe(cgst));
-    BigDecimal roundedSgst = roundCurrency(safe(sgst));
-    BigDecimal roundedIgst = roundCurrency(safe(igst));
-    BigDecimal total = roundCurrency(roundedCgst.add(roundedSgst).add(roundedIgst));
-    return new GstReturnReportDto.GstComponentSummary(roundedCgst, roundedSgst, roundedIgst, total);
-  }
-
-  private BigDecimal normalizeRate(BigDecimal rate) {
-    return roundCurrency(safe(rate));
+  private GstReturnReportDto.GstComponentSummary mapComponentSummary(
+      GstReconciliationDto.GstComponentSummary summary) {
+    BigDecimal cgst = roundCurrency(safe(summary != null ? summary.getCgst() : null));
+    BigDecimal sgst = roundCurrency(safe(summary != null ? summary.getSgst() : null));
+    BigDecimal igst = roundCurrency(safe(summary != null ? summary.getIgst() : null));
+    BigDecimal total = roundCurrency(cgst.add(sgst).add(igst));
+    return new GstReturnReportDto.GstComponentSummary(cgst, sgst, igst, total);
   }
 
   @Transactional(readOnly = true)
@@ -1369,85 +1096,6 @@ public class ReportService {
     private InventoryValuationGroupDto toDto() {
       return new InventoryValuationGroupDto(
           groupType, groupKey, roundCurrency(totalValue), itemCount, lowStockItems);
-    }
-  }
-
-  private static final class GstRateAccumulator {
-    private final BigDecimal taxRate;
-    private BigDecimal taxableAmount = BigDecimal.ZERO;
-    private BigDecimal outputCgst = BigDecimal.ZERO;
-    private BigDecimal outputSgst = BigDecimal.ZERO;
-    private BigDecimal outputIgst = BigDecimal.ZERO;
-    private BigDecimal inputCgst = BigDecimal.ZERO;
-    private BigDecimal inputSgst = BigDecimal.ZERO;
-    private BigDecimal inputIgst = BigDecimal.ZERO;
-
-    private GstRateAccumulator(BigDecimal taxRate) {
-      this.taxRate = taxRate == null ? BigDecimal.ZERO : taxRate;
-    }
-
-    private BigDecimal taxRate() {
-      return taxRate;
-    }
-
-    private void addOutput(BigDecimal taxable, BigDecimal cgst, BigDecimal sgst, BigDecimal igst) {
-      taxableAmount = taxableAmount.add(safeAmount(taxable));
-      outputCgst = outputCgst.add(safeAmount(cgst));
-      outputSgst = outputSgst.add(safeAmount(sgst));
-      outputIgst = outputIgst.add(safeAmount(igst));
-    }
-
-    private void addInput(BigDecimal taxable, BigDecimal cgst, BigDecimal sgst, BigDecimal igst) {
-      taxableAmount = taxableAmount.add(safeAmount(taxable));
-      inputCgst = inputCgst.add(safeAmount(cgst));
-      inputSgst = inputSgst.add(safeAmount(sgst));
-      inputIgst = inputIgst.add(safeAmount(igst));
-    }
-
-    private GstReturnReportDto.GstRateSummary toSummary() {
-      BigDecimal outputTax = outputCgst.add(outputSgst).add(outputIgst);
-      BigDecimal inputTaxCredit = inputCgst.add(inputSgst).add(inputIgst);
-      BigDecimal netTax = outputTax.subtract(inputTaxCredit);
-      return new GstReturnReportDto.GstRateSummary(
-          roundAmount(taxRate),
-          roundAmount(taxableAmount),
-          roundAmount(outputTax),
-          roundAmount(inputTaxCredit),
-          roundAmount(netTax),
-          roundAmount(outputCgst),
-          roundAmount(outputSgst),
-          roundAmount(outputIgst),
-          roundAmount(inputCgst),
-          roundAmount(inputSgst),
-          roundAmount(inputIgst));
-    }
-
-    private static BigDecimal safeAmount(BigDecimal value) {
-      return value == null ? BigDecimal.ZERO : value;
-    }
-
-    private static BigDecimal roundAmount(BigDecimal value) {
-      return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
-    }
-  }
-
-  private record LineTaxBreakdown(
-      BigDecimal taxableAmount, BigDecimal cgst, BigDecimal sgst, BigDecimal igst) {
-    private boolean hasTax() {
-      return totalTax().compareTo(BigDecimal.ZERO) > 0;
-    }
-
-    private BigDecimal totalTax() {
-      return safeTax(cgst).add(safeTax(sgst)).add(safeTax(igst)).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private static LineTaxBreakdown zero() {
-      return new LineTaxBreakdown(
-          BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
-    }
-
-    private static BigDecimal safeTax(BigDecimal value) {
-      return value == null ? BigDecimal.ZERO : value;
     }
   }
 
