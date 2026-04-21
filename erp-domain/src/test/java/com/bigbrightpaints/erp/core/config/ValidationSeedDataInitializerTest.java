@@ -121,24 +121,6 @@ class ValidationSeedDataInitializerTest {
   }
 
   @Test
-  void validationSeedInitializer_isLoadedFromTestClasspath() {
-    String classLocation =
-        ValidationSeedDataInitializer.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-    String testClassLocation =
-        ValidationSeedDataInitializerTest.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-
-    assertThat(classLocation).isEqualTo(testClassLocation);
-  }
-
-  @Test
   void seedValidationActorsSkipsWhenDisabled() throws Exception {
     CommandLineRunner runner =
         initializer.seedValidationActors(

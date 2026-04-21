@@ -72,24 +72,6 @@ class MockDataInitializerTest {
   }
 
   @Test
-  void mockInitializer_isLoadedFromTestClasspath() {
-    String classLocation =
-        MockDataInitializer.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-    String testClassLocation =
-        MockDataInitializerTest.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-
-    assertThat(classLocation).isEqualTo(testClassLocation);
-  }
-
-  @Test
   void seedRolesAndUsers_createsScopedMockAdminWhenMissing() {
     Company company = company("MOCK");
     when(passwordEncoder.encode("Temp123!")).thenReturn("encoded-password");

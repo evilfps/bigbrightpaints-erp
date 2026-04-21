@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
@@ -73,6 +74,7 @@ public class ValidationSeedDataInitializer {
   private static final Instant LOCKED_UNTIL_PLACEHOLDER = Instant.parse("2099-01-01T00:00:00Z");
 
   @Bean
+  @Order(10)
   CommandLineRunner seedValidationActors(
       CompanyRepository companyRepository,
       RoleRepository roleRepository,

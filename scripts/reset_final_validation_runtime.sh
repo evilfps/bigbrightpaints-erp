@@ -179,7 +179,7 @@ fi
 
 mock_admin_email_normalized="$(printf '%s' "$ERP_SEED_MOCK_ADMIN_EMAIL" | tr '[:upper:]' '[:lower:]')"
 
-seed_fixture_errors="$(
+collect_seed_fixture_errors() {
   docker exec -i erp_db psql -v ON_ERROR_STOP=1 -v "mock_admin_email=$mock_admin_email_normalized" -U erp -d erp_domain -At <<'SQL'
 WITH expected_users(email, expected_scope) AS (
   VALUES
@@ -483,7 +483,16 @@ UNION ALL SELECT error FROM pending_validation_support_missing
 UNION ALL SELECT error FROM pending_validation_credit_missing
 ORDER BY error;
 SQL
-)"
+}
+
+seed_fixture_errors=""
+for _ in $(seq 1 45); do
+  seed_fixture_errors="$(collect_seed_fixture_errors)"
+  if [[ -z "$seed_fixture_errors" ]]; then
+    break
+  fi
+  sleep 2
+done
 
 if [[ -n "$seed_fixture_errors" ]]; then
   echo "[final-validation-reset] ERROR: Validation seed fixture verification failed:" >&2
