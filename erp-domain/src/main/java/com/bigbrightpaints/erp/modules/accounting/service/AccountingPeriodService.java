@@ -64,7 +64,7 @@ public class AccountingPeriodService {
       PayrollRunRepository payrollRunRepository,
       ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
       PeriodCloseRequestRepository periodCloseRequestRepository,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider,
       PeriodCloseHook periodCloseHook,
       AccountingPeriodSnapshotService snapshotService) {
     this.lifecycleService =
@@ -102,7 +102,7 @@ public class AccountingPeriodService {
             accountRepository,
             companyClock,
             periodCloseRequestRepository,
-            accountingFacadeProvider,
+            journalEntryServiceProvider,
             periodCloseHook,
             snapshotService,
             lifecycleService,

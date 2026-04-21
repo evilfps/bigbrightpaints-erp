@@ -9,7 +9,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -48,7 +47,8 @@ class SupplierSettlementService {
   private static final Logger log = LoggerFactory.getLogger(SupplierSettlementService.class);
 
   private final CompanyContextService companyContextService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final JournalEntryService journalEntryService;
+  private final SupplierPaymentService supplierPaymentService;
   private final SupplierRepository supplierRepository;
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final PartnerSettlementAllocationRepository settlementAllocationRepository;
@@ -65,7 +65,8 @@ class SupplierSettlementService {
 
   SupplierSettlementService(
       CompanyContextService companyContextService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      JournalEntryService journalEntryService,
+      SupplierPaymentService supplierPaymentService,
       SupplierRepository supplierRepository,
       CompanyScopedAccountingLookupService accountingLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
@@ -80,7 +81,8 @@ class SupplierSettlementService {
       SettlementOutcomeService settlementOutcomeService,
       AccountingAuditService accountingAuditService) {
     this.companyContextService = companyContextService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryService = journalEntryService;
+    this.supplierPaymentService = supplierPaymentService;
     this.supplierRepository = supplierRepository;
     this.accountingLookupService = accountingLookupService;
     this.settlementAllocationRepository = settlementAllocationRepository;
@@ -323,22 +325,21 @@ class SupplierSettlementService {
     }
 
     JournalEntryDto journalEntryDto =
-        resolveAccountingFacade()
-            .createStandardJournal(
-                new JournalCreationRequest(
-                    totalJournalAmount(lineDraft.lines()),
-                    null,
-                    null,
-                    memo,
-                    "SUPPLIER_SETTLEMENT",
-                    reference,
-                    null,
-                    toCreationLines(lineDraft.lines()),
-                    entryDate,
-                    null,
-                    supplier.getId(),
-                    request.adminOverride(),
-                    List.of()));
+        journalEntryService.createStandardJournal(
+            new JournalCreationRequest(
+                totalJournalAmount(lineDraft.lines()),
+                null,
+                null,
+                memo,
+                "SUPPLIER_SETTLEMENT",
+                reference,
+                null,
+                toCreationLines(lineDraft.lines()),
+                entryDate,
+                null,
+                supplier.getId(),
+                request.adminOverride(),
+                List.of()));
     JournalEntry journalEntry =
         accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
     journalReplayService.linkReferenceMapping(
@@ -446,7 +447,7 @@ class SupplierSettlementService {
     SupplierPaymentRequest paymentRequest =
         new SupplierPaymentRequest(
             supplier.getId(), cashAccountId, amount, reference, memo, idempotencyKey, allocations);
-    JournalEntryDto journalEntry = resolveAccountingFacade().recordSupplierPayment(paymentRequest);
+    JournalEntryDto journalEntry = supplierPaymentService.recordSupplierPayment(paymentRequest);
     return settlementOutcomeService.buildAutoSettlementResponse(company, journalEntry);
   }
 
@@ -463,15 +464,6 @@ class SupplierSettlementService {
     throw new ApplicationException(
             ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, operation + " reason is required")
         .withDetail("field", "memo");
-  }
-
-  private AccountingFacade resolveAccountingFacade() {
-    AccountingFacade facade =
-        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade;
   }
 
   private List<JournalCreationRequest.LineRequest> toCreationLines(

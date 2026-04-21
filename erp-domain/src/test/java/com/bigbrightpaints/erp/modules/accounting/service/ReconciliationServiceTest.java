@@ -99,17 +99,17 @@ class ReconciliationServiceTest {
   private ReconciliationService reconciliationService;
   private Company company;
 
-  private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  private AccountingFacade accountingFacade;
+  private ObjectProvider<JournalEntryService> journalEntryServiceProvider;
+  private JournalEntryService journalEntryService;
 
   @BeforeEach
   void setUp() {
     SecurityContextHolder.clearContext();
     @SuppressWarnings("unchecked")
-    ObjectProvider<AccountingFacade> provider = mock(ObjectProvider.class);
-    accountingFacadeProvider = provider;
-    accountingFacade = mock(AccountingFacade.class);
-    lenient().when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+    ObjectProvider<JournalEntryService> provider = mock(ObjectProvider.class);
+    journalEntryServiceProvider = provider;
+    journalEntryService = mock(JournalEntryService.class);
+    lenient().when(journalEntryServiceProvider.getObject()).thenReturn(journalEntryService);
 
     reconciliationService =
         new ReconciliationService(
@@ -127,7 +127,7 @@ class ReconciliationServiceTest {
             accountingPeriodRepository,
             taxService,
             reportService,
-            accountingFacadeProvider);
+            journalEntryServiceProvider);
     company = new Company();
     company.setCode("ACME");
     company.setTimezone("Asia/Kolkata");
@@ -710,7 +710,7 @@ class ReconciliationServiceTest {
     assertThat(resolved.resolutionJournalId()).isNull();
     assertThat(resolved.resolutionNote()).isEqualTo("reviewed");
     assertThat(resolved.resolvedBy()).isEqualTo("UNKNOWN_AUTH_ACTOR");
-    verify(accountingFacadeProvider, never()).getObject();
+    verify(journalEntryServiceProvider, never()).getObject();
   }
 
   @Test
@@ -730,7 +730,7 @@ class ReconciliationServiceTest {
     when(accountRepository.findByCompanyAndId(company, 702L)).thenReturn(Optional.of(adjustment));
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR"))
         .thenReturn(Optional.of(arControl));
-    when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class)))
+    when(journalEntryService.createStandardJournal(any(JournalCreationRequest.class)))
         .thenReturn(journalEntryDto(9001L, "RECON-ADJUSTMENT_JOURNAL-202"));
 
     JournalEntry created = new JournalEntry();
@@ -752,7 +752,7 @@ class ReconciliationServiceTest {
 
     ArgumentCaptor<JournalCreationRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalCreationRequest.class);
-    verify(accountingFacade).createStandardJournal(requestCaptor.capture());
+    verify(journalEntryService).createStandardJournal(requestCaptor.capture());
     assertThat(requestCaptor.getValue().entryDate()).isEqualTo(LocalDate.of(2026, 3, 18));
   }
 
@@ -846,7 +846,7 @@ class ReconciliationServiceTest {
     when(accountRepository.findByCompanyAndId(company, 712L)).thenReturn(Optional.of(writeOff));
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "INV"))
         .thenReturn(Optional.of(inventoryControl));
-    when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class)))
+    when(journalEntryService.createStandardJournal(any(JournalCreationRequest.class)))
         .thenReturn(journalEntryDto(9002L, "RECON-WRITE_OFF-203"));
 
     JournalEntry created = new JournalEntry();
@@ -864,7 +864,7 @@ class ReconciliationServiceTest {
     assertThat(resolved.status()).isEqualTo("RESOLVED");
     assertThat(resolved.resolution()).isEqualTo("WRITE_OFF");
     assertThat(resolved.resolutionJournalId()).isEqualTo(9002L);
-    verify(accountingFacade).createStandardJournal(any(JournalCreationRequest.class));
+    verify(journalEntryService).createStandardJournal(any(JournalCreationRequest.class));
   }
 
   @Test
@@ -895,7 +895,7 @@ class ReconciliationServiceTest {
     assertThat(resolved.status()).isEqualTo("RESOLVED");
     assertThat(resolved.resolution()).isEqualTo("ADJUSTMENT");
     assertThat(resolved.resolutionJournalId()).isEqualTo(9100L);
-    verify(accountingFacadeProvider, never()).getObject();
+    verify(journalEntryServiceProvider, never()).getObject();
   }
 
   @Test
@@ -961,7 +961,7 @@ class ReconciliationServiceTest {
     when(accountRepository.findByCompanyAndId(company, 722L)).thenReturn(Optional.of(adjustment));
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AP"))
         .thenReturn(Optional.of(apControl));
-    when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class)))
+    when(journalEntryService.createStandardJournal(any(JournalCreationRequest.class)))
         .thenReturn(
             new JournalEntryDto(
                 null,
@@ -1020,7 +1020,7 @@ class ReconciliationServiceTest {
         .thenReturn(Optional.of(discrepancy));
     when(accountRepository.findByCompanyAndId(company, 732L)).thenReturn(Optional.of(writeOff));
     when(accountRepository.findByCompanyAndId(company, 731L)).thenReturn(Optional.of(gstPayable));
-    when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class)))
+    when(journalEntryService.createStandardJournal(any(JournalCreationRequest.class)))
         .thenReturn(journalEntryDto(9007L, "RECON-WRITE_OFF-207"));
 
     JournalEntry created = new JournalEntry();
@@ -1036,7 +1036,7 @@ class ReconciliationServiceTest {
                 ReconciliationDiscrepancyResolution.WRITE_OFF, "gst write-off", 732L));
 
     assertThat(resolved.status()).isEqualTo("RESOLVED");
-    verify(accountingFacade).createStandardJournal(any(JournalCreationRequest.class));
+    verify(journalEntryService).createStandardJournal(any(JournalCreationRequest.class));
   }
 
   @Test

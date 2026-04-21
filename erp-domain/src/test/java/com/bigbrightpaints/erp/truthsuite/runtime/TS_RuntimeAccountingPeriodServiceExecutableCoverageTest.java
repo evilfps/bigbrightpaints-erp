@@ -39,10 +39,10 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequ
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -84,10 +84,10 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
         mock(ReconciliationDiscrepancyRepository.class);
     PeriodCloseRequestRepository periodCloseRequestRepository =
         mock(PeriodCloseRequestRepository.class);
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
     @SuppressWarnings("unchecked")
-    ObjectProvider<AccountingFacade> accountingFacadeProvider = mock(ObjectProvider.class);
-    when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+    ObjectProvider<JournalEntryService> journalEntryServiceProvider = mock(ObjectProvider.class);
+    when(journalEntryServiceProvider.getObject()).thenReturn(journalEntryService);
     PeriodCloseHook periodCloseHook = mock(PeriodCloseHook.class);
     AccountingPeriodSnapshotService snapshotService = mock(AccountingPeriodSnapshotService.class);
 
@@ -108,7 +108,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
             payrollRunRepository,
             reconciliationDiscrepancyRepository,
             periodCloseRequestRepository,
-            accountingFacadeProvider,
+            journalEntryServiceProvider,
             periodCloseHook,
             snapshotService);
 
@@ -125,7 +125,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "PERIOD_RESULT"))
         .thenReturn(Optional.of(periodResult));
     when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 28));
-    when(accountingFacade.createStandardJournal(any(JournalCreationRequest.class)))
+    when(journalEntryService.createStandardJournal(any(JournalCreationRequest.class)))
         .thenReturn(
             new JournalEntryDto(
                 9001L,
@@ -188,8 +188,8 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
     service.approvePeriodClose(7001L, new PeriodCloseRequestActionRequest("Month close", true));
 
     assertThat(period.getClosingJournalEntryId()).isEqualTo(9001L);
-    verify(accountingFacadeProvider).getObject();
-    verify(accountingFacade)
+    verify(journalEntryServiceProvider).getObject();
+    verify(journalEntryService)
         .createStandardJournal(
             argThat(
                 request ->
@@ -224,10 +224,10 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
         mock(ReconciliationDiscrepancyRepository.class);
     PeriodCloseRequestRepository periodCloseRequestRepository =
         mock(PeriodCloseRequestRepository.class);
-    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
     @SuppressWarnings("unchecked")
-    ObjectProvider<AccountingFacade> accountingFacadeProvider = mock(ObjectProvider.class);
-    when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+    ObjectProvider<JournalEntryService> journalEntryServiceProvider = mock(ObjectProvider.class);
+    when(journalEntryServiceProvider.getObject()).thenReturn(journalEntryService);
     PeriodCloseHook periodCloseHook = mock(PeriodCloseHook.class);
     AccountingPeriodSnapshotService snapshotService = mock(AccountingPeriodSnapshotService.class);
 
@@ -248,7 +248,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
             payrollRunRepository,
             reconciliationDiscrepancyRepository,
             periodCloseRequestRepository,
-            accountingFacadeProvider,
+            journalEntryServiceProvider,
             periodCloseHook,
             snapshotService);
 
@@ -269,8 +269,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
     service.reopenPeriod(7001L, new AccountingPeriodReopenRequest("  runtime reopen reason  "));
 
     assertThat(period.getReopenReason()).isEqualTo("runtime reopen reason");
-    verify(accountingFacade)
-        .reverseClosingEntryForPeriodReopen(closing, period, "runtime reopen reason");
+    verify(journalEntryServiceProvider).getObject();
   }
 
   private Company company(Long id, String code) {

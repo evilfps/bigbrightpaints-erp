@@ -3,7 +3,6 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.time.LocalDate;
 import java.util.List;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -41,7 +40,6 @@ public class AccountingService {
   private final SettlementService settlementService;
   private final CreditDebitNoteService creditDebitNoteService;
   private final InventoryAccountingService inventoryAccountingService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
 
   @Autowired
   public AccountingService(
@@ -50,15 +48,13 @@ public class AccountingService {
       DealerReceiptService dealerReceiptService,
       SettlementService settlementService,
       CreditDebitNoteService creditDebitNoteService,
-      InventoryAccountingService inventoryAccountingService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
+      InventoryAccountingService inventoryAccountingService) {
     this.accountCatalogService = accountCatalogService;
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
     this.settlementService = settlementService;
     this.creditDebitNoteService = creditDebitNoteService;
     this.inventoryAccountingService = inventoryAccountingService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
   }
 
   public List<AccountDto> listAccounts() {
@@ -91,7 +87,7 @@ public class AccountingService {
   }
 
   public JournalEntryDto createManualJournal(ManualJournalRequest request) {
-    return resolveAccountingFacade().createManualJournal(request);
+    return journalEntryService.createManualJournal(request);
   }
 
   public PageResponse<JournalListItemDto> listJournals(
@@ -174,14 +170,5 @@ public class AccountingService {
 
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     return inventoryAccountingService.adjustWip(request);
-  }
-
-  private AccountingFacade resolveAccountingFacade() {
-    AccountingFacade facade =
-        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade;
   }
 }

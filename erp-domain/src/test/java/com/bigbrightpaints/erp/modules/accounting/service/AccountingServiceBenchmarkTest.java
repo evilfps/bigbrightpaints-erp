@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -33,7 +32,6 @@ class AccountingServiceBenchmarkTest {
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
 
   private AccountingService accountingService;
 
@@ -46,8 +44,7 @@ class AccountingServiceBenchmarkTest {
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
-            inventoryAccountingService,
-            accountingFacadeProvider);
+            inventoryAccountingService);
 
     AtomicLong ids = new AtomicLong(1);
     when(journalEntryService.createJournalEntry(any()))

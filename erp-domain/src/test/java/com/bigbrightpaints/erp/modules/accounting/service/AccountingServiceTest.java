@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
@@ -33,8 +31,6 @@ class AccountingServiceTest {
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private AccountingFacade accountingFacade;
 
   private AccountingService accountingService;
 
@@ -47,8 +43,7 @@ class AccountingServiceTest {
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
-            inventoryAccountingService,
-            accountingFacadeProvider);
+            inventoryAccountingService);
   }
 
   @Test
@@ -63,8 +58,7 @@ class AccountingServiceTest {
   }
 
   @Test
-  void createManualJournal_usesAccountingFacadeComposition() {
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(accountingFacade);
+  void createManualJournal_delegatesToJournalEntryService() {
 
     ManualJournalRequest request =
         new ManualJournalRequest(
@@ -81,38 +75,11 @@ class AccountingServiceTest {
                     "Credit",
                     ManualJournalRequest.EntryType.CREDIT)));
     JournalEntryDto expected = journalEntryDto(1002L, "MANUAL-1002");
-    when(accountingFacade.createManualJournal(request)).thenReturn(expected);
+    when(journalEntryService.createManualJournal(request)).thenReturn(expected);
 
     assertThat(accountingService.createManualJournal(request)).isSameAs(expected);
 
-    verify(accountingFacade).createManualJournal(request);
-  }
-
-  @Test
-  void createManualJournal_requiresAccountingFacadeWhenProviderIsEmpty() {
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(null);
-
-    assertThatThrownBy(
-            () ->
-                accountingService.createManualJournal(
-                    new ManualJournalRequest(
-                        LocalDate.of(2026, 4, 1),
-                        "Manual entry",
-                        null,
-                        Boolean.FALSE,
-                        List.of(
-                            new ManualJournalRequest.LineRequest(
-                                11L,
-                                new BigDecimal("10.00"),
-                                "Debit",
-                                ManualJournalRequest.EntryType.DEBIT),
-                            new ManualJournalRequest.LineRequest(
-                                12L,
-                                new BigDecimal("10.00"),
-                                "Credit",
-                                ManualJournalRequest.EntryType.CREDIT)))))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("AccountingFacade is required");
+    verify(journalEntryService).createManualJournal(request);
   }
 
   @Test

@@ -9,7 +9,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -43,7 +42,7 @@ class SupplierPaymentService {
   private static final Logger log = LoggerFactory.getLogger(SupplierPaymentService.class);
 
   private final CompanyContextService companyContextService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final JournalEntryService journalEntryService;
   private final SupplierRepository supplierRepository;
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final PartnerSettlementAllocationRepository settlementAllocationRepository;
@@ -59,7 +58,7 @@ class SupplierPaymentService {
 
   SupplierPaymentService(
       CompanyContextService companyContextService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      JournalEntryService journalEntryService,
       SupplierRepository supplierRepository,
       CompanyScopedAccountingLookupService accountingLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
@@ -73,7 +72,7 @@ class SupplierPaymentService {
       AccountingDtoMapperService dtoMapperService,
       AccountingAuditService accountingAuditService) {
     this.companyContextService = companyContextService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryService = journalEntryService;
     this.supplierRepository = supplierRepository;
     this.accountingLookupService = accountingLookupService;
     this.settlementAllocationRepository = settlementAllocationRepository;
@@ -180,25 +179,24 @@ class SupplierPaymentService {
         accountResolutionService.requireCashAccountForSettlement(
             company, request.cashAccountId(), "supplier payment", true);
     JournalEntryDto entryDto =
-        resolveAccountingFacade()
-            .createStandardJournal(
-                new JournalCreationRequest(
-                    amount,
-                    payableAccount.getId(),
-                    cashAccount.getId(),
-                    memo,
-                    "SUPPLIER_PAYMENT",
-                    reference,
-                    null,
-                    List.of(
-                        new JournalCreationRequest.LineRequest(
-                            payableAccount.getId(), amount, BigDecimal.ZERO, memo),
-                        new JournalCreationRequest.LineRequest(
-                            cashAccount.getId(), BigDecimal.ZERO, amount, memo)),
-                    accountResolutionService.currentDate(company),
-                    null,
-                    supplier.getId(),
-                    Boolean.FALSE));
+        journalEntryService.createStandardJournal(
+            new JournalCreationRequest(
+                amount,
+                payableAccount.getId(),
+                cashAccount.getId(),
+                memo,
+                "SUPPLIER_PAYMENT",
+                reference,
+                null,
+                List.of(
+                    new JournalCreationRequest.LineRequest(
+                        payableAccount.getId(), amount, BigDecimal.ZERO, memo),
+                    new JournalCreationRequest.LineRequest(
+                        cashAccount.getId(), BigDecimal.ZERO, amount, memo)),
+                accountResolutionService.currentDate(company),
+                null,
+                supplier.getId(),
+                Boolean.FALSE));
     JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "SUPPLIER_PAYMENT");
     existingAllocations =
@@ -316,12 +314,4 @@ class SupplierPaymentService {
     return entryDto;
   }
 
-  private AccountingFacade resolveAccountingFacade() {
-    AccountingFacade facade =
-        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade;
-  }
 }

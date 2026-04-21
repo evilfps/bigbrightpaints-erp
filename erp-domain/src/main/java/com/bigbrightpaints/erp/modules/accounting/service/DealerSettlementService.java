@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
@@ -47,7 +46,8 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesOrderAutoCloseService;
 class DealerSettlementService {
 
   private final CompanyContextService companyContextService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final JournalEntryService journalEntryService;
+  private final DealerReceiptService dealerReceiptService;
   private final DealerRepository dealerRepository;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyScopedAccountingLookupService accountingLookupService;
@@ -70,7 +70,8 @@ class DealerSettlementService {
 
   DealerSettlementService(
       CompanyContextService companyContextService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      JournalEntryService journalEntryService,
+      DealerReceiptService dealerReceiptService,
       DealerRepository dealerRepository,
       ReferenceNumberService referenceNumberService,
       CompanyScopedAccountingLookupService accountingLookupService,
@@ -88,7 +89,8 @@ class DealerSettlementService {
       SettlementOutcomeService settlementOutcomeService,
       AccountingAuditService accountingAuditService) {
     this.companyContextService = companyContextService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryService = journalEntryService;
+    this.dealerReceiptService = dealerReceiptService;
     this.dealerRepository = dealerRepository;
     this.referenceNumberService = referenceNumberService;
     this.accountingLookupService = accountingLookupService;
@@ -339,22 +341,21 @@ class DealerSettlementService {
     }
 
     JournalEntryDto journalEntryDto =
-        resolveAccountingFacade()
-            .createStandardJournal(
-                new JournalCreationRequest(
-                    totalJournalAmount(lineDraft.lines()),
-                    null,
-                    null,
-                    memo,
-                    "DEALER_SETTLEMENT",
-                    reference,
-                    null,
-                    toCreationLines(lineDraft.lines()),
-                    entryDate,
-                    dealer.getId(),
-                    null,
-                    request.adminOverride(),
-                    List.of()));
+        journalEntryService.createStandardJournal(
+            new JournalCreationRequest(
+                totalJournalAmount(lineDraft.lines()),
+                null,
+                null,
+                memo,
+                "DEALER_SETTLEMENT",
+                reference,
+                null,
+                toCreationLines(lineDraft.lines()),
+                entryDate,
+                dealer.getId(),
+                null,
+                request.adminOverride(),
+                List.of()));
 
     JournalEntry journalEntry =
         accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
@@ -463,7 +464,7 @@ class DealerSettlementService {
             memo,
             request.idempotencyKey(),
             allocations);
-    JournalEntryDto journalEntry = resolveAccountingFacade().recordDealerReceipt(receiptRequest);
+    JournalEntryDto journalEntry = dealerReceiptService.recordDealerReceipt(receiptRequest);
     return settlementOutcomeService.buildAutoSettlementResponse(company, journalEntry);
   }
 
@@ -480,15 +481,6 @@ class DealerSettlementService {
     throw new ApplicationException(
             ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, operation + " reason is required")
         .withDetail("field", "memo");
-  }
-
-  private AccountingFacade resolveAccountingFacade() {
-    AccountingFacade facade =
-        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade;
   }
 
   private List<JournalCreationRequest.LineRequest> toCreationLines(

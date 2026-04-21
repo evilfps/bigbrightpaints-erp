@@ -53,7 +53,7 @@ public class ReconciliationService {
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
       ReportService reportService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.operations =
         new ReconciliationOperations(
             companyContextService,
@@ -70,7 +70,7 @@ public class ReconciliationService {
             accountingPeriodRepository,
             taxService,
             reportService,
-            accountingFacadeProvider);
+            journalEntryServiceProvider);
   }
 
   @Transactional(readOnly = true)

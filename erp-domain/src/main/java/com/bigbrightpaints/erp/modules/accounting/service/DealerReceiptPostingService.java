@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
@@ -47,7 +46,7 @@ class DealerReceiptPostingService {
 
   private final CompanyContextService companyContextService;
   private final DealerRepository dealerRepository;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final JournalEntryService journalEntryService;
   private final AccountResolutionService accountResolutionService;
   private final SettlementReferenceService settlementReferenceService;
   private final JournalReplayService journalReplayService;
@@ -67,7 +66,7 @@ class DealerReceiptPostingService {
   DealerReceiptPostingService(
       CompanyContextService companyContextService,
       DealerRepository dealerRepository,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      JournalEntryService journalEntryService,
       AccountResolutionService accountResolutionService,
       SettlementReferenceService settlementReferenceService,
       JournalReplayService journalReplayService,
@@ -82,7 +81,7 @@ class DealerReceiptPostingService {
       SettlementTotalsValidationService settlementTotalsValidationService) {
     this.companyContextService = companyContextService;
     this.dealerRepository = dealerRepository;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryService = journalEntryService;
     this.accountResolutionService = accountResolutionService;
     this.settlementReferenceService = settlementReferenceService;
     this.journalReplayService = journalReplayService;
@@ -336,11 +335,7 @@ class DealerReceiptPostingService {
   }
 
   private JournalEntryDto createStandardJournal(JournalCreationRequest request) {
-    AccountingFacade facade = accountingFacadeProvider.getIfAvailable();
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade.createStandardJournal(request);
+    return journalEntryService.createStandardJournal(request);
   }
 
   private List<PartnerSettlementAllocation> resolveAllocationsForReplay(

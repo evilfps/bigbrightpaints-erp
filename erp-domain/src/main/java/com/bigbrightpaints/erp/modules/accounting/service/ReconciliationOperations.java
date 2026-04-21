@@ -95,7 +95,7 @@ final class ReconciliationOperations {
   private final AccountingPeriodRepository accountingPeriodRepository;
   private final TaxService taxService;
   private final ReportService reportService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final ObjectProvider<JournalEntryService> journalEntryServiceProvider;
 
   ReconciliationOperations(
       CompanyContextService companyContextService,
@@ -112,7 +112,7 @@ final class ReconciliationOperations {
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
       ReportService reportService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
     this.accountRepository = accountRepository;
@@ -127,7 +127,7 @@ final class ReconciliationOperations {
     this.accountingPeriodRepository = accountingPeriodRepository;
     this.taxService = taxService;
     this.reportService = reportService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryServiceProvider = journalEntryServiceProvider;
   }
 
   /**
@@ -927,8 +927,7 @@ final class ReconciliationOperations {
                 : null,
             Boolean.FALSE);
 
-    AccountingFacade facade = accountingFacadeProvider.getObject();
-    JournalEntryDto created = facade.createStandardJournal(request);
+    JournalEntryDto created = journalEntryServiceProvider.getObject().createStandardJournal(request);
     if (created == null || created.id() == null) {
       throw new ApplicationException(
           ErrorCode.SYSTEM_INTERNAL_ERROR, "Failed to create discrepancy resolution journal");

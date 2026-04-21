@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -28,8 +27,6 @@ class AccountingServiceStandardJournalTest {
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private AccountingFacade accountingFacade;
 
   private AccountingService accountingService;
 
@@ -42,12 +39,11 @@ class AccountingServiceStandardJournalTest {
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
-            inventoryAccountingService,
-            accountingFacadeProvider);
+            inventoryAccountingService);
   }
 
   @Test
-  void createManualJournal_balancedMultiLineDelegatesToFacade() {
+  void createManualJournal_balancedMultiLineDelegatesToJournalEntryService() {
     ManualJournalRequest request =
         new ManualJournalRequest(
             LocalDate.of(2026, 2, 28),
@@ -71,8 +67,7 @@ class AccountingServiceStandardJournalTest {
                     "Credit line",
                     ManualJournalRequest.EntryType.CREDIT)));
     JournalEntryDto expected = journalEntryDto(301L, "JRN-301");
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(accountingFacade);
-    when(accountingFacade.createManualJournal(request)).thenReturn(expected);
+    when(journalEntryService.createManualJournal(request)).thenReturn(expected);
 
     assertThat(accountingService.createManualJournal(request)).isSameAs(expected);
   }

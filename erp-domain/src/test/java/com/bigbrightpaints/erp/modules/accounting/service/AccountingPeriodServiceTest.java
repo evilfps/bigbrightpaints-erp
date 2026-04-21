@@ -85,7 +85,7 @@ class AccountingPeriodServiceTest {
   @Mock private PayrollRunRepository payrollRunRepository;
   @Mock private ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   @Mock private PeriodCloseRequestRepository periodCloseRequestRepository;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  @Mock private ObjectProvider<JournalEntryService> journalEntryServiceProvider;
   @Mock private PeriodCloseHook periodCloseHook;
   @Mock private AccountingPeriodSnapshotService snapshotService;
   @Mock private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
@@ -119,7 +119,7 @@ class AccountingPeriodServiceTest {
             payrollRunRepository,
             reconciliationDiscrepancyRepository,
             periodCloseRequestRepository,
-            accountingFacadeProvider,
+            journalEntryServiceProvider,
             periodCloseHook,
             snapshotService);
     ReflectionFieldAccess.setField(
@@ -269,7 +269,7 @@ class AccountingPeriodServiceTest {
         .isEqualTo("OPEN");
     assertThat(period.getReopenReason()).isEqualTo("reopen correction");
     assertThat(period.getClosingJournalEntryId()).isNull();
-    verify(accountingFacadeProvider, never()).getObject();
+    verify(journalEntryServiceProvider, never()).getObject();
     verify(snapshotService).deleteSnapshotForPeriod(company, period);
   }
 
@@ -291,7 +291,7 @@ class AccountingPeriodServiceTest {
     assertThat(
             service.reopenPeriod(23L, new AccountingPeriodReopenRequest("monthly reopen")).status())
         .isEqualTo("OPEN");
-    verify(accountingFacadeProvider, never()).getObject();
+    verify(journalEntryServiceProvider, never()).getObject();
     verify(snapshotService).deleteSnapshotForPeriod(company, period);
   }
 
