@@ -176,6 +176,32 @@ class AccountCatalogServiceTest {
             });
   }
 
+  @Test
+  void createAccount_mapsCaseInsensitiveUniqueIndexConflictsToBusinessDuplicateEntry() {
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "cash-race-ci"))
+        .thenReturn(Optional.empty());
+    when(accountRepository.save(any(Account.class)))
+        .thenThrow(
+            new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uq_accounts_company_code_ci\""));
+
+    assertThatThrownBy(
+            () ->
+                service.createAccount(
+                    new AccountRequest("cash-race-ci", "Cash Race CI", AccountType.ASSET)))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException applicationException = (ApplicationException) ex;
+              assertThat(applicationException.getErrorCode())
+                  .isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+              assertThat(applicationException.getDetails())
+                  .containsEntry("field", "code")
+                  .containsEntry("code", "cash-race-ci")
+                  .containsEntry("companyCode", "COA");
+            });
+  }
+
   private Account account(Long id, Company accountCompany, String code, AccountType type) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);

@@ -124,7 +124,8 @@ class AccountCatalogService {
       String message = cursor.getMessage();
       if (message != null) {
         String normalized = message.toLowerCase(Locale.ROOT);
-        if (normalized.contains("accounts_company_id_code_key")
+        if (normalized.contains("uq_accounts_company_code_ci")
+            || normalized.contains("accounts_company_id_code_key")
             || (normalized.contains("accounts")
                 && normalized.contains("company_id")
                 && normalized.contains("code")
