@@ -35,7 +35,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBa
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReportBreakdownDto;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
@@ -501,28 +501,70 @@ class ReportServiceInventoryAndGstTest {
     when(accountingPeriodRepository.findByCompanyAndId(company, 25L))
         .thenReturn(Optional.of(period));
 
-    GstReconciliationDto reconciliation = new GstReconciliationDto();
-    reconciliation.setPeriodStart(LocalDate.of(2026, 2, 1));
-    reconciliation.setPeriodEnd(LocalDate.of(2026, 2, 28));
-    reconciliation.setCollected(
-        new GstReconciliationDto.GstComponentSummary(
+    GstReportBreakdownDto breakdown = new GstReportBreakdownDto();
+    breakdown.setPeriodStart(LocalDate.of(2026, 2, 1));
+    breakdown.setPeriodEnd(LocalDate.of(2026, 2, 28));
+    breakdown.setCollected(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
             new BigDecimal("9.00"),
             new BigDecimal("9.00"),
             BigDecimal.ZERO,
             new BigDecimal("18.00")));
-    reconciliation.setInputTaxCredit(
-        new GstReconciliationDto.GstComponentSummary(
+    breakdown.setInputTaxCredit(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
             new BigDecimal("2.00"),
             new BigDecimal("2.00"),
             new BigDecimal("4.00"),
             new BigDecimal("8.00")));
-    reconciliation.setNetLiability(
-        new GstReconciliationDto.GstComponentSummary(
+    breakdown.setNetLiability(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
             new BigDecimal("7.00"),
             new BigDecimal("7.00"),
             new BigDecimal("-4.00"),
             new BigDecimal("10.00")));
-    when(taxService.generateGstReconciliation(YearMonth.of(2026, 2))).thenReturn(reconciliation);
+    breakdown.setRateSummaries(
+        List.of(
+            new GstReportBreakdownDto.GstRateSummary(
+                new BigDecimal("18.00"),
+                new BigDecimal("180.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("8.00"),
+                new BigDecimal("10.00"),
+                new BigDecimal("9.00"),
+                new BigDecimal("9.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("2.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("4.00"))));
+    breakdown.setTransactionDetails(
+        List.of(
+            new GstReportBreakdownDto.GstTransactionDetail(
+                "SALES_INVOICE",
+                101L,
+                "INV-101",
+                LocalDate.of(2026, 2, 10),
+                "Dealer One",
+                new BigDecimal("18.00"),
+                new BigDecimal("100.00"),
+                new BigDecimal("9.00"),
+                new BigDecimal("9.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("18.00"),
+                "OUTPUT"),
+            new GstReportBreakdownDto.GstTransactionDetail(
+                "PURCHASE_INVOICE",
+                202L,
+                "PUR-202",
+                LocalDate.of(2026, 2, 12),
+                "Supplier One",
+                new BigDecimal("18.00"),
+                new BigDecimal("80.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("4.00"),
+                new BigDecimal("8.00"),
+                "INPUT")));
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 2))).thenReturn(breakdown);
 
     GstReturnReportDto report = reportService.gstReturn(25L);
 
@@ -532,11 +574,16 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.outputTax().total()).isEqualByComparingTo("18.00");
     assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("8.00");
     assertThat(report.netLiability().total()).isEqualByComparingTo("10.00");
-    assertThat(report.rateSummaries()).isEmpty();
-    assertThat(report.transactionDetails()).isEmpty();
+    assertThat(report.rateSummaries()).hasSize(1);
+    assertThat(report.rateSummaries().getFirst().taxRate()).isEqualByComparingTo("18.00");
+    assertThat(report.rateSummaries().getFirst().taxableAmount()).isEqualByComparingTo("180.00");
+    assertThat(report.transactionDetails()).hasSize(2);
+    assertThat(report.transactionDetails())
+        .extracting(GstReturnReportDto.GstTransactionDetail::direction)
+        .containsExactly("OUTPUT", "INPUT");
     assertThat(report.metadata().source()).isEqualTo(ReportSource.LIVE);
 
-    verify(taxService).generateGstReconciliation(YearMonth.of(2026, 2));
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 2));
   }
 
   @Test
@@ -551,8 +598,8 @@ class ReportServiceInventoryAndGstTest {
     when(accountingPeriodRepository.findByCompanyAndId(company, 26L))
         .thenReturn(Optional.of(period));
 
-    when(taxService.generateGstReconciliation(YearMonth.of(2026, 2)))
-        .thenReturn(new GstReconciliationDto());
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 2)))
+        .thenReturn(new GstReportBreakdownDto());
 
     GstReturnReportDto report = reportService.gstReturn(26L);
 
@@ -561,7 +608,7 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.outputTax().total()).isEqualByComparingTo("0.00");
     assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("0.00");
     assertThat(report.netLiability().total()).isEqualByComparingTo("0.00");
-    verify(taxService).generateGstReconciliation(YearMonth.of(2026, 2));
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 2));
   }
 
   @Test
@@ -577,8 +624,8 @@ class ReportServiceInventoryAndGstTest {
 
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(Optional.of(period));
-    when(taxService.generateGstReconciliation(YearMonth.of(2026, 3)))
-        .thenReturn(new GstReconciliationDto());
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 3)))
+        .thenReturn(new GstReportBreakdownDto());
 
     GstReturnReportDto report = reportService.gstReturn(null);
 
@@ -586,6 +633,6 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.rateSummaries()).isEmpty();
     assertThat(report.transactionDetails()).isEmpty();
     assertThat(report.netLiability().total()).isEqualByComparingTo("0.00");
-    verify(taxService).generateGstReconciliation(YearMonth.of(2026, 3));
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 3));
   }
 }

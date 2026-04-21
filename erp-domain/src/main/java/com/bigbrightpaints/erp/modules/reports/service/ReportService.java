@@ -42,6 +42,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReportBreakdownDto;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
@@ -224,22 +225,22 @@ public class ReportService {
     Company company = companyContextService.requireCurrentCompany();
     AccountingPeriod period = resolveRequestedPeriod(company, periodId);
     YearMonth periodMonth = YearMonth.of(period.getYear(), period.getMonth());
-    GstReconciliationDto reconciliation = taxService.generateGstReconciliation(periodMonth);
+    GstReportBreakdownDto gstBreakdown = taxService.generateGstReportBreakdown(periodMonth);
     LocalDate startDate =
-        reconciliation != null && reconciliation.getPeriodStart() != null
-            ? reconciliation.getPeriodStart()
+        gstBreakdown != null && gstBreakdown.getPeriodStart() != null
+            ? gstBreakdown.getPeriodStart()
             : period.getStartDate();
     LocalDate endDate =
-        reconciliation != null && reconciliation.getPeriodEnd() != null
-            ? reconciliation.getPeriodEnd()
+        gstBreakdown != null && gstBreakdown.getPeriodEnd() != null
+            ? gstBreakdown.getPeriodEnd()
             : period.getEndDate();
 
     GstReturnReportDto.GstComponentSummary outputTax =
-        mapComponentSummary(reconciliation != null ? reconciliation.getCollected() : null);
+        mapComponentSummary(gstBreakdown != null ? gstBreakdown.getCollected() : null);
     GstReturnReportDto.GstComponentSummary inputTaxCredit =
-        mapComponentSummary(reconciliation != null ? reconciliation.getInputTaxCredit() : null);
+        mapComponentSummary(gstBreakdown != null ? gstBreakdown.getInputTaxCredit() : null);
     GstReturnReportDto.GstComponentSummary netLiability =
-        mapComponentSummary(reconciliation != null ? reconciliation.getNetLiability() : null);
+        mapComponentSummary(gstBreakdown != null ? gstBreakdown.getNetLiability() : null);
 
     ReportMetadata metadata =
         new ReportMetadata(
@@ -254,6 +255,11 @@ public class ReportService {
             true,
             null);
 
+    List<GstReturnReportDto.GstRateSummary> rateSummaries =
+        mapRateSummaries(gstBreakdown != null ? gstBreakdown.getRateSummaries() : null);
+    List<GstReturnReportDto.GstTransactionDetail> transactionDetails =
+        mapTransactionDetails(gstBreakdown != null ? gstBreakdown.getTransactionDetails() : null);
+
     return new GstReturnReportDto(
         period.getId(),
         period.getLabel(),
@@ -262,8 +268,8 @@ public class ReportService {
         outputTax,
         inputTaxCredit,
         netLiability,
-        List.of(),
-        List.of(),
+        rateSummaries,
+        transactionDetails,
         metadata);
   }
 
@@ -395,6 +401,55 @@ public class ReportService {
     BigDecimal igst = roundCurrency(safe(summary != null ? summary.getIgst() : null));
     BigDecimal total = roundCurrency(cgst.add(sgst).add(igst));
     return new GstReturnReportDto.GstComponentSummary(cgst, sgst, igst, total);
+  }
+
+  private List<GstReturnReportDto.GstRateSummary> mapRateSummaries(
+      List<GstReportBreakdownDto.GstRateSummary> summaries) {
+    if (summaries == null || summaries.isEmpty()) {
+      return List.of();
+    }
+    return summaries.stream()
+        .filter(Objects::nonNull)
+        .map(
+            summary ->
+                new GstReturnReportDto.GstRateSummary(
+                    roundCurrency(safe(summary.getTaxRate())),
+                    roundCurrency(safe(summary.getTaxableAmount())),
+                    roundCurrency(safe(summary.getOutputTax())),
+                    roundCurrency(safe(summary.getInputTaxCredit())),
+                    roundCurrency(safe(summary.getNetTax())),
+                    roundCurrency(safe(summary.getOutputCgst())),
+                    roundCurrency(safe(summary.getOutputSgst())),
+                    roundCurrency(safe(summary.getOutputIgst())),
+                    roundCurrency(safe(summary.getInputCgst())),
+                    roundCurrency(safe(summary.getInputSgst())),
+                    roundCurrency(safe(summary.getInputIgst()))))
+        .toList();
+  }
+
+  private List<GstReturnReportDto.GstTransactionDetail> mapTransactionDetails(
+      List<GstReportBreakdownDto.GstTransactionDetail> details) {
+    if (details == null || details.isEmpty()) {
+      return List.of();
+    }
+    return details.stream()
+        .filter(Objects::nonNull)
+        .map(
+            detail ->
+                new GstReturnReportDto.GstTransactionDetail(
+                    detail.getSourceType(),
+                    detail.getSourceId(),
+                    detail.getReferenceNumber(),
+                    detail.getTransactionDate(),
+                    detail.getPartyName(),
+                    roundCurrency(safe(detail.getTaxRate())),
+                    roundCurrency(safe(detail.getTaxableAmount())),
+                    roundCurrency(safe(detail.getCgst())),
+                    roundCurrency(safe(detail.getSgst())),
+                    roundCurrency(safe(detail.getIgst())),
+                    roundCurrency(safe(detail.getTotalTax())),
+                    detail.getDirection()))
+        .toList();
   }
 
   @Transactional(readOnly = true)

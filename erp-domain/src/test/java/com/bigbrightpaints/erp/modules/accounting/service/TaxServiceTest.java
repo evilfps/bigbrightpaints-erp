@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReportBreakdownDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -474,6 +475,88 @@ class TaxServiceTest {
     assertThatThrownBy(() -> taxService.generateGstReconciliation(period))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("State codes are required for GST decisioning");
+  }
+
+  @Test
+  void generateGstReportBreakdown_includesRateSummariesAndTransactionDetails() {
+    YearMonth period = YearMonth.of(2024, 12);
+    LocalDate start = period.atDay(1);
+    LocalDate end = period.atEndOfMonth();
+
+    Invoice invoice = new Invoice();
+    invoice.setStatus("POSTED");
+    invoice.setIssueDate(LocalDate.of(2024, 12, 10));
+    invoice.setInvoiceNumber("INV-101");
+    ReflectionFieldAccess.setField(invoice, "id", 101L);
+    Dealer dealer = new Dealer();
+    dealer.setName("Dealer One");
+    dealer.setStateCode("27");
+    invoice.setDealer(dealer);
+    InvoiceLine invoiceLine = new InvoiceLine();
+    invoiceLine.setTaxRate(new BigDecimal("18.00"));
+    invoiceLine.setTaxAmount(new BigDecimal("18.00"));
+    invoiceLine.setTaxableAmount(new BigDecimal("100.00"));
+    invoiceLine.setCgstAmount(new BigDecimal("9.00"));
+    invoiceLine.setSgstAmount(new BigDecimal("9.00"));
+    invoiceLine.setIgstAmount(BigDecimal.ZERO);
+    invoice.getLines().add(invoiceLine);
+
+    RawMaterialPurchase purchase = new RawMaterialPurchase();
+    purchase.setStatus("POSTED");
+    purchase.setInvoiceDate(LocalDate.of(2024, 12, 11));
+    purchase.setInvoiceNumber("PUR-202");
+    ReflectionFieldAccess.setField(purchase, "id", 202L);
+    Supplier supplier = new Supplier();
+    supplier.setName("Supplier One");
+    supplier.setStateCode("29");
+    purchase.setSupplier(supplier);
+    RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
+    purchaseLine.setTaxRate(new BigDecimal("18.00"));
+    purchaseLine.setQuantity(new BigDecimal("10.00"));
+    purchaseLine.setReturnedQuantity(BigDecimal.ZERO);
+    purchaseLine.setLineTotal(new BigDecimal("118.00"));
+    purchaseLine.setTaxAmount(new BigDecimal("18.00"));
+    purchaseLine.setCgstAmount(BigDecimal.ZERO);
+    purchaseLine.setSgstAmount(BigDecimal.ZERO);
+    purchaseLine.setIgstAmount(new BigDecimal("18.00"));
+    purchase.getLines().add(purchaseLine);
+
+    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(company, start, end))
+        .thenReturn(List.of(invoice));
+    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
+            company, start, end))
+        .thenReturn(List.of(purchase));
+
+    GstReportBreakdownDto dto = taxService.generateGstReportBreakdown(period);
+
+    assertThat(dto.getCollected().getTotal()).isEqualByComparingTo("18.00");
+    assertThat(dto.getInputTaxCredit().getTotal()).isEqualByComparingTo("18.00");
+    assertThat(dto.getNetLiability().getTotal()).isEqualByComparingTo("0.00");
+    assertThat(dto.getRateSummaries()).hasSize(1);
+    assertThat(dto.getRateSummaries().getFirst().getTaxRate()).isEqualByComparingTo("18.00");
+    assertThat(dto.getRateSummaries().getFirst().getTaxableAmount()).isEqualByComparingTo("200.00");
+    assertThat(dto.getTransactionDetails()).hasSize(2);
+    assertThat(dto.getTransactionDetails())
+        .extracting(GstReportBreakdownDto.GstTransactionDetail::getDirection)
+        .containsExactly("OUTPUT", "INPUT");
+  }
+
+  @Test
+  void generateGstReportBreakdown_nonGstModeWithNoGstAccounts_returnsZeroAndEmptyDetails() {
+    YearMonth period = YearMonth.of(2024, 12);
+    company.setDefaultGstRate(BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
+
+    GstReportBreakdownDto dto = taxService.generateGstReportBreakdown(period);
+
+    assertThat(dto.getCollected().getTotal()).isEqualByComparingTo("0.00");
+    assertThat(dto.getInputTaxCredit().getTotal()).isEqualByComparingTo("0.00");
+    assertThat(dto.getNetLiability().getTotal()).isEqualByComparingTo("0.00");
+    assertThat(dto.getRateSummaries()).isEmpty();
+    assertThat(dto.getTransactionDetails()).isEmpty();
+    verifyNoInteractions(invoiceRepository, rawMaterialPurchaseRepository);
   }
 
   private JournalLine line(BigDecimal debit, BigDecimal credit) {
