@@ -192,7 +192,7 @@ WITH expected_users(email, expected_scope) AS (
     ('validation.factory@example.com', 'MOCK'),
     ('validation.mfa.admin@example.com', 'MOCK'),
     ('validation.dealer@example.com', 'MOCK'),
-    ('validation.superadmin@example.com', NULL),
+    ('validation.superadmin@example.com', COALESCE((SELECT UPPER(NULLIF(BTRIM(ss.setting_value), '')) FROM system_settings ss WHERE ss.setting_key = 'auth.platform.code' LIMIT 1), 'PLATFORM')),
     ('validation.hold.admin@example.com', 'HOLD'),
     ('validation.blocked.admin@example.com', 'BLOCK'),
     ('validation.quota.alpha@example.com', 'QUOTA'),
@@ -532,9 +532,11 @@ SQL
 )"
 
 superadmin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.superadmin@example.com" {print $3; exit}')"
+superadmin_scope_code="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.superadmin@example.com" {print $2; exit}')"
 mock_admin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' -v target="$mock_admin_email_normalized" '$1==target {print $3; exit}')"
 mfa_admin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.mfa.admin@example.com" {print $3; exit}')"
 superadmin_public_id="${superadmin_public_id:-unavailable}"
+superadmin_scope_code="${superadmin_scope_code:-unavailable}"
 mock_admin_public_id="${mock_admin_public_id:-unavailable}"
 mfa_admin_public_id="${mfa_admin_public_id:-unavailable}"
 
@@ -563,7 +565,7 @@ Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; reset fallback: ${
   validation.blocked.admin@example.com -> BLOCK (ROLE_ADMIN; tenant state BLOCKED)
   validation.quota.alpha@example.com  -> QUOTA (ROLE_ADMIN; active-user quota fixture)
   validation.quota.beta@example.com   -> QUOTA (ROLE_ADMIN; active-user quota fixture)
-  validation.superadmin@example.com   -> PLATFORM (ROLE_SUPER_ADMIN, ROLE_ADMIN)
+  validation.superadmin@example.com   -> ${superadmin_scope_code} (ROLE_SUPER_ADMIN, ROLE_ADMIN)
   validation.rival.admin@example.com  -> RIVAL (ROLE_ADMIN)
   validation.rival.dealer@example.com -> RIVAL (ROLE_DEALER, portal user RIVAL-DEALER)
 
