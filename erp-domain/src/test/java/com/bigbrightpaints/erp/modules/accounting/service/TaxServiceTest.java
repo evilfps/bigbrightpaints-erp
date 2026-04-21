@@ -138,6 +138,27 @@ class TaxServiceTest {
   }
 
   @Test
+  void generateGstReturn_prefersDocumentSemanticsForPersistedCompanies() {
+    YearMonth period = YearMonth.of(2024, 4);
+    LocalDate start = period.atDay(1);
+    LocalDate end = period.atEndOfMonth();
+    ReflectionFieldAccess.setField(company, "id", 99L);
+
+    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(company, start, end))
+        .thenReturn(List.of());
+    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
+            company, start, end))
+        .thenReturn(List.of());
+
+    GstReturnDto dto = taxService.generateGstReturn(period);
+
+    assertThat(dto.getOutputTax()).isEqualByComparingTo("0.00");
+    assertThat(dto.getInputTax()).isEqualByComparingTo("0.00");
+    assertThat(dto.getNetPayable()).isEqualByComparingTo("0.00");
+    verifyNoInteractions(companyAccountingSettingsService, journalLineRepository);
+  }
+
+  @Test
   void generateGstReturn_routesLiabilitySignalWithoutDoubleRoundingAcrossAccounts() {
     YearMonth period = YearMonth.of(2024, 6);
     LocalDate start = period.atDay(1);

@@ -64,6 +64,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -109,6 +112,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
   @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Autowired private ProductionProductRepository productionProductRepository;
   @Autowired private ProductionBrandRepository productionBrandRepository;
+  @Autowired private InvoiceRepository invoiceRepository;
   @Autowired private SalesService salesService;
   @Autowired private SalesOrderRepository salesOrderRepository;
   @Autowired private TaxService taxService;
@@ -285,8 +289,12 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         order.getTotalAmount(),
         null);
 
-    var gstReturn = taxService.generateGstReturn(YearMonth.from(LocalDate.now()));
-    assertThat(gstReturn.getOutputTax()).isGreaterThan(BigDecimal.ZERO);
+    YearMonth period = YearMonth.from(LocalDate.now());
+    var gstReturn = taxService.generateGstReturn(period);
+    var gstReconciliation = taxService.generateGstReconciliation(period);
+    assertThat(gstReturn.getOutputTax())
+        .isEqualByComparingTo(gstReconciliation.getCollected().getTotal());
+    assertThat(gstReturn.getOutputTax()).isEqualByComparingTo("0.00");
 
     accountingFacade.postSalesReturn(
         dealer.getId(),
@@ -297,16 +305,18 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         order.getTotalAmount(),
         "Return all");
 
-    var gstReturnAfter = taxService.generateGstReturn(YearMonth.from(LocalDate.now()));
-    assertThat(gstReturnAfter.getOutputTax().abs())
-        .isLessThanOrEqualTo(gstReturn.getOutputTax().abs());
+    var gstReturnAfter = taxService.generateGstReturn(period);
+    var gstReconciliationAfter = taxService.generateGstReconciliation(period);
+    assertThat(gstReturnAfter.getOutputTax())
+        .isEqualByComparingTo(gstReconciliationAfter.getCollected().getTotal());
+    assertThat(gstReturnAfter.getOutputTax()).isEqualByComparingTo(gstReturn.getOutputTax());
     assertThat(order.getGstRoundingAdjustment().abs()).isLessThanOrEqualTo(new BigDecimal("0.05"));
   }
 
   @Test
-  @DisplayName("GST return includes input and output tax for the period")
+  @DisplayName("GST return ignores journal-only tax entries without source documents")
   @Transactional
-  void gstReturnIncludesInputAndOutputTax() {
+  void gstReturnIgnoresJournalOnlyTaxEntriesWithoutSourceDocuments() {
     enableGstMode(new BigDecimal("18.00"));
     LocalDate today = LocalDate.now();
     YearMonth period = YearMonth.from(today);
@@ -357,11 +367,88 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
 
     var after = taxService.generateGstReturn(period);
 
-    assertThat(after.getOutputTax().subtract(before.getOutputTax())).isEqualByComparingTo(saleTax);
-    assertThat(after.getInputTax().subtract(before.getInputTax()))
-        .isEqualByComparingTo(purchaseTax);
-    assertThat(after.getNetPayable().subtract(before.getNetPayable()))
-        .isEqualByComparingTo(saleTax.subtract(purchaseTax));
+    assertThat(after.getOutputTax()).isEqualByComparingTo(before.getOutputTax());
+    assertThat(after.getInputTax()).isEqualByComparingTo(before.getInputTax());
+    assertThat(after.getNetPayable()).isEqualByComparingTo(before.getNetPayable());
+  }
+
+  @Test
+  @DisplayName(
+      "GST return converges with reconciliation and report totals on non-zero seeded periods")
+  @Transactional
+  void gstReturnConvergesWithReconciliationAndReportOnNonZeroDocumentPeriod() {
+    enableGstMode(new BigDecimal("18.00"));
+    company.setStateCode("27");
+    company = companyRepository.save(company);
+    dealer.setStateCode("27");
+    dealer = dealerRepository.save(dealer);
+
+    LocalDate invoiceDate = LocalDate.now().minusMonths(1).withDayOfMonth(10);
+    YearMonth period = YearMonth.from(invoiceDate);
+
+    AccountingPeriod accountingPeriod =
+        accountingPeriodRepository
+            .findByCompanyAndYearAndMonth(company, period.getYear(), period.getMonthValue())
+            .orElseGet(
+                () -> {
+                  AccountingPeriod created = new AccountingPeriod();
+                  created.setCompany(company);
+                  created.setYear(period.getYear());
+                  created.setMonth(period.getMonthValue());
+                  created.setStartDate(period.atDay(1));
+                  created.setEndDate(period.atEndOfMonth());
+                  created.setStatus(AccountingPeriodStatus.OPEN);
+                  return accountingPeriodRepository.save(created);
+                });
+
+    Invoice invoice = new Invoice();
+    invoice.setCompany(company);
+    invoice.setDealer(dealer);
+    invoice.setInvoiceNumber("GST-SOURCE-CONVERGENCE-" + UUID.randomUUID());
+    invoice.setStatus("POSTED");
+    invoice.setIssueDate(invoiceDate);
+    invoice.setDueDate(invoiceDate.plusDays(15));
+    invoice.setSubtotal(new BigDecimal("100.00"));
+    invoice.setTaxTotal(new BigDecimal("18.00"));
+    invoice.setTotalAmount(new BigDecimal("118.00"));
+    invoice.setOutstandingAmount(new BigDecimal("118.00"));
+
+    InvoiceLine line = new InvoiceLine();
+    line.setInvoice(invoice);
+    line.setProductCode("GST-CONV-SKU");
+    line.setDescription("GST source convergence proof line");
+    line.setQuantity(BigDecimal.ONE);
+    line.setUnitPrice(new BigDecimal("118.00"));
+    line.setTaxRate(new BigDecimal("18.00"));
+    line.setTaxableAmount(new BigDecimal("100.00"));
+    line.setTaxAmount(new BigDecimal("18.00"));
+    line.setCgstAmount(new BigDecimal("9.00"));
+    line.setSgstAmount(new BigDecimal("9.00"));
+    line.setIgstAmount(BigDecimal.ZERO);
+    line.setLineTotal(new BigDecimal("118.00"));
+    invoice.addLine(line);
+    invoiceRepository.saveAndFlush(invoice);
+
+    var gstReturn = taxService.generateGstReturn(period);
+    var gstReconciliation = taxService.generateGstReconciliation(period);
+    var gstReport = reportService.gstReturn(accountingPeriod.getId());
+
+    assertThat(gstReturn.getOutputTax()).isEqualByComparingTo("18.00");
+    assertThat(gstReturn.getInputTax()).isEqualByComparingTo("0.00");
+    assertThat(gstReturn.getNetPayable()).isEqualByComparingTo("18.00");
+
+    assertThat(gstReconciliation.getCollected().getTotal())
+        .isEqualByComparingTo(gstReturn.getOutputTax());
+    assertThat(gstReconciliation.getInputTaxCredit().getTotal())
+        .isEqualByComparingTo(gstReturn.getInputTax());
+    assertThat(gstReconciliation.getNetLiability().getTotal())
+        .isEqualByComparingTo(gstReturn.getNetPayable());
+
+    assertThat(gstReport.outputTax().total()).isEqualByComparingTo(gstReturn.getOutputTax());
+    assertThat(gstReport.inputTaxCredit().total()).isEqualByComparingTo(gstReturn.getInputTax());
+    assertThat(gstReport.netLiability().total()).isEqualByComparingTo(gstReturn.getNetPayable());
+    assertThat(gstReport.rateSummaries()).isNotEmpty();
+    assertThat(gstReport.transactionDetails()).isNotEmpty();
   }
 
   @Test

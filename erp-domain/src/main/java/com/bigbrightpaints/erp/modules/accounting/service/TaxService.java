@@ -71,6 +71,22 @@ public class TaxService {
       return buildGstReturn(target, start, end, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
+    GstReportAggregation aggregation = aggregateGstReport(company, start, end);
+    if (aggregation.hasTaxableDocuments() || company.getId() != null) {
+      GstReconciliationDto.GstComponentSummary collectedSummary =
+          componentSummary(
+              aggregation.collected().cgst,
+              aggregation.collected().sgst,
+              aggregation.collected().igst);
+      GstReconciliationDto.GstComponentSummary inputTaxCreditSummary =
+          componentSummary(
+              aggregation.inputTaxCredit().cgst,
+              aggregation.inputTaxCredit().sgst,
+              aggregation.inputTaxCredit().igst);
+      return buildGstReturn(
+          target, start, end, collectedSummary.getTotal(), inputTaxCreditSummary.getTotal());
+    }
+
     var taxConfig = companyAccountingSettingsService.requireTaxAccounts();
 
     BigDecimal outputTaxBalance = sumTax(company, taxConfig.outputTaxAccountId(), start, end, true);
@@ -209,6 +225,12 @@ public class TaxService {
     List<RawMaterialPurchase> purchases =
         rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
             company, start, end);
+    if (invoices == null) {
+      invoices = List.of();
+    }
+    if (purchases == null) {
+      purchases = List.of();
+    }
 
     ComponentTotals collected = new ComponentTotals();
     ComponentTotals inputTaxCredit = new ComponentTotals();
@@ -511,7 +533,13 @@ public class TaxService {
       ComponentTotals collected,
       ComponentTotals inputTaxCredit,
       List<GstReportBreakdownDto.GstRateSummary> rateSummaries,
-      List<GstReportBreakdownDto.GstTransactionDetail> transactionDetails) {}
+      List<GstReportBreakdownDto.GstTransactionDetail> transactionDetails) {
+
+    private boolean hasTaxableDocuments() {
+      return (collected != null && collected.hasTax())
+          || (inputTaxCredit != null && inputTaxCredit.hasTax());
+    }
+  }
 
   private static final class GstRateAccumulator {
     private final BigDecimal taxRate;
@@ -584,6 +612,12 @@ public class TaxService {
       cgst = cgst.add(safeAmount(breakdown.cgst()));
       sgst = sgst.add(safeAmount(breakdown.sgst()));
       igst = igst.add(safeAmount(breakdown.igst()));
+    }
+
+    private boolean hasTax() {
+      return safeAmount(cgst).compareTo(BigDecimal.ZERO) > 0
+          || safeAmount(sgst).compareTo(BigDecimal.ZERO) > 0
+          || safeAmount(igst).compareTo(BigDecimal.ZERO) > 0;
     }
 
     private static BigDecimal safeAmount(BigDecimal value) {
