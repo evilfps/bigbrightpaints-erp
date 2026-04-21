@@ -12,10 +12,7 @@ public record OpeningBalanceImportResponse(
   public static OpeningBalanceImportResponse fromSuccessfulRows(
       int successCount, int accountsCreated, List<ImportError> errors) {
     return new OpeningBalanceImportResponse(
-        Math.max(successCount, 0),
-        errors == null ? 0 : errors.size(),
-        accountsCreated,
-        errors);
+        Math.max(successCount, 0), errors == null ? 0 : errors.size(), accountsCreated, errors);
   }
 
   public int rowsProcessed() {

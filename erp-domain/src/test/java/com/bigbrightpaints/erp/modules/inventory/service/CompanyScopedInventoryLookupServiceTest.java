@@ -94,7 +94,9 @@ class CompanyScopedInventoryLookupServiceTest {
     assertThatThrownBy(() -> lookupService.lockActiveRawMaterial(company, 99L))
         .isInstanceOf(ApplicationException.class)
         .matches(
-            ex -> ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_REFERENCE)
+            ex ->
+                ((ApplicationException) ex).getErrorCode()
+                    == ErrorCode.VALIDATION_INVALID_REFERENCE)
         .hasMessageContaining("Raw material not found");
   }
 
@@ -159,7 +161,9 @@ class CompanyScopedInventoryLookupServiceTest {
     assertThatThrownBy(() -> lookupService.lockActiveFinishedGood(company, 404L))
         .isInstanceOf(ApplicationException.class)
         .matches(
-            ex -> ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_REFERENCE)
+            ex ->
+                ((ApplicationException) ex).getErrorCode()
+                    == ErrorCode.VALIDATION_INVALID_REFERENCE)
         .hasMessageContaining("Finished good not found");
   }
 

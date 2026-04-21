@@ -483,8 +483,7 @@ class CommandDispatcherTest {
         .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-999", command, true));
     IntegrationCoordinator.AutoApprovalResult result =
         new IntegrationCoordinator.AutoApprovalResult("READY_TO_SHIP", false);
-    when(integrationCoordinator.autoApproveOrder(
-            "101", "COMP", "trace-999", "auto-1"))
+    when(integrationCoordinator.autoApproveOrder("101", "COMP", "trace-999", "auto-1"))
         .thenReturn(result);
 
     String traceId =

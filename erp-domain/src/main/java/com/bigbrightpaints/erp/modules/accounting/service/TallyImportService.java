@@ -782,7 +782,8 @@ public class TallyImportService {
           .map(String::trim)
           .collect(Collectors.toList());
     } catch (Exception ex) {
-      log.warn("Failed to deserialize string list from Tally import record JSON: {}", ex.toString());
+      log.warn(
+          "Failed to deserialize string list from Tally import record JSON: {}", ex.toString());
       return List.of();
     }
   }

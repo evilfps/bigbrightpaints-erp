@@ -313,5 +313,4 @@ class SupplierPaymentService {
         entry, supplier.getId(), amount, idempotencyKey);
     return entryDto;
   }
-
 }

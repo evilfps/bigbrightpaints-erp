@@ -1,0 +1,106 @@
+{
+  "milestone": "accounting-boundary-and-tenant-safety",
+  "round": 1,
+  "status": "fail",
+  "scopeNote": "Targeted milestone validators passed locally, but lint only passed after running `MIGRATION_SET=v2 mvn spotless:apply` because repo-wide Spotless drift remained on the branch. Six scrutiny review artifacts were produced; two features failed review with blocking correctness gaps (RLS session binding fail-open and incomplete validation-superadmin scope verification).",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CriticalAccountingAxesIT,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,ReconciliationControlsIT' test",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn spotless:apply && MIGRATION_SET=v2 mvn spotless:check",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 6,
+    "passed": 4,
+    "failed": 2,
+    "failedFeatures": [
+      "accounting-tenant-isolation-rls-hardcut",
+      "validation-runtime-seed-verification-hardcut"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "accounting-tenant-isolation-rls-hardcut",
+      "severity": "blocking",
+      "description": "`public.erp_accounting_tenant_visible(...)` in `erp-domain/src/main/resources/db/migration_v2/V184__accounting_truth_rls_hard_cut.sql` returns TRUE when `app.current_company_id` is unset, but the live datasource path still only populates `CompanyContextHolder` and does not bind that value onto PostgreSQL sessions; ordinary app DB sessions therefore fail open instead of fail closed."
+    },
+    {
+      "featureId": "validation-runtime-seed-verification-hardcut",
+      "severity": "blocking",
+      "description": "`scripts/reset_final_validation_runtime.sh` exempts `validation.superadmin@example.com` from auth-scope validation, so the reset harness can print successful seed verification even when the validation super-admin actor exists with the wrong platform auth scope."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": ".factory/validation/accounting-boundary-and-tenant-safety/scrutiny/reviews/*.json",
+      "description": "Added six scrutiny review artifacts for the completed accounting-boundary-and-tenant-safety implementation features, covering characterization, facade seams, RLS, cross-module fail-closed checks, runtime seed verification, and compose seed restoration.",
+      "sourceFeature": "scrutiny-validator-accounting-boundary-and-tenant-safety"
+    },
+    {
+      "target": ".factory/validation/accounting-boundary-and-tenant-safety/scrutiny/synthesis.json",
+      "description": "Recorded the validator outcomes and synthesized blocking review findings for the milestone so the orchestrator can queue fix packets before user testing.",
+      "sourceFeature": "scrutiny-validator-accounting-boundary-and-tenant-safety"
+    },
+    {
+      "target": "erp-domain/**",
+      "description": "Ran `mvn spotless:apply` to clear repo-local Spotless drift so the milestone lint validator could be rechecked successfully on this branch.",
+      "sourceFeature": "scrutiny-validator-accounting-boundary-and-tenant-safety"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "Require RLS packets to prove how live datasource sessions receive tenant context (for example, connection/session binding), and reject synthetic `set_config(...)`-only proofs as insufficient for fail-closed completion.",
+      "evidence": "The failed scrutiny review for `accounting-tenant-isolation-rls-hardcut` found that the migration depended on `app.current_company_id`, but the runtime only sets `CompanyContextHolder`; the proof test manually called `set_config(...)`, masking the missing production binding.",
+      "isSystemic": true
+    },
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "Clarify that a feature's explicit verification contract can supersede the default `commands.gate-fast` recommendation, and instruct workers to record that scoped exception without treating it as a deviation.",
+      "evidence": "The passing review for `accounting-facade-layer-seams-hardcut` notes the feature contract intentionally used `test-characterization`, `compile`, and `targeted-accounting-proof`, yet the skill still framed `gate-fast` as the default final step.",
+      "isSystemic": true
+    },
+    {
+      "target": "worker guidance",
+      "suggestion": "Tell workers to stop and return to orchestrator when a session is derailed by host-level Factory/BYOK configuration outside the repository, instead of spending packet time editing `~/.factory` or other host settings.",
+      "evidence": "The first attempt at `accounting-characterization-bedrock` spent its session fixing a BYOK/provider mapping in `~/.factory/settings.json`, and the feature description later had to add an explicit note that the host-level mismatch was outside packet scope.",
+      "isSystemic": false
+    },
+    {
+      "target": "accounting-hardcut-worker skill / handoff contract",
+      "suggestion": "Align the required handoff schema with what scrutiny expects by explicitly requiring structured safety-pattern, access-control proof, contract-artifact, and skill-feedback fields in final handoffs.",
+      "evidence": "The passing review for `cross-module-accounting-tenant-fail-closed` found that the emitted handoff omitted the richer structured fields referenced by the worker skill, making scrutiny depend on transcript reconstruction instead of the handoff itself.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add a dedicated validation-seed probe command to `.factory/services.yaml`.",
+      "reason": "Not applied in this failing scrutiny packet because a safe additive command would either duplicate the long SQL fixture-check logic from `scripts/reset_final_validation_runtime.sh` or require new helper-script refactoring beyond low-risk validation triage."
+    },
+    {
+      "observation": "Update `.factory/library/environment.md` to document the new `prod,flyway-v2,mock,validation-seed` compose defaults.",
+      "reason": "Not applied because this worker run is constrained from editing repo documentation unless explicitly requested; surfaced instead for orchestrator triage."
+    },
+    {
+      "observation": "Document the 30-day entry-date guard ordering ahead of locked-period rejection in shared-state docs.",
+      "reason": "Not applied because this worker run is constrained from editing repo documentation unless explicitly requested; the factual gap is preserved here for orchestrator follow-up."
+    },
+    {
+      "observation": "Add shared-state guidance describing seed-fixture dependencies for live runtime proofs and the `CompanyContextHolder`-to-PostgreSQL session binding contract.",
+      "reason": "Not applied because those are documentation/knowledge updates outside the requested validator packet and require orchestrator judgment on the right permanent home."
+    }
+  ],
+  "previousRound": null
+}

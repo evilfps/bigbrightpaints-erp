@@ -1,0 +1,21 @@
+{
+  "featureId": "compose-runtime-validation-seed-restoration-hardcut",
+  "reviewedAt": "2026-04-21T08:09:18Z",
+  "commitId": "65fe03e84ffbc934639ed00608db37f2ab37e14c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The committed packet restores compose-runtime validation/mock seed initialization by moving the seed runners back onto the main runtime classpath, enabling the required compose defaults through the mission init path, and making the reset harness wait for seed completion before declaring missing fixtures. The reviewed diff stays scoped to validation/runtime fixture activation, and I did not find any high-confidence correctness bugs in the committed implementation.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Mission environment guidance still documents the old compose-backed runtime contract (`SPRING_PROFILES_ACTIVE=prod,flyway-v2`) even though the reviewed feature changed the init-managed validation runtime defaults to boot with `prod,flyway-v2,mock,validation-seed` and `ERP_VALIDATION_SEED_ENABLED=true`. Future workers relying on the shared-state docs could bring up the wrong runtime shape for validation proof.",
+      "evidence": ".factory/library/environment.md:31-39 still lists `SPRING_PROFILES_ACTIVE=prod,flyway-v2` as the required compose runtime input, while .factory/init.sh:84-96 now forces `prod,flyway-v2,mock,validation-seed` plus `ERP_VALIDATION_SEED_ENABLED=true`, and .factory/services.yaml:82-84 starts `backend-validation-v2` through that init-managed compose path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The feature satisfies its expected compose-runtime seed-restoration behavior without introducing blocking or non-blocking code review issues. The only follow-up to surface is a shared-state documentation mismatch around the new mock + validation-seed compose defaults."
+}

@@ -14,8 +14,8 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
-import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalDecisionRequest;
@@ -90,7 +90,9 @@ public class AdminApprovalService {
             .toList();
 
     List<AdminApprovalItemDto> creditOverrides =
-        creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company).stream()
+        creditLimitOverrideRequestRepository
+            .findPendingByCompanyOrderByCreatedAtDesc(company)
+            .stream()
             .map(this::toCreditOverrideItem)
             .toList();
 
@@ -133,7 +135,8 @@ public class AdminApprovalService {
   public PendingCounts getPendingCounts() {
     Company company = companyContextService.requireCurrentCompany();
     long creditPending = creditRequestRepository.countPendingByCompany(company);
-    long creditOverridePending = creditLimitOverrideRequestRepository.countPendingByCompany(company);
+    long creditOverridePending =
+        creditLimitOverrideRequestRepository.countPendingByCompany(company);
     long payrollPending =
         isHrPayrollEnabled(company)
             ? payrollRunRepository.countByCompanyAndStatus(
@@ -144,11 +147,7 @@ public class AdminApprovalService {
             company, PeriodCloseRequestStatus.PENDING);
     long exportPending = exportApprovalService.countPending();
     return new PendingCounts(
-        creditPending,
-        creditOverridePending,
-        payrollPending,
-        periodClosePending,
-        exportPending);
+        creditPending, creditOverridePending, payrollPending, periodClosePending, exportPending);
   }
 
   @Transactional
@@ -181,7 +180,8 @@ public class AdminApprovalService {
     return approve ? exportApprovalService.approve(id) : exportApprovalService.reject(id, reason);
   }
 
-  private CreditRequest decideCreditRequest(Company company, Long id, boolean approve, String reason) {
+  private CreditRequest decideCreditRequest(
+      Company company, Long id, boolean approve, String reason) {
     String decisionReason = requireReason(reason, approve ? "approve" : "reject");
     if (approve) {
       creditLimitRequestService.approveRequest(id, decisionReason);
@@ -198,7 +198,8 @@ public class AdminApprovalService {
     String decisionReason = requireReason(request.reason(), approve ? "approve" : "reject");
     CreditLimitOverrideDecisionRequest delegateRequest =
         new CreditLimitOverrideDecisionRequest(decisionReason, request.expiresAt());
-    String actor = com.bigbrightpaints.erp.core.security.SecurityActorResolver.resolveActorOrUnknown();
+    String actor =
+        com.bigbrightpaints.erp.core.security.SecurityActorResolver.resolveActorOrUnknown();
     if (approve) {
       creditLimitOverrideService.approveRequest(id, delegateRequest, actor);
     } else {
@@ -206,7 +207,8 @@ public class AdminApprovalService {
     }
     return creditLimitOverrideRequestRepository
         .findByCompanyAndId(company, id)
-        .orElseThrow(() -> ValidationUtils.invalidInput("Credit override request not found: " + id));
+        .orElseThrow(
+            () -> ValidationUtils.invalidInput("Credit override request not found: " + id));
   }
 
   private PayrollService.PayrollRunDto decidePayroll(Long id, boolean approve) {
@@ -219,7 +221,8 @@ public class AdminApprovalService {
 
   private AdminApprovalItemDto decidePeriodCloseItem(Long id, boolean approve, String reason) {
     String decisionReason = requireReason(reason, approve ? "approve" : "reject");
-    PeriodCloseRequestActionRequest action = new PeriodCloseRequestActionRequest(decisionReason, null);
+    PeriodCloseRequestActionRequest action =
+        new PeriodCloseRequestActionRequest(decisionReason, null);
     if (approve) {
       accountingPeriodService.approvePeriodClose(id, action);
     } else {
@@ -275,9 +278,11 @@ public class AdminApprovalService {
 
   private AdminApprovalItemDto toCreditOverrideItem(CreditLimitOverrideRequest request) {
     String reference =
-        request.getPackagingSlip() != null && StringUtils.hasText(request.getPackagingSlip().getSlipNumber())
+        request.getPackagingSlip() != null
+                && StringUtils.hasText(request.getPackagingSlip().getSlipNumber())
             ? request.getPackagingSlip().getSlipNumber()
-            : request.getSalesOrder() != null && StringUtils.hasText(request.getSalesOrder().getOrderNumber())
+            : request.getSalesOrder() != null
+                    && StringUtils.hasText(request.getSalesOrder().getOrderNumber())
                 ? request.getSalesOrder().getOrderNumber()
                 : "CLO-" + request.getId();
     String dealerLabel =
@@ -314,7 +319,8 @@ public class AdminApprovalService {
   }
 
   private AdminApprovalItemDto toPayrollApprovalItem(PayrollRun run) {
-    String reference = StringUtils.hasText(run.getRunNumber()) ? run.getRunNumber() : "PR-" + run.getId();
+    String reference =
+        StringUtils.hasText(run.getRunNumber()) ? run.getRunNumber() : "PR-" + run.getId();
     String summary =
         "Review payroll run "
             + reference
@@ -376,7 +382,9 @@ public class AdminApprovalService {
     return decisionItem(
         AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST,
         AdminApprovalItemDto.OwnerType.ACCOUNTING,
-        request.getAccountingPeriod() != null ? request.getAccountingPeriod().getId() : request.getId(),
+        request.getAccountingPeriod() != null
+            ? request.getAccountingPeriod().getId()
+            : request.getId(),
         request.getPublicId(),
         reference,
         normalizeStatus(request.getStatus() != null ? request.getStatus().name() : null),
@@ -495,7 +503,11 @@ public class AdminApprovalService {
       long periodClosePending,
       long exportPending) {
     public long totalPending() {
-      return creditPending + creditOverridePending + payrollPending + periodClosePending + exportPending;
+      return creditPending
+          + creditOverridePending
+          + payrollPending
+          + periodClosePending
+          + exportPending;
     }
   }
 }

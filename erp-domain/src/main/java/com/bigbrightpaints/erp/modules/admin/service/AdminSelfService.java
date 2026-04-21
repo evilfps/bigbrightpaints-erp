@@ -38,10 +38,14 @@ public class AdminSelfService {
     Company company = companyContextService.requireCurrentCompany();
 
     List<String> roles =
-        actor.getRoles().stream().map(role -> role.getName()).sorted(Comparator.naturalOrder()).toList();
+        actor.getRoles().stream()
+            .map(role -> role.getName())
+            .sorted(Comparator.naturalOrder())
+            .toList();
 
     TenantRuntimeMetricsDto runtimeMetrics = tenantRuntimePolicyService.metrics();
-    long activeSessionEstimate = auditLogRepository.countDistinctSessionActivityByCompanyId(company.getId());
+    long activeSessionEstimate =
+        auditLogRepository.countDistinctSessionActivityByCompanyId(company.getId());
 
     return new AdminSelfSettingsDto(
         actor.getEmail(),

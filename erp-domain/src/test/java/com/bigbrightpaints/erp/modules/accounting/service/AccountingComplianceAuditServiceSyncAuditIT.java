@@ -63,8 +63,7 @@ class AccountingComplianceAuditServiceSyncAuditIT {
     ProxyFactory proxyFactory = new ProxyFactory(target);
     proxyFactory.setProxyTargetClass(true);
     proxyFactory.addAdvice(
-        new TransactionInterceptor(
-            transactionManager, new AnnotationTransactionAttributeSource()));
+        new TransactionInterceptor(transactionManager, new AnnotationTransactionAttributeSource()));
     EnterpriseAuditTrailService proxiedService =
         (EnterpriseAuditTrailService) proxyFactory.getProxy();
 

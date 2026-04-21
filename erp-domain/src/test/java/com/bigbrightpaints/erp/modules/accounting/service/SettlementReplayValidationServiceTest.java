@@ -13,7 +13,8 @@ class SettlementReplayValidationServiceTest {
 
   @Test
   void roundedAmount_returnsZeroWhenAmountIsNull() {
-    BigDecimal rounded = ReflectionTestUtils.invokeMethod(service, "roundedAmount", (BigDecimal) null);
+    BigDecimal rounded =
+        ReflectionTestUtils.invokeMethod(service, "roundedAmount", (BigDecimal) null);
 
     assertThat(rounded).isEqualByComparingTo("0.00");
   }

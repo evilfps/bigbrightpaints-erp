@@ -147,7 +147,8 @@ class AccountControllerTest {
               ApplicationException applicationException = (ApplicationException) ex;
               assertThat(applicationException.getErrorCode())
                   .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(applicationException.getUserMessage()).isEqualTo("Account type is required");
+              assertThat(applicationException.getUserMessage())
+                  .isEqualTo("Account type is required");
               assertThat(applicationException.getDetails()).containsEntry("type", "   ");
             });
   }

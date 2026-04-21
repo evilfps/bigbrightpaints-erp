@@ -20,10 +20,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
@@ -303,7 +303,8 @@ class SalesFulfillmentServiceTest {
     slipLine.setFinishedGoodBatch(new FinishedGoodBatch());
     slipLine.setQuantity(new BigDecimal("4"));
     slip.getLines().add(slipLine);
-    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 8L)).thenReturn(List.of(slip));
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 8L))
+        .thenReturn(List.of(slip));
     when(packagingSlipRepository.findByIdAndCompany(88L, company)).thenReturn(Optional.of(slip));
 
     var result = fulfillmentService.dispatchOrder(8L);
@@ -394,7 +395,8 @@ class SalesFulfillmentServiceTest {
     order.setStatus("BOOKED");
 
     when(salesService.getOrderWithItems(10L)).thenReturn(order);
-    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of());
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+        .thenReturn(List.of());
     when(salesService.confirmDispatch(any()))
         .thenReturn(
             new DispatchConfirmResponse(110L, 10L, 20L, 30L, List.of(), true, List.of(), null));

@@ -927,7 +927,8 @@ final class ReconciliationOperations {
                 : null,
             Boolean.FALSE);
 
-    JournalEntryDto created = journalEntryServiceProvider.getObject().createStandardJournal(request);
+    JournalEntryDto created =
+        journalEntryServiceProvider.getObject().createStandardJournal(request);
     if (created == null || created.id() == null) {
       throw new ApplicationException(
           ErrorCode.SYSTEM_INTERNAL_ERROR, "Failed to create discrepancy resolution journal");

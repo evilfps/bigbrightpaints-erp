@@ -495,7 +495,8 @@ public class OpeningBalanceImportService {
   }
 
   private String normalizeIdempotencyKey(String fileHash) {
-    String resolved = StringUtils.hasText(fileHash) ? IdempotencyUtils.normalizeKey(fileHash) : null;
+    String resolved =
+        StringUtils.hasText(fileHash) ? IdempotencyUtils.normalizeKey(fileHash) : null;
     return idempotencyReservationService.requireKey(resolved, "opening balance imports");
   }
 

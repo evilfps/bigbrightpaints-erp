@@ -1,0 +1,26 @@
+{
+  "featureId": "cross-module-accounting-tenant-fail-closed",
+  "reviewedAt": "2026-04-21T08:10:14Z",
+  "commitId": "3467ed23b",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The commit closes the concrete accounting leak in temporal balance reads by requiring a company-scoped account lookup before balance/compare/activity flows resolve, and it adds focused application-surface proof for dealer, portal-finance, accounting, and catalog fail-closed behavior. I did not find any high-confidence correctness bugs in the committed logic.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The accounting-hardcut worker skill requires a richer structured handoff than this feature emitted, so scrutiny cannot reliably tell whether the worker followed the prescribed safety pattern and reporting fields.",
+      "evidence": ".factory/skills/accounting-hardcut-worker/SKILL.md:91-100 requires the handoff to include items such as safety pattern, RLS/company-scope revalidation, exact curl probes, and contract-artifact status; the feature handoff file /Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/handoffs/2026-04-21T07-00-37-370Z__cross-module-accounting-tenant-fail-closed__d8ec8e84-1b09-49bc-afa4-53dd2994885e.json only contains salientSummary/whatWasImplemented/whatWasLeftUndone/verification/tests/discoveredIssues and omits structured safetyPattern, accessControlProof, contractArtifactsChanged, and skillFeedback fields."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Mission shared-state guidance still does not explain how live runtime proofs depend on validation seed fixtures or where to verify them, even though this feature discovered that missing seed data can invalidate curl-based tenant-isolation evidence.",
+      "evidence": ".factory/services.yaml:28-37 exposes runtime-reset-validation and strict-runtime-smoke-check aliases but no documented seed-fixture verification step, and .factory/library/user-testing.md contains no seed-fixture guidance. The reviewed handoff records that scripts/reset_final_validation_runtime.sh came up with empty companies/app_users tables and required manual fixture seeding for curl probes."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit 3467ed23b and the worker transcript/handoff for cross-module-accounting-tenant-fail-closed. The feature satisfies its stated fail-closed tenant-isolation behavior without introducing a high-confidence bug; no blocking or non-blocking code issues were found, but I noted shared-state gaps around structured handoff requirements and seed-fixture guidance."
+}

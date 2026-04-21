@@ -217,8 +217,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
           && !superAdminPlatformScope) {
         auditSuperAdminPlatformOnlyDenied(request, runtimePath);
-        writeAccessDenied(
-            response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
+        writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
       if (superAdminPlatformScope) {

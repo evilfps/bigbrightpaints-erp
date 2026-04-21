@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -521,8 +520,7 @@ class PurchaseReturnServiceTest {
             ApplicationException.class,
             ex -> {
               assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(ex)
-                  .hasMessageContaining("referenceNumber cannot exceed 64 characters");
+              assertThat(ex).hasMessageContaining("referenceNumber cannot exceed 64 characters");
             });
 
     verifyNoInteractions(accountingFacade);
@@ -844,8 +842,7 @@ class PurchaseReturnServiceTest {
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
-              assertThat(ex.getErrorCode())
-                  .isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
               assertThat(ex).hasMessageContaining("State codes are required for GST decisioning");
             });
 
@@ -856,8 +853,7 @@ class PurchaseReturnServiceTest {
 
   @Test
   void splitTaxAmountSafe_fallsBackToInterStateIgstWhenSplitterReturnsNull() {
-    when(gstService.splitTaxAmount(
-            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
+    when(gstService.splitTaxAmount(new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
         .thenReturn(null);
     when(gstService.resolveTaxType("KA", "MH", false)).thenReturn(GstService.TaxType.INTER_STATE);
 
@@ -879,8 +875,7 @@ class PurchaseReturnServiceTest {
 
   @Test
   void splitTaxAmountSafe_fallsBackToIntraStateSplitWhenSplitterReturnsNull() {
-    when(gstService.splitTaxAmount(
-            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
+    when(gstService.splitTaxAmount(new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
         .thenReturn(null);
     when(gstService.resolveTaxType("KA", "KA", false)).thenReturn(GstService.TaxType.INTRA_STATE);
 

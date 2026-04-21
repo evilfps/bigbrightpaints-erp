@@ -255,12 +255,12 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     Long insertedId =
         jdbcTemplate.queryForObject(
             """
-            INSERT INTO journal_entries
-                (company_id, reference_number, memo, status, entry_date, created_at, updated_at, version, currency)
-            VALUES
-                (?, ?, ?, 'POSTED', ?, NOW(), NOW(), 0, 'INR')
-            RETURNING id
-            """,
+INSERT INTO journal_entries
+    (company_id, reference_number, memo, status, entry_date, created_at, updated_at, version, currency)
+VALUES
+    (?, ?, ?, 'POSTED', ?, NOW(), NOW(), 0, 'INR')
+RETURNING id
+""",
             Long.class,
             companyId,
             referenceNumber,
@@ -274,14 +274,14 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
       Connection connection, Long companyId, String referenceNumber, String memo)
       throws SQLException {
     try (PreparedStatement statement =
-            connection.prepareStatement(
-                """
-                INSERT INTO journal_entries
-                    (company_id, reference_number, memo, status, entry_date, created_at, updated_at, version, currency)
-                VALUES
-                    (?, ?, ?, 'POSTED', ?, NOW(), NOW(), 0, 'INR')
-                RETURNING id
-                """)) {
+        connection.prepareStatement(
+            """
+INSERT INTO journal_entries
+    (company_id, reference_number, memo, status, entry_date, created_at, updated_at, version, currency)
+VALUES
+    (?, ?, ?, 'POSTED', ?, NOW(), NOW(), 0, 'INR')
+RETURNING id
+""")) {
       statement.setLong(1, companyId);
       statement.setString(2, referenceNumber);
       statement.setString(3, memo);
@@ -316,12 +316,12 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     Long insertedId =
         jdbcTemplate.queryForObject(
             """
-            INSERT INTO dealer_ledger_entries
-                (company_id, dealer_id, journal_entry_id, entry_date, reference_number, memo, debit, credit, version)
-            VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, 0)
-            RETURNING id
-            """,
+INSERT INTO dealer_ledger_entries
+    (company_id, dealer_id, journal_entry_id, entry_date, reference_number, memo, debit, credit, version)
+VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, 0)
+RETURNING id
+""",
             Long.class,
             companyId,
             dealerId,
@@ -343,14 +343,14 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
       String referenceNumber)
       throws SQLException {
     try (PreparedStatement statement =
-            connection.prepareStatement(
-                """
-                INSERT INTO dealer_ledger_entries
-                    (company_id, dealer_id, journal_entry_id, entry_date, reference_number, memo, debit, credit, version)
-                VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, 0)
-                RETURNING id
-                """)) {
+        connection.prepareStatement(
+            """
+INSERT INTO dealer_ledger_entries
+    (company_id, dealer_id, journal_entry_id, entry_date, reference_number, memo, debit, credit, version)
+VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, 0)
+RETURNING id
+""")) {
       statement.setLong(1, companyId);
       statement.setLong(2, dealerId);
       statement.setLong(3, journalEntryId);
@@ -366,7 +366,8 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     }
   }
 
-  private long queryForLong(Connection connection, String sql, Object... params) throws SQLException {
+  private long queryForLong(Connection connection, String sql, Object... params)
+      throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       for (int i = 0; i < params.length; i++) {
         statement.setObject(i + 1, params[i]);
@@ -378,7 +379,8 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     }
   }
 
-  private int executeUpdate(Connection connection, String sql, Object... params) throws SQLException {
+  private int executeUpdate(Connection connection, String sql, Object... params)
+      throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(sql)) {
       for (int i = 0; i < params.length; i++) {
         statement.setObject(i + 1, params[i]);
@@ -432,7 +434,8 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
             + String.join(", ", ACCOUNTING_RLS_TABLES)
             + " TO "
             + RLS_PROBE_ROLE);
-    jdbcTemplate.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + RLS_PROBE_ROLE);
+    jdbcTemplate.execute(
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + RLS_PROBE_ROLE);
   }
 
   private boolean asBoolean(Object value) {

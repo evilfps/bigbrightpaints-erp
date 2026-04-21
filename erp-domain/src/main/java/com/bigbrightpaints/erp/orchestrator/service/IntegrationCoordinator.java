@@ -127,7 +127,8 @@ public class IntegrationCoordinator {
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public AutoApprovalResult autoApproveOrder(
       String orderId, String companyId, String traceId, String idempotencyKey) {
-    return orderIntegrationCoordinator.autoApproveOrder(orderId, companyId, traceId, idempotencyKey);
+    return orderIntegrationCoordinator.autoApproveOrder(
+        orderId, companyId, traceId, idempotencyKey);
   }
 
   @Transactional

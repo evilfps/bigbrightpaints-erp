@@ -81,8 +81,7 @@ public class AdminDashboardService {
     List<UserAccount> companyUsers = userAccountRepository.findByCompany_Id(companyId);
     List<UserAccount> visibleUsers =
         companyUsers.stream().filter(this::isTenantAdminVisibleUser).toList();
-    Map<String, Boolean> tenantActorProtection =
-        buildTenantActorProtectionByEmail(companyUsers);
+    Map<String, Boolean> tenantActorProtection = buildTenantActorProtectionByEmail(companyUsers);
 
     long totalUsers = visibleUsers.size();
     long enabledUsers = visibleUsers.stream().filter(UserAccount::isEnabled).count();
@@ -95,7 +94,8 @@ public class AdminDashboardService {
     AdminDashboardDto.SupportSummary supportSummary =
         new AdminDashboardDto.SupportSummary(
             supportTicketRepository.countByCompanyAndStatus(company, SupportTicketStatus.OPEN),
-            supportTicketRepository.countByCompanyAndStatus(company, SupportTicketStatus.IN_PROGRESS),
+            supportTicketRepository.countByCompanyAndStatus(
+                company, SupportTicketStatus.IN_PROGRESS),
             supportTicketRepository.countByCompanyAndStatus(company, SupportTicketStatus.RESOLVED),
             supportTicketRepository.countByCompanyAndStatus(company, SupportTicketStatus.CLOSED));
 
@@ -276,7 +276,8 @@ public class AdminDashboardService {
               : ActorProtectionState.NOT_PROTECTED,
           ActorProtectionEvidence.EMAIL);
     }
-    return new ActorProtectionResolution(ActorProtectionState.UNKNOWN, ActorProtectionEvidence.NONE);
+    return new ActorProtectionResolution(
+        ActorProtectionState.UNKNOWN, ActorProtectionEvidence.NONE);
   }
 
   private boolean isSuperAdminControlPlanePath(String requestPath) {

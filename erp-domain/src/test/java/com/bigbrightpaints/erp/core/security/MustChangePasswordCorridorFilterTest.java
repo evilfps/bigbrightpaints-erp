@@ -31,15 +31,13 @@ class MustChangePasswordCorridorFilterTest {
   @Test
   void retiredAdminHost_withMatrixParam_bypassesCorridorBlock() throws Exception {
     authenticateMustChangeUser();
-    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings;v=1");
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("GET", "/api/v1/admin/settings;v=1");
     request.setRequestURI("/api/v1/admin/settings;v=1");
     MockHttpServletResponse response = new MockHttpServletResponse();
     AtomicBoolean chainCalled = new AtomicBoolean(false);
 
-    filter.doFilter(
-        request,
-        response,
-        (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
+    filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
 
     assertThat(chainCalled).isTrue();
     assertThat(response.getStatus()).isEqualTo(200);
@@ -55,10 +53,7 @@ class MustChangePasswordCorridorFilterTest {
     MockHttpServletResponse response = new MockHttpServletResponse();
     AtomicBoolean chainCalled = new AtomicBoolean(false);
 
-    filter.doFilter(
-        request,
-        response,
-        (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
+    filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
 
     assertThat(chainCalled).isTrue();
     assertThat(response.getStatus()).isEqualTo(200);
@@ -72,10 +67,7 @@ class MustChangePasswordCorridorFilterTest {
     MockHttpServletResponse response = new MockHttpServletResponse();
     AtomicBoolean chainCalled = new AtomicBoolean(false);
 
-    filter.doFilter(
-        request,
-        response,
-        (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
+    filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> chainCalled.set(true));
 
     assertThat(chainCalled).isFalse();
     assertThat(response.getStatus()).isEqualTo(403);
@@ -83,7 +75,8 @@ class MustChangePasswordCorridorFilterTest {
   }
 
   private void authenticateMustChangeUser() {
-    UserAccount user = new UserAccount("corridor-user@bbp.com", "TENANT-A", "hash", "Corridor User");
+    UserAccount user =
+        new UserAccount("corridor-user@bbp.com", "TENANT-A", "hash", "Corridor User");
     user.setMustChangePassword(true);
     UserPrincipal principal = new UserPrincipal(user);
     UsernamePasswordAuthenticationToken authentication =

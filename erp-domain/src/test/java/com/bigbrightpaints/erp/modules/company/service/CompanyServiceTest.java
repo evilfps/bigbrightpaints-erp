@@ -1451,8 +1451,7 @@ class CompanyServiceTest {
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     verify(auditService, times(1))
         .logSuccess(eq(AuditEvent.ACCESS_GRANTED), metadataCaptor.capture());
-    assertThat(metadataCaptor.getValue())
-        .containsEntry("supportReason", "support-reset-requested");
+    assertThat(metadataCaptor.getValue()).containsEntry("supportReason", "support-reset-requested");
   }
 
   @Test

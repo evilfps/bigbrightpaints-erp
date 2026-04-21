@@ -37,7 +37,7 @@ public class AccountingApplicationExceptionAdvice {
             ? HttpStatus.NOT_FOUND
             : errorCode != null && errorCode.getCode().startsWith("CONC_")
                 ? AccountingApplicationExceptionResponses.determineHttpStatus(errorCode)
-            : HttpStatus.BAD_REQUEST;
+                : HttpStatus.BAD_REQUEST;
     return globalExceptionHandler.buildApplicationExceptionResponse(ex, request, status);
   }
 }

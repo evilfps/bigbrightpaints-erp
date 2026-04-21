@@ -1596,8 +1596,7 @@ public class SalesCoreEngine {
             }
           }
           if (cogsJournalEntryId == null) {
-            cogsJournalEntryId =
-                resolveCogsMarkerForReconciliation(order, singleActiveSlip, null);
+            cogsJournalEntryId = resolveCogsMarkerForReconciliation(order, singleActiveSlip, null);
           }
           if (invoiceId == null && salesJournalEntryId == null && cogsJournalEntryId == null) {
             // Avoid destructive cleanup when no slip-level anchors are available yet.
@@ -3867,7 +3866,9 @@ public class SalesCoreEngine {
             line ->
                 new DispatchConfirmRequest.DispatchLine(
                     line.getId(),
-                    line.getFinishedGoodBatch() != null ? line.getFinishedGoodBatch().getId() : null,
+                    line.getFinishedGoodBatch() != null
+                        ? line.getFinishedGoodBatch().getId()
+                        : null,
                     resolveDispatchLineQuantity(line),
                     null,
                     null,

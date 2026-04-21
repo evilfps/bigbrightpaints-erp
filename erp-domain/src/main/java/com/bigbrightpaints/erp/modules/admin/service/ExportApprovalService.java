@@ -287,13 +287,32 @@ public class ExportApprovalService {
         float margin = 56f;
         float y = page.getMediaBox().getUpperRightY() - margin;
 
-        writePdfLine(content, PDType1Font.HELVETICA_BOLD, 18f, margin, y, normalizedReportType + " export");
+        writePdfLine(
+            content, PDType1Font.HELVETICA_BOLD, 18f, margin, y, normalizedReportType + " export");
         y -= 24f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Request ID: " + safePdfValue(request != null ? request.getId() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Request ID: " + safePdfValue(request != null ? request.getId() : null));
         y -= 18f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Status: " + safePdfValue(request != null ? request.getStatus() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Status: " + safePdfValue(request != null ? request.getStatus() : null));
         y -= 18f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Parameters: " + safePdfValue(request != null ? request.getParameters() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Parameters: " + safePdfValue(request != null ? request.getParameters() : null));
       }
 
       document.save(out);
@@ -376,11 +395,7 @@ public class ExportApprovalService {
     if (value == null) {
       return "";
     }
-    return value
-        .toString()
-        .replaceAll("[\\p{Cntrl}]", " ")
-        .replaceAll("\\s+", " ")
-        .trim();
+    return value.toString().replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
   }
 
   private void recordExportBusinessEvent(

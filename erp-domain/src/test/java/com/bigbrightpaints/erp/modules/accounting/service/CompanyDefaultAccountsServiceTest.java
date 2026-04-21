@@ -298,7 +298,8 @@ class CompanyDefaultAccountsServiceTest {
     company.setPayrollCashAccount(account(88L, AccountType.ASSET, "PAYROLL-CASH"));
 
     assertThatThrownBy(
-            () -> service.resolveAutoSettlementCashAccountId(company, null, "dealer auto-settlement"))
+            () ->
+                service.resolveAutoSettlementCashAccountId(company, null, "dealer auto-settlement"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("cashAccountId is required for dealer auto-settlement");
   }

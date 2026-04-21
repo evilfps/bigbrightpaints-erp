@@ -468,8 +468,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     Map<?, ?> creditApproval = findCreditApproval(approvalsResponse, requestId);
     assertThat(creditApproval).isNotNull();
     assertThat(creditApproval.get("originType")).isEqualTo("CREDIT_REQUEST");
-    assertThat(creditApproval.get("summary").toString())
-        .contains("credit-limit request");
+    assertThat(creditApproval.get("summary").toString()).contains("credit-limit request");
     assertThat(creditApproval.get("requesterEmail")).isEqualTo(DEALER_EMAIL);
     assertThat(creditApproval.get("requesterUserId")).isNotNull();
   }

@@ -386,9 +386,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(
             (Boolean)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    filter,
-                    "isSuperadminPlatformScopeOnlyHostPath",
-                    "/api/v1/superadmin/notify"))
+                    filter, "isSuperadminPlatformScopeOnlyHostPath", "/api/v1/superadmin/notify"))
         .isTrue();
     assertThat(
             (Boolean)

@@ -22,14 +22,10 @@ import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
 @Tag("critical")
 class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
-  private static final Path ACCOUNTING_SERVICE_SOURCE =
-      sourcePath("AccountingService.java");
-  private static final Path JOURNAL_ENTRY_SERVICE_SOURCE =
-      sourcePath("JournalEntryService.java");
-  private static final Path SETTLEMENT_SERVICE_SOURCE =
-      sourcePath("SettlementService.java");
-  private static final Path SETTLEMENT_SUPPORT_SOURCE =
-      sourcePath(settlementSupportFileName());
+  private static final Path ACCOUNTING_SERVICE_SOURCE = sourcePath("AccountingService.java");
+  private static final Path JOURNAL_ENTRY_SERVICE_SOURCE = sourcePath("JournalEntryService.java");
+  private static final Path SETTLEMENT_SERVICE_SOURCE = sourcePath("SettlementService.java");
+  private static final Path SETTLEMENT_SUPPORT_SOURCE = sourcePath(settlementSupportFileName());
 
   @Test
   void accountingService_hides_legacy_replay_helper_surface() {

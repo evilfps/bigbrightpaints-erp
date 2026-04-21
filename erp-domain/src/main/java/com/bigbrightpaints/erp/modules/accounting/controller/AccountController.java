@@ -101,8 +101,7 @@ public class AccountController {
 
   private AccountType parseAccountType(String type) {
     if (type == null || type.isBlank()) {
-      throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_INPUT, "Account type is required")
+      throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Account type is required")
           .withDetail("type", type);
     }
     try {

@@ -99,19 +99,13 @@ class CrossModuleAccountingTenantFailClosedIT extends AbstractIntegrationTest {
             tenantACompany, "XMOD-CASH-A-" + suffix, "Cross Module Cash A", AccountType.ASSET);
     tenantARevenueAccount =
         ensureAccount(
-            tenantACompany,
-            "XMOD-REV-A-" + suffix,
-            "Cross Module Revenue A",
-            AccountType.REVENUE);
+            tenantACompany, "XMOD-REV-A-" + suffix, "Cross Module Revenue A", AccountType.REVENUE);
     tenantBCashAccount =
         ensureAccount(
             tenantBCompany, "XMOD-CASH-B-" + suffix, "Cross Module Cash B", AccountType.ASSET);
     tenantBRevenueAccount =
         ensureAccount(
-            tenantBCompany,
-            "XMOD-REV-B-" + suffix,
-            "Cross Module Revenue B",
-            AccountType.REVENUE);
+            tenantBCompany, "XMOD-REV-B-" + suffix, "Cross Module Revenue B", AccountType.REVENUE);
 
     tenantADealer =
         ensureDealer(
@@ -360,9 +354,14 @@ class CrossModuleAccountingTenantFailClosedIT extends AbstractIntegrationTest {
         .isEqualTo("Cross Module Dealer B");
     assertThat(productionBrandRepository.findById(tenantBBrand.getId()).orElseThrow().getName())
         .isEqualTo(tenantBBrand.getName());
-    assertThat(productionProductRepository.findById(tenantBItem.getId()).orElseThrow().getProductName())
+    assertThat(
+            productionProductRepository
+                .findById(tenantBItem.getId())
+                .orElseThrow()
+                .getProductName())
         .isEqualTo(tenantBItem.getProductName());
-    assertThat(productionProductRepository.findByCompanyOrderByProductNameAsc(tenantACompany).size())
+    assertThat(
+            productionProductRepository.findByCompanyOrderByProductNameAsc(tenantACompany).size())
         .isEqualTo(tenantAProductCountBefore);
     assertThat(journalIdsForTenantA()).hasSize(tenantAJournalCountBefore);
   }
@@ -412,12 +411,18 @@ class CrossModuleAccountingTenantFailClosedIT extends AbstractIntegrationTest {
 
   private Map<String, Object> dealerPayload(String name) {
     return Map.of(
-        "name", name,
-        "companyName", name + " Pvt Ltd",
-        "contactEmail", "cross-module-" + UUID.randomUUID() + "@bbp.com",
-        "contactPhone", "9999999999",
-        "address", "Cross Module Address",
-        "creditLimit", new BigDecimal("250000.00"));
+        "name",
+        name,
+        "companyName",
+        name + " Pvt Ltd",
+        "contactEmail",
+        "cross-module-" + UUID.randomUUID() + "@bbp.com",
+        "contactPhone",
+        "9999999999",
+        "address",
+        "Cross Module Address",
+        "creditLimit",
+        new BigDecimal("250000.00"));
   }
 
   private Map<String, Object> catalogItemPayload(Long brandId, String name) {

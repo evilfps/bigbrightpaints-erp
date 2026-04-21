@@ -25,8 +25,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
-import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalDecisionRequest;
@@ -87,22 +87,34 @@ class AdminApprovalServiceTest {
     ReflectionTestUtils.setField(company, "id", 1L);
     company.setCode("TEST");
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    lenient().when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
     lenient()
-        .when(creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
+        .when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
         .thenReturn(List.of());
-    lenient().when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company)).thenReturn(List.of());
-    lenient().when(exportApprovalService.listPending()).thenReturn(List.of());
-    lenient().when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL)).thenReturn(false);
-    lenient().when(creditRequestRepository.countPendingByCompany(company)).thenReturn(0L);
-    lenient().when(creditLimitOverrideRequestRepository.countPendingByCompany(company)).thenReturn(0L);
     lenient()
-        .when(periodCloseRequestRepository.countByCompanyAndStatus(
-            company, PeriodCloseRequestStatus.PENDING))
+        .when(
+            creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
+        .thenReturn(List.of());
+    lenient()
+        .when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company))
+        .thenReturn(List.of());
+    lenient().when(exportApprovalService.listPending()).thenReturn(List.of());
+    lenient()
+        .when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL))
+        .thenReturn(false);
+    lenient().when(creditRequestRepository.countPendingByCompany(company)).thenReturn(0L);
+    lenient()
+        .when(creditLimitOverrideRequestRepository.countPendingByCompany(company))
+        .thenReturn(0L);
+    lenient()
+        .when(
+            periodCloseRequestRepository.countByCompanyAndStatus(
+                company, PeriodCloseRequestStatus.PENDING))
         .thenReturn(0L);
     lenient().when(exportApprovalService.countPending()).thenReturn(0L);
     lenient()
-        .when(payrollRunRepository.countByCompanyAndStatus(company, PayrollRun.PayrollStatus.CALCULATED))
+        .when(
+            payrollRunRepository.countByCompanyAndStatus(
+                company, PayrollRun.PayrollStatus.CALCULATED))
         .thenReturn(0L);
   }
 
@@ -113,9 +125,8 @@ class AdminApprovalServiceTest {
     when(creditLimitOverrideRequestRepository.countPendingByCompany(company)).thenReturn(4L);
     when(payrollRunRepository.countByCompanyAndStatus(company, PayrollRun.PayrollStatus.CALCULATED))
         .thenReturn(2L);
-    when(
-            periodCloseRequestRepository.countByCompanyAndStatus(
-                company, PeriodCloseRequestStatus.PENDING))
+    when(periodCloseRequestRepository.countByCompanyAndStatus(
+            company, PeriodCloseRequestStatus.PENDING))
         .thenReturn(5L);
     when(exportApprovalService.countPending()).thenReturn(6L);
 
@@ -134,9 +145,8 @@ class AdminApprovalServiceTest {
     when(moduleGatingService.isEnabled(company, CompanyModule.HR_PAYROLL)).thenReturn(false);
     when(creditRequestRepository.countPendingByCompany(company)).thenReturn(1L);
     when(creditLimitOverrideRequestRepository.countPendingByCompany(company)).thenReturn(1L);
-    when(
-            periodCloseRequestRepository.countByCompanyAndStatus(
-                company, PeriodCloseRequestStatus.PENDING))
+    when(periodCloseRequestRepository.countByCompanyAndStatus(
+            company, PeriodCloseRequestStatus.PENDING))
         .thenReturn(1L);
     when(exportApprovalService.countPending()).thenReturn(1L);
 
@@ -152,7 +162,9 @@ class AdminApprovalServiceTest {
   void decide_periodCloseApproval_preservesWorkflowForceResolution() {
     AdminApprovalDecisionRequest request =
         new AdminApprovalDecisionRequest(
-            AdminApprovalDecisionRequest.Decision.APPROVE, "Close with workflow force policy", null);
+            AdminApprovalDecisionRequest.Decision.APPROVE,
+            "Close with workflow force policy",
+            null);
 
     service.decide("PERIOD_CLOSE_REQUEST", 77L, request);
 
@@ -200,7 +212,8 @@ class AdminApprovalServiceTest {
     AdminApprovalItemDto item = inbox.items().getFirst();
     assertThat(item.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST);
     assertThat(item.summary()).contains("force requested");
-    assertThat(item.summary()).contains("request note: Emergency close requested after reconciliation.");
+    assertThat(item.summary())
+        .contains("request note: Emergency close requested after reconciliation.");
   }
 
   @Test
@@ -224,7 +237,8 @@ class AdminApprovalServiceTest {
     assertThat(inbox.items()).hasSize(1);
     AdminApprovalItemDto item = inbox.items().getFirst();
     assertThat(item.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
-    assertThat(item.approveEndpoint()).isEqualTo("/api/v1/admin/approvals/PAYROLL_RUN/51/decisions");
+    assertThat(item.approveEndpoint())
+        .isEqualTo("/api/v1/admin/approvals/PAYROLL_RUN/51/decisions");
     assertThat(item.rejectEndpoint()).isNull();
   }
 
@@ -271,21 +285,29 @@ class AdminApprovalServiceTest {
   void decide_creditOverride_requiresReason_forApproveAndReject() {
     AdminApprovalDecisionRequest approveWithoutReason =
         new AdminApprovalDecisionRequest(
-            AdminApprovalDecisionRequest.Decision.APPROVE, "   ", Instant.parse("2026-04-20T00:00:00Z"));
+            AdminApprovalDecisionRequest.Decision.APPROVE,
+            "   ",
+            Instant.parse("2026-04-20T00:00:00Z"));
     AdminApprovalDecisionRequest rejectWithoutReason =
         new AdminApprovalDecisionRequest(
-            AdminApprovalDecisionRequest.Decision.REJECT, null, Instant.parse("2026-04-20T00:00:00Z"));
+            AdminApprovalDecisionRequest.Decision.REJECT,
+            null,
+            Instant.parse("2026-04-20T00:00:00Z"));
 
-    assertThatThrownBy(() -> service.decide("CREDIT_LIMIT_OVERRIDE_REQUEST", 88L, approveWithoutReason))
+    assertThatThrownBy(
+            () -> service.decide("CREDIT_LIMIT_OVERRIDE_REQUEST", 88L, approveWithoutReason))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("reason is required to approve this approval");
-    assertThatThrownBy(() -> service.decide("CREDIT_LIMIT_OVERRIDE_REQUEST", 89L, rejectWithoutReason))
+    assertThatThrownBy(
+            () -> service.decide("CREDIT_LIMIT_OVERRIDE_REQUEST", 89L, rejectWithoutReason))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("reason is required to reject this approval");
     verify(creditLimitOverrideService, never())
-        .approveRequest(any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class));
+        .approveRequest(
+            any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class));
     verify(creditLimitOverrideService, never())
-        .rejectRequest(any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class));
+        .rejectRequest(
+            any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class));
   }
 
   @Test
@@ -310,7 +332,8 @@ class AdminApprovalServiceTest {
             Instant.parse("2026-04-15T08:35:00Z"),
             Instant.parse("2026-04-20T00:00:00Z"),
             Instant.parse("2026-04-15T08:30:00Z"));
-    when(creditLimitOverrideService.approveRequest(any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class)))
+    when(creditLimitOverrideService.approveRequest(
+            any(Long.class), any(CreditLimitOverrideDecisionRequest.class), any(String.class)))
         .thenReturn(approved);
     when(creditLimitOverrideRequestRepository.findByCompanyAndId(company, 90L))
         .thenReturn(Optional.of(buildCreditLimitOverrideRequest(90L, "APPROVED")));
@@ -325,9 +348,11 @@ class AdminApprovalServiceTest {
 
     ArgumentCaptor<CreditLimitOverrideDecisionRequest> requestCaptor =
         ArgumentCaptor.forClass(CreditLimitOverrideDecisionRequest.class);
-    verify(creditLimitOverrideService).approveRequest(eq(90L), requestCaptor.capture(), any(String.class));
+    verify(creditLimitOverrideService)
+        .approveRequest(eq(90L), requestCaptor.capture(), any(String.class));
     assertThat(requestCaptor.getValue().reason()).isEqualTo("Reviewed and approved");
-    assertThat(requestCaptor.getValue().expiresAt()).isEqualTo(Instant.parse("2026-04-20T00:00:00Z"));
+    assertThat(requestCaptor.getValue().expiresAt())
+        .isEqualTo(Instant.parse("2026-04-20T00:00:00Z"));
   }
 
   @Test
@@ -336,23 +361,26 @@ class AdminApprovalServiceTest {
     CreditRequest approved = buildCreditRequest(42L, "APPROVED");
     when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company))
         .thenReturn(List.of(pending));
-    when(creditLimitRequestService.approveRequest(eq(42L), eq("approved"))).thenReturn(
-        new CreditLimitRequestDto(
-            42L,
-            null,
-            "Dealer A",
-            BigDecimal.TEN,
-            "APPROVED",
-            "approved",
-            Instant.parse("2026-04-15T08:30:00Z")));
-    when(creditRequestRepository.findByCompanyAndId(company, 42L)).thenReturn(Optional.of(approved));
+    when(creditLimitRequestService.approveRequest(eq(42L), eq("approved")))
+        .thenReturn(
+            new CreditLimitRequestDto(
+                42L,
+                null,
+                "Dealer A",
+                BigDecimal.TEN,
+                "APPROVED",
+                "approved",
+                Instant.parse("2026-04-15T08:30:00Z")));
+    when(creditRequestRepository.findByCompanyAndId(company, 42L))
+        .thenReturn(Optional.of(approved));
 
     AdminApprovalInboxResponse inbox = service.getInbox();
     AdminApprovalItemDto decided =
         service.decide(
             "CREDIT_REQUEST",
             42L,
-            new AdminApprovalDecisionRequest(AdminApprovalDecisionRequest.Decision.APPROVE, "approved", null));
+            new AdminApprovalDecisionRequest(
+                AdminApprovalDecisionRequest.Decision.APPROVE, "approved", null));
 
     assertThat(inbox.items()).hasSize(1);
     assertThat(decided.reference()).isEqualTo(inbox.items().getFirst().reference());
@@ -377,10 +405,15 @@ class AdminApprovalServiceTest {
 
     AdminApprovalItemDto item =
         service.decide(
-            "EXPORT_REQUEST", 14L, new AdminApprovalDecisionRequest(AdminApprovalDecisionRequest.Decision.APPROVE, null, null));
+            "EXPORT_REQUEST",
+            14L,
+            new AdminApprovalDecisionRequest(
+                AdminApprovalDecisionRequest.Decision.APPROVE, null, null));
 
-    assertThat(item.approveEndpoint()).isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/14/decisions");
-    assertThat(item.rejectEndpoint()).isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/14/decisions");
+    assertThat(item.approveEndpoint())
+        .isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/14/decisions");
+    assertThat(item.rejectEndpoint())
+        .isEqualTo("/api/v1/admin/approvals/EXPORT_REQUEST/14/decisions");
   }
 
   private CreditRequest buildCreditRequest(Long id, String status) {

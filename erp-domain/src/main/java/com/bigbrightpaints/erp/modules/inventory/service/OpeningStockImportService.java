@@ -909,7 +909,8 @@ public class OpeningStockImportService {
 
   private OpeningMovementResult handleFinishedGood(Company company, OpeningRow row) {
     String sku = requirePreparedSku(row);
-    requireOpeningStockReady(company, sku, row, SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
+    requireOpeningStockReady(
+        company, sku, row, SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
     FinishedGood finishedGood =
         finishedGoodRepository
             .findByCompanyAndProductCode(company, sku)

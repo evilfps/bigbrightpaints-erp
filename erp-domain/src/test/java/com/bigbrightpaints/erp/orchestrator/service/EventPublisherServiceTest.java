@@ -387,8 +387,7 @@ class EventPublisherServiceTest {
         stalePublishingSnapshot, "nextAttemptAt", TEST_NOW.minusSeconds(1));
     OutboxEvent stalePublishingEntity = pendingEvent(staleId);
     stalePublishingEntity.deferPublishing("AMBIGUOUS_PUBLISH:ack lost", 1);
-    ReflectionTestUtils.setField(
-        stalePublishingEntity, "nextAttemptAt", TEST_NOW.minusSeconds(1));
+    ReflectionTestUtils.setField(stalePublishingEntity, "nextAttemptAt", TEST_NOW.minusSeconds(1));
 
     when(outboxEventRepository
             .findTop10ByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
@@ -661,8 +660,7 @@ class EventPublisherServiceTest {
     OutboxEvent nullNextAttemptPending = pendingEvent(UUID.randomUUID());
     ReflectionTestUtils.setField(nullNextAttemptPending, "nextAttemptAt", null);
     OutboxEvent futureAttemptPending = pendingEvent(UUID.randomUUID());
-    ReflectionTestUtils.setField(
-        futureAttemptPending, "nextAttemptAt", TEST_NOW.plusSeconds(60));
+    ReflectionTestUtils.setField(futureAttemptPending, "nextAttemptAt", TEST_NOW.plusSeconds(60));
 
     Boolean deadLetterPublishable =
         com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(

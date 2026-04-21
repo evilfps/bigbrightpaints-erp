@@ -111,8 +111,7 @@ class CoreFallbackExceptionHandlerTest {
 
     assertThat(AccessDeniedAuditMarker.isCurrentRequestAlreadyAudited(request)).isTrue();
     verify(auditService)
-        .logAuthFailure(
-            eq(AuditEvent.ACCESS_DENIED), any(String.class), isNull(), any(Map.class));
+        .logAuthFailure(eq(AuditEvent.ACCESS_DENIED), any(String.class), isNull(), any(Map.class));
   }
 
   @Test

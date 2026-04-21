@@ -65,8 +65,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             true);
     when(systemSettingsService.snapshot()).thenReturn(snapshot);
 
-    AdminSettingsController controller =
-        new AdminSettingsController(systemSettingsService, null);
+    AdminSettingsController controller = new AdminSettingsController(systemSettingsService, null);
 
     ApiResponse<SystemSettingsDto> response = controller.getSettings();
 
@@ -105,8 +104,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             false);
     when(systemSettingsService.update(request)).thenReturn(updated);
 
-    AdminSettingsController controller =
-        new AdminSettingsController(systemSettingsService, null);
+    AdminSettingsController controller = new AdminSettingsController(systemSettingsService, null);
 
     ApiResponse<SystemSettingsDto> response = controller.updateSettings(request);
 
@@ -178,5 +176,4 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     assertThat(metadata.get("requestedExportApprovalRequired")).isEqualTo("false");
     assertThat(metadata.get("requestedPlatformAuthCode")).isEqualTo("<redacted>");
   }
-
 }

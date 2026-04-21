@@ -39,7 +39,8 @@ public class AdminSupportService {
   public List<SupportTicketResponse> listAllTenantTickets() {
     Company company = companyContextService.requireCurrentCompany();
     UserAccount actor = supportTicketAccessSupport.requireCurrentUser();
-    List<SupportTicket> tickets = supportTicketRepository.findByCompanyOrderByCreatedAtDesc(company);
+    List<SupportTicket> tickets =
+        supportTicketRepository.findByCompanyOrderByCreatedAtDesc(company);
     return supportTicketAccessSupport.toResponses(tickets, actor.getId());
   }
 

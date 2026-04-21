@@ -1,0 +1,27 @@
+{
+  "featureId": "validation-runtime-seed-verification-hardcut",
+  "reviewedAt": "2026-04-21T08:06:58.990344Z",
+  "commitId": "7647802431236d5773d99287aa8cad1689c80c31",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature materially improves the runtime reset flow by turning missing seed data into an immediate, explicit failure and by checking a broad set of tenant, dealer, and UAT fixtures. However, one seeded actor is still only partially verified, so the script can report a successful seed verification even when a downstream validation-critical actor is semantically wrong.",
+    "issues": [
+      {
+        "file": "scripts/reset_final_validation_runtime.sh",
+        "line": 195,
+        "severity": "blocking",
+        "description": "The verification query exempts `validation.superadmin@example.com` from auth-scope validation by declaring its `expected_scope` as NULL, while the later `scope_mismatch_users` check only runs for rows where `expected_scope IS NOT NULL`. `ValidationSeedDataInitializer` seeds this actor with the platform scope code, and downstream runtime proofs rely on that platform-only identity returning `SUPER_ADMIN_PLATFORM_ONLY`. As written, the reset script can print `Validation seed fixtures verified successfully` even when the super-admin account exists with the wrong scope, so the hardened check still allows a broken validation actor to pass as verified."}
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "services",
+      "observation": "The mission command catalog does not expose a dedicated seed-presence probe, so the worker had to fall back to ad-hoc `docker exec ... psql` inspection while diagnosing the reset behavior. This is exactly the gap called out in the handoff skill feedback.",
+      "evidence": ".factory/services.yaml includes `runtime-reset-validation` and `strict-runtime-smoke-check` but no seed-verification/probe command; the 5904bff5-3be6-49f0-8d00-a52e96f798ec transcript skeleton shows multiple manual DB probe commands, and the handoff `skillFeedback.suggestedChanges` explicitly asks for a dedicated manifest seed-presence probe."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed. The script now fails fast when seed fixtures are absent, but it still does not verify that the seeded super-admin actor has the required platform auth scope, so a semantically broken validation runtime can still be certified as healthy. I also noted a shared-state services gap: there is no manifest command for seed-presence probing, which pushed the worker into manual DB inspection."
+}

@@ -216,7 +216,8 @@ public class AdminUserService {
     Set<String> requestedRoleSet =
         roleUpdateRequested ? new LinkedHashSet<>(normalizedRoleUpdates) : Set.of();
     Set<String> existingRoleSet = roleUpdateRequested ? normalizePersistedRoleSet(user) : Set.of();
-    boolean roleAssignmentChanged = roleUpdateRequested && !existingRoleSet.equals(requestedRoleSet);
+    boolean roleAssignmentChanged =
+        roleUpdateRequested && !existingRoleSet.equals(requestedRoleSet);
     boolean displayNameChanged = !Objects.equals(user.getDisplayName(), request.displayName());
     user.setDisplayName(request.displayName());
     if (roleAssignmentChanged) {
@@ -364,7 +365,10 @@ public class AdminUserService {
             activeCompany,
             denialReason,
             Map.of(
-                "targetUserId", String.valueOf(userId), "targetResolution", "MISSING_OR_OUT_OF_SCOPE"));
+                "targetUserId",
+                String.valueOf(userId),
+                "targetResolution",
+                "MISSING_OR_OUT_OF_SCOPE"));
         throw new AccessDeniedException(OUT_OF_SCOPE_MESSAGE);
       }
       if (!superAdmin && lockTarget) {
@@ -477,7 +481,8 @@ public class AdminUserService {
         .anyMatch(authority -> SUPER_ADMIN_ROLE.equalsIgnoreCase(authority.getAuthority()));
   }
 
-  private List<String> validateAndNormalizeAssignableRoles(List<String> roles, Company actorCompany) {
+  private List<String> validateAndNormalizeAssignableRoles(
+      List<String> roles, Company actorCompany) {
     if (roles == null || roles.isEmpty()) {
       return List.of();
     }

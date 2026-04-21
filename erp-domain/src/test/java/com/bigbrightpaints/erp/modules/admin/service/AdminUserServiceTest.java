@@ -240,8 +240,7 @@ class AdminUserServiceTest {
                 List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
     try {
       service.createUser(
-          new CreateUserRequest(
-              "platform-sales@example.com", "Platform Sales", List.of("sales")));
+          new CreateUserRequest("platform-sales@example.com", "Platform Sales", List.of("sales")));
       verify(userRepository).save(any(UserAccount.class));
     } finally {
       SecurityContextHolder.clearContext();
@@ -631,7 +630,8 @@ class AdminUserServiceTest {
   }
 
   @Test
-  void forceResetPassword_sameTenantProtectedRole_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
+  void
+      forceResetPassword_sameTenantProtectedRole_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
     UserAccount protectedUser =
         new UserAccount("tenant-admin-protected@example.com", "hash", "Tenant Admin");
     ReflectionTestUtils.setField(protectedUser, "id", 313L);
@@ -706,8 +706,7 @@ class AdminUserServiceTest {
         .thenReturn(Optional.empty());
 
     try {
-      var response =
-          service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null));
+      var response = service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null));
       assertThat(response.displayName()).isEqualTo("Foreign User Updated");
     } finally {
       SecurityContextHolder.clearContext();
@@ -732,8 +731,7 @@ class AdminUserServiceTest {
                 AuditEvent.LOGIN_SUCCESS, company.getId(), "same-enabled@example.com"))
         .thenReturn(Optional.empty());
 
-    var response =
-        service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null));
+    var response = service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null));
 
     assertThat(response.displayName()).isEqualTo("Same Enabled Updated");
     verify(tokenBlacklistService, never()).revokeAllUserTokens(user.getPublicId().toString());
@@ -809,8 +807,7 @@ class AdminUserServiceTest {
     assertThatThrownBy(
             () ->
                 service.updateUser(
-                    403L,
-                    new UpdateUserRequest("Updated User", List.of("ROLE_SUPER_ADMIN"))))
+                    403L, new UpdateUserRequest("Updated User", List.of("ROLE_SUPER_ADMIN"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_SUPER_ADMIN");
 

@@ -112,7 +112,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
     Collection<? extends GrantedAuthority> effectiveAuthorities = resolveAuthorities(principal);
     UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(principal, validatedToken.rawToken(), effectiveAuthorities);
+        new UsernamePasswordAuthenticationToken(
+            principal, validatedToken.rawToken(), effectiveAuthorities);
     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
     SecurityContextHolder.getContext().setAuthentication(authentication);
   }

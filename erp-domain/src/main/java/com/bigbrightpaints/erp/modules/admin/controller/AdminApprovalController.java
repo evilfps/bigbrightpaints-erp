@@ -47,7 +47,8 @@ public class AdminApprovalController {
   public ResponseEntity<ApiResponse<AdminApprovalItemDto>> decide(
       @Parameter(
               description =
-                  "Approval origin type: EXPORT_REQUEST, CREDIT_REQUEST, CREDIT_LIMIT_OVERRIDE_REQUEST, PAYROLL_RUN, PERIOD_CLOSE_REQUEST")
+                  "Approval origin type: EXPORT_REQUEST, CREDIT_REQUEST,"
+                      + " CREDIT_LIMIT_OVERRIDE_REQUEST, PAYROLL_RUN, PERIOD_CLOSE_REQUEST")
           @PathVariable
           String originType,
       @PathVariable Long id,

@@ -202,8 +202,7 @@ class JwtAuthenticationFilterRoleHierarchyTest {
   }
 
   @Test
-  void doFilter_skipsAuthenticationWhenBearerTokenIsMissing()
-      throws ServletException, IOException {
+  void doFilter_skipsAuthenticationWhenBearerTokenIsMissing() throws ServletException, IOException {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/private");
     MockHttpServletResponse response = new MockHttpServletResponse();
 

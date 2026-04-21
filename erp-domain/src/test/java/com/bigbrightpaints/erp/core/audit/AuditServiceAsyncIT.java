@@ -140,7 +140,8 @@ class AuditServiceAsyncIT {
   }
 
   @Test
-  void logAuthSuccess_asyncProxyCapturesAuthenticatedPublicIdWhenOverrideMatches() throws Exception {
+  void logAuthSuccess_asyncProxyCapturesAuthenticatedPublicIdWhenOverrideMatches()
+      throws Exception {
     Company company = new Company();
     company.setCode("COMP-ASYNC");
     ReflectionTestUtils.setField(company, "id", 77L);
@@ -175,7 +176,8 @@ class AuditServiceAsyncIT {
     assertThat(saved).isNotNull();
     assertThat(saved.getUsername()).isEqualTo("actor@bbp.com");
     assertThat(saved.getUserId()).isEqualTo(authenticatedUser.getPublicId().toString());
-    assertThat(saved.getMetadata()).containsEntry("actorPublicId", authenticatedUser.getPublicId().toString());
+    assertThat(saved.getMetadata())
+        .containsEntry("actorPublicId", authenticatedUser.getPublicId().toString());
   }
 
   @Test

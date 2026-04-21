@@ -368,7 +368,8 @@ class AccountingApplicationExceptionAdviceTest {
                 ErrorCode.BUSINESS_INVALID_STATE, "Configuration health is unavailable"));
 
     MockMvcBuilders.standaloneSetup(
-            new AccountingConfigurationController(configurationHealthService, companyContextService))
+            new AccountingConfigurationController(
+                configurationHealthService, companyContextService))
         .setControllerAdvice(advice(), globalExceptionHandler())
         .build()
         .perform(get("/api/v1/accounting/configuration/health"))

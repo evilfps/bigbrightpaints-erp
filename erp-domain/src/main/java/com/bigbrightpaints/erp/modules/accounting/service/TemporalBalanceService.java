@@ -265,7 +265,9 @@ public class TemporalBalanceService {
     return accountRepository
         .findByCompanyAndId(company, accountId)
         .orElseThrow(
-            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Account not found"));
+            () ->
+                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Account not found"));
   }
 
   private AccountingPeriodSnapshot resolveClosedSnapshot(Company company, LocalDate asOfDate) {

@@ -1473,8 +1473,7 @@ class SalesServiceTest {
 
     DispatchConfirmResponse response =
         salesService.confirmDispatch(
-            new DispatchConfirmRequest(
-                null, 10L, null, null, "admin", Boolean.FALSE, null, null));
+            new DispatchConfirmRequest(null, 10L, null, null, "admin", Boolean.FALSE, null, null));
 
     assertEquals(70L, response.packingSlipId());
     assertEquals(10L, response.salesOrderId());
@@ -1489,8 +1488,7 @@ class SalesServiceTest {
     assertEquals(1, dispatchCaptor.getValue().lines().size());
     assertEquals(205L, dispatchCaptor.getValue().lines().get(0).lineId());
     assertEquals(
-        0,
-        BigDecimal.ONE.compareTo(dispatchCaptor.getValue().lines().get(0).shippedQuantity()));
+        0, BigDecimal.ONE.compareTo(dispatchCaptor.getValue().lines().get(0).shippedQuantity()));
   }
 
   @Test

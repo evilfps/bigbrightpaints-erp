@@ -785,11 +785,7 @@ public class PurchaseReturnService {
         gstService.resolveTaxType(sourceStateCode, supplierStateCode, false);
     if (taxType == GstService.TaxType.INTER_STATE) {
       return new GstService.GstBreakdown(
-          currency(taxableAmount),
-          BigDecimal.ZERO,
-          BigDecimal.ZERO,
-          currency(taxAmount),
-          taxType);
+          currency(taxableAmount), BigDecimal.ZERO, BigDecimal.ZERO, currency(taxAmount), taxType);
     }
     BigDecimal roundedTax = currency(taxAmount);
     BigDecimal cgst = currency(roundedTax.divide(new BigDecimal("2"), 6, RoundingMode.HALF_UP));

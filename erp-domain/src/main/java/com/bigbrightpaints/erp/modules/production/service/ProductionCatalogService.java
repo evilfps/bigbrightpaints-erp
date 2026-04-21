@@ -1742,8 +1742,7 @@ public class ProductionCatalogService {
   }
 
   private com.bigbrightpaints.erp.modules.inventory.domain.MaterialType
-      resolveRawMaterialMaterialType(
-          RawMaterial material, String itemClassHint) {
+      resolveRawMaterialMaterialType(RawMaterial material, String itemClassHint) {
     if (StringUtils.hasText(itemClassHint)) {
       return ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(normalizeItemClass(itemClassHint))
           ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING

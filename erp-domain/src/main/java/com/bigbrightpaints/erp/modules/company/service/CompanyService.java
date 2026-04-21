@@ -1087,7 +1087,8 @@ public class CompanyService {
     metadata.put("actor", resolveActor(authentication));
     metadata.put("reason", LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON);
     metadata.put("tenantScope", resolveTenantScope(authentication));
-    String normalizedTargetCompanyCode = targetCompanyCode == null ? null : targetCompanyCode.trim();
+    String normalizedTargetCompanyCode =
+        targetCompanyCode == null ? null : targetCompanyCode.trim();
     if (companyId != null) {
       metadata.put("targetCompanyId", String.valueOf(companyId));
     }

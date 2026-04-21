@@ -1,0 +1,33 @@
+{
+  "featureId": "accounting-tenant-isolation-rls-hardcut",
+  "reviewedAt": "2026-04-21T08:06:58Z",
+  "commitId": "c555bb152",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature adds a Flyway migration that enables and forces RLS across the intended accounting table set plus a focused integration test that proves isolation only when the test itself manually sets the PostgreSQL tenant session variable. It does not satisfy the expected behavior end-to-end because the shipped RLS predicate fails open whenever `app.current_company_id` is absent or malformed, and this repo's runtime path still only stores tenant context in `CompanyContextHolder` rather than binding that value onto datasource sessions.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/resources/db/migration_v2/V184__accounting_truth_rls_hard_cut.sql",
+        "line": 30,
+        "severity": "blocking",
+        "description": "`public.erp_accounting_tenant_visible(...)` returns `TRUE` when `public.erp_current_company_id()` is `NULL`, so the new policies allow reads and writes across all tenant rows whenever a connection does not set `app.current_company_id`. The application/runtime code in this repo still binds tenant scope only to `CompanyContextHolder` (`erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java:346-351`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyContextService.java:15-25`), and datasource config has no session-init hook in `erp-domain/src/main/resources/application.yml:14-19` or `erp-domain/src/main/resources/application-prod.yml:8-12`. That means the hard-cut is not actually fail-closed on ordinary app DB sessions; without the synthetic `set_config(...)` used in `AccountingTenantIsolationRlsIT`, the policy becomes allow-all instead of tenant-isolated."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`accounting-hardcut-worker` tells workers to re-check application-level scoping and database/RLS assumptions, but it does not explicitly require proving how the live datasource projects tenant context into PostgreSQL session state before declaring an RLS hard-cut complete. That gap allowed a synthetic `set_config(...)` proof to stand in for real runtime binding.",
+      "evidence": "`.factory/skills/accounting-hardcut-worker/SKILL.md` Step 3 bullet 5 and Step 4 bullets 1-4; transcript skeleton for session `2608ba89-ff7a-4491-9186-118e5cbeefa1` shows repo-wide searches for `app.current_company_id`/`set_config` found no runtime binding, then `AccountingTenantIsolationRlsIT.java:396-416` manually executes `SET ROLE erp_rls_probe` plus `SELECT set_config('app.current_company_id', ?, false)` inside the test helper."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Shared-state docs say accounting-table RLS is a mission invariant, but they do not document the required runtime contract for propagating tenant context from `CompanyContextHolder` into PostgreSQL sessions. That missing knowledge makes it easy to land DB policies that depend on an unset session variable.",
+      "evidence": "`.factory/library/environment.md:45` says the accounting-table RLS rollout is an environment assumption, and `.factory/library/architecture.md:52-53` says all accounting truth tables must get database-enforced tenant isolation and application-surface isolation must fail closed. A repo-wide search for `app.current_company_id` only finds the new migration and `AccountingTenantIsolationRlsIT`, not any runtime binding path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed. The packet adds the intended accounting-table RLS objects and a narrow synthetic proof test, but the core RLS predicate is fail-open when the PostgreSQL tenant session variable is missing, and the application runtime in this repo does not set that variable on datasource sessions."
+}

@@ -23,18 +23,19 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
-import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
-import com.bigbrightpaints.erp.core.security.AuditAwareAccessDeniedHandler;
 import com.bigbrightpaints.erp.core.security.AccessDeniedAuditMarker;
+import com.bigbrightpaints.erp.core.security.AuditAwareAccessDeniedHandler;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.security.RequestBodyCachingFilter;
+import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.MfaChallengeResponse;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -160,11 +161,7 @@ public class CoreFallbackExceptionHandler {
       if (StringUtils.hasText(tenantScope)) {
         metadata.put("tenantScope", tenantScope);
       }
-      auditService.logAuthFailure(
-          AuditEvent.ACCESS_DENIED,
-          actor,
-          tenantScope,
-          metadata);
+      auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
       AccessDeniedAuditMarker.markCurrentRequestAudited();
     }
     String userMessage =

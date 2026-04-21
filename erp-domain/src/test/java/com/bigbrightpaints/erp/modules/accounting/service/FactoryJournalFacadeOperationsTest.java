@@ -79,13 +79,7 @@ class FactoryJournalFacadeOperationsTest {
   void postCostAllocation_returnsNullWhenTotalAmountIsZero() {
     JournalEntryDto result =
         operations.postCostAllocation( //
-            "BATCH-1",
-            11L,
-            12L,
-            13L,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            "allocation");
+            "BATCH-1", 11L, 12L, 13L, BigDecimal.ZERO, BigDecimal.ZERO, "allocation");
 
     assertThat(result).isNull();
   }
@@ -141,8 +135,7 @@ class FactoryJournalFacadeOperationsTest {
 
   @Test
   void postCogs_returnsNullWhenCostIsZero() {
-    JournalEntryDto result =
-        operations.postCOGS("SO-42", 7L, 21L, 22L, BigDecimal.ZERO, "COGS");
+    JournalEntryDto result = operations.postCOGS("SO-42", 7L, 21L, 22L, BigDecimal.ZERO, "COGS");
 
     assertThat(result).isNull();
   }
@@ -170,7 +163,8 @@ class FactoryJournalFacadeOperationsTest {
     when(accountingLookupService.requireAccount(company, 21L)).thenReturn(account(21L));
     when(accountingLookupService.requireAccount(company, 22L)).thenReturn(account(22L));
     String reference = SalesOrderReference.cogsReference("SO-89");
-    when(journalReferenceResolver.findExistingEntry(company, reference)).thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(company, reference))
+        .thenReturn(Optional.empty());
     when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 4, 10));
     when(accountingService.createStandardJournal(org.mockito.ArgumentMatchers.any()))
         .thenReturn(journalEntryDto(2002L, reference));

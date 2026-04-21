@@ -1,0 +1,26 @@
+{
+  "featureId": "accounting-characterization-bedrock",
+  "reviewedAt": "2026-04-21T08:09:18.878580Z",
+  "commitId": "8921cd4cc98bdd539153bf78aaef1c8f4d27ef0d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The reviewed feature commit only adjusts the characterization test setup in `CriticalAccountingAxesIT.periodLockBlocksBackdatedPosting` so the assertion now exercises the intended locked-period rejection path instead of the separate >30-day date guard. The committed suite already contains characterization coverage for journal invariants, settlement idempotency headers, reconciliation controls, and report/journal anchors, and this patch preserves those surfaces while removing the known red baseline mismatch. I did not find blocking or non-blocking code review issues in the committed change.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker skill and mission guidance do not explicitly tell workers to return immediately when a session gets derailed by host-level Factory/BYOK configuration outside the repository. That gap let the first feature attempt spend time editing `~/.factory/settings.json` instead of completing the assigned repo feature.",
+      "evidence": "Handoff `2026-04-20T23-29-21-556Z__accounting-characterization-bedrock__08339edb-7a04-44c0-81cb-7050dd466dac.json` states the session fixed a BYOK/provider mapping in `~/.factory/settings.json` and marks `skillFeedback.followedProcedure` false with a suggested change to add guidance for host-level tooling fixes; mission `features.json:889` later had to add an explicit note that the BYOK/provider mismatch was outside the packet scope."
+    },
+    {
+      "area": "knowledge",
+      "observation": "Mission shared-state docs do not capture that manual journal posting enforces the 30-day entry-date guard before the locked-period rejection path. That undocumented validation order was the direct cause of the red baseline mismatch and forced the worker to rediscover runtime semantics from source during the feature.",
+      "evidence": "`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/PeriodValidationService.java:40-61` rejects dates older than 30 days before any locked-period message can surface. The reviewed handoff for session `43446c46-7897-49ba-a70a-59dc49e80d36` records the pre-fix failure as expecting `locked/closed` but receiving `Entry date cannot be more than 30 days old without an explicit admin exception`, and searches of mission `AGENTS.md`, `.factory/library/architecture.md`, and `.factory/services.yaml` found no documented note about this validation order."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed the completed feature via its final handoff, transcript skeleton, and commit `8921cd4cc98bdd539153bf78aaef1c8f4d27ef0d`. The feature satisfies its expected behavior: the characterization lane’s known red mismatch is resolved without runtime/public-contract changes, no high-confidence bugs were introduced by the committed test adjustment, and I found no blocking or non-blocking code issues. I surfaced one worker-skill gap around host-level BYOK detours and one shared knowledge gap around undocumented date-guard-vs-period-lock validation order."
+}

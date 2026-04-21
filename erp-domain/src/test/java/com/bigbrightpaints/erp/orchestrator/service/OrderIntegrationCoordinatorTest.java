@@ -54,7 +54,8 @@ class OrderIntegrationCoordinatorTest {
 
     assertThat(result.orderStatus()).isEqualTo("PENDING_PRODUCTION");
     assertThat(result.awaitingProduction()).isTrue();
-    verifyNoInteractions(orderSupportCoordinator, salesService, factoryService, finishedGoodsService);
+    verifyNoInteractions(
+        orderSupportCoordinator, salesService, factoryService, finishedGoodsService);
   }
 
   @Test

@@ -350,8 +350,7 @@ class PurchaseJournalFacadeOperations {
 
     totalCredits =
         totalCredits.add(
-            taxSupport.appendPurchaseReturnTaxLines(
-                lines, taxCredits, gstBreakdown, resolvedMemo));
+            taxSupport.appendPurchaseReturnTaxLines(lines, taxCredits, gstBreakdown, resolvedMemo));
 
     if (totalAmount.subtract(totalCredits).abs().compareTo(BALANCE_TOLERANCE) > 0) {
       throw new ApplicationException(

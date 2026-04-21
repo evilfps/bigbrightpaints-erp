@@ -288,8 +288,9 @@ public class LeaveService {
     Integer previousYear = previousBalanceYear(year);
     if (previousYear != null) {
       carryForward =
-          leaveBalanceRepository.findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
-              company, employee, policy.getLeaveType(), previousYear)
+          leaveBalanceRepository
+              .findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
+                  company, employee, policy.getLeaveType(), previousYear)
               .map(previous -> previous.getRemaining().min(policy.getCarryForwardLimit()))
               .orElse(BigDecimal.ZERO);
     }
