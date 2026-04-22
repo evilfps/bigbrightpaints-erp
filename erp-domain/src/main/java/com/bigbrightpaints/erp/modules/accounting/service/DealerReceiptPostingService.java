@@ -153,49 +153,41 @@ class DealerReceiptPostingService {
       List<PartnerSettlementAllocation> existingAllocations =
           resolveAllocationsForReplay(company, idempotencyKey, existingEntry);
       JournalEntry entry =
-          journalReplayService.resolveReplayJournalEntry(
-              idempotencyKey, existingEntry, existingAllocations);
-      if (entry != null) {
-        PartnerPaymentEvent paymentEvent =
-            partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
-                company,
-                dealer,
-                PartnerPaymentFlow.DEALER_RECEIPT,
-                amount,
-                entry.getEntryDate(),
-                reference,
-                idempotencyKey,
-                memo,
-                DEALER_RECEIPT_ROUTE);
-        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
-        journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
-        settlementReplayValidationService.validateDealerReceiptIdempotency(
-            idempotencyKey,
-            dealer,
-            cashAccount,
-            receivableAccount,
-            amount,
-            memo,
-            entry,
-            existingAllocations,
-            resolveDealerReceiptReplayValidationAllocations(
-                requestedAllocations, amount, memo, existingAllocations));
-        return dtoMapperService.toJournalEntryDto(entry);
-      }
-      throw journalReplayService.missingReservedPartnerAllocation(
-          "Dealer receipt", idempotencyKey, PartnerType.DEALER, dealer.getId());
+          resolveDealerReplayJournalEntry(
+              "Dealer receipt", idempotencyKey, dealer, existingEntry, existingAllocations);
+      PartnerPaymentEvent paymentEvent =
+          partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
+              company,
+              dealer,
+              PartnerPaymentFlow.DEALER_RECEIPT,
+              amount,
+              entry.getEntryDate(),
+              reference,
+              idempotencyKey,
+              memo,
+              DEALER_RECEIPT_ROUTE);
+      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+      journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
+      settlementReplayValidationService.validateDealerReceiptIdempotency(
+          idempotencyKey,
+          dealer,
+          cashAccount,
+          receivableAccount,
+          amount,
+          memo,
+          entry,
+          existingAllocations,
+          resolveDealerReceiptReplayValidationAllocations(
+              requestedAllocations, amount, memo, existingAllocations));
+      return dtoMapperService.toJournalEntryDto(entry);
     }
 
     List<PartnerSettlementAllocation> existingAllocations =
         journalReplayService.findAllocationsByIdempotencyKey(company, idempotencyKey);
     if (!existingAllocations.isEmpty()) {
       JournalEntry entry =
-          journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
-              company, reference, idempotencyKey, existingAllocations);
-      if (entry == null) {
-        throw journalReplayService.missingReservedPartnerAllocation(
-            "Dealer receipt", idempotencyKey, PartnerType.DEALER, dealer.getId());
-      }
+          resolveDealerReplayJournalEntryFromExistingAllocations(
+              "Dealer receipt", company, reference, idempotencyKey, dealer, existingAllocations);
       PartnerPaymentEvent paymentEvent =
           partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
               company,
@@ -227,35 +219,33 @@ class DealerReceiptPostingService {
     if (existingEntry != null) {
       existingAllocations = resolveAllocationsForReplay(company, idempotencyKey, existingEntry);
       JournalEntry entry =
-          journalReplayService.resolveReplayJournalEntry(
-              idempotencyKey, existingEntry, existingAllocations);
-      if (entry != null) {
-        PartnerPaymentEvent paymentEvent =
-            partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
-                company,
-                dealer,
-                PartnerPaymentFlow.DEALER_RECEIPT,
-                amount,
-                entry.getEntryDate(),
-                reference,
-                idempotencyKey,
-                memo,
-                DEALER_RECEIPT_ROUTE);
-        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
-        journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
-        settlementReplayValidationService.validateDealerReceiptIdempotency(
-            idempotencyKey,
-            dealer,
-            cashAccount,
-            receivableAccount,
-            amount,
-            memo,
-            entry,
-            existingAllocations,
-            resolveDealerReceiptReplayValidationAllocations(
-                requestedAllocations, amount, memo, existingAllocations));
-        return dtoMapperService.toJournalEntryDto(entry);
-      }
+          resolveDealerReplayJournalEntry(
+              "Dealer receipt", idempotencyKey, dealer, existingEntry, existingAllocations);
+      PartnerPaymentEvent paymentEvent =
+          partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
+              company,
+              dealer,
+              PartnerPaymentFlow.DEALER_RECEIPT,
+              amount,
+              entry.getEntryDate(),
+              reference,
+              idempotencyKey,
+              memo,
+              DEALER_RECEIPT_ROUTE);
+      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+      journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
+      settlementReplayValidationService.validateDealerReceiptIdempotency(
+          idempotencyKey,
+          dealer,
+          cashAccount,
+          receivableAccount,
+          amount,
+          memo,
+          entry,
+          existingAllocations,
+          resolveDealerReceiptReplayValidationAllocations(
+              requestedAllocations, amount, memo, existingAllocations));
+      return dtoMapperService.toJournalEntryDto(entry);
     }
 
     cashAccount =
@@ -357,29 +347,25 @@ class DealerReceiptPostingService {
       List<PartnerSettlementAllocation> existingAllocations =
           resolveAllocationsForReplay(company, idempotencyKey, existingEntry);
       JournalEntry entry =
-          journalReplayService.resolveReplayJournalEntry(
-              idempotencyKey, existingEntry, existingAllocations);
-      if (entry != null) {
-        PartnerPaymentEvent paymentEvent =
-            partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
-                company,
-                dealer,
-                PartnerPaymentFlow.DEALER_RECEIPT_SPLIT,
-                total,
-                entry.getEntryDate(),
-                reference,
-                idempotencyKey,
-                memo,
-                DEALER_RECEIPT_SPLIT_ROUTE);
-        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
-        journalReplayService.linkReferenceMapping(
-            company, idempotencyKey, entry, "DEALER_RECEIPT_SPLIT");
-        settlementReplayValidationService.validateSplitReceiptIdempotency(
-            idempotencyKey, dealer, memo, entry, lines);
-        return dtoMapperService.toJournalEntryDto(entry);
-      }
-      throw journalReplayService.missingReservedPartnerAllocation(
-          "Dealer receipt", idempotencyKey, PartnerType.DEALER, dealer.getId());
+          resolveDealerReplayJournalEntry(
+              "Dealer hybrid receipt", idempotencyKey, dealer, existingEntry, existingAllocations);
+      PartnerPaymentEvent paymentEvent =
+          partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
+              company,
+              dealer,
+              PartnerPaymentFlow.DEALER_RECEIPT_SPLIT,
+              total,
+              entry.getEntryDate(),
+              reference,
+              idempotencyKey,
+              memo,
+              DEALER_RECEIPT_SPLIT_ROUTE);
+      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+      journalReplayService.linkReferenceMapping(
+          company, idempotencyKey, entry, "DEALER_RECEIPT_SPLIT");
+      settlementReplayValidationService.validateSplitReceiptIdempotency(
+          idempotencyKey, dealer, memo, entry, lines);
+      return dtoMapperService.toJournalEntryDto(entry);
     }
     for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {
       accountResolutionService.requireCashAccountForSettlement(
@@ -442,6 +428,47 @@ class DealerReceiptPostingService {
       }
     }
     return journalReplayService.awaitAllocations(company, idempotencyKey);
+  }
+
+  private JournalEntry resolveDealerReplayJournalEntry(
+      String subject,
+      String idempotencyKey,
+      Dealer dealer,
+      JournalEntry existingEntry,
+      List<PartnerSettlementAllocation> existingAllocations) {
+    if (existingAllocations == null || existingAllocations.isEmpty()) {
+      throw journalReplayService.missingReservedPartnerAllocation(
+          subject, idempotencyKey, PartnerType.DEALER, dealer.getId());
+    }
+    JournalEntry entry =
+        journalReplayService.resolveReplayJournalEntry(
+            idempotencyKey, existingEntry, existingAllocations);
+    if (entry == null) {
+      throw journalReplayService.missingReservedPartnerAllocation(
+          subject, idempotencyKey, PartnerType.DEALER, dealer.getId());
+    }
+    return entry;
+  }
+
+  private JournalEntry resolveDealerReplayJournalEntryFromExistingAllocations(
+      String subject,
+      Company company,
+      String reference,
+      String idempotencyKey,
+      Dealer dealer,
+      List<PartnerSettlementAllocation> existingAllocations) {
+    if (existingAllocations == null || existingAllocations.isEmpty()) {
+      throw journalReplayService.missingReservedPartnerAllocation(
+          subject, idempotencyKey, PartnerType.DEALER, dealer.getId());
+    }
+    JournalEntry entry =
+        journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
+            company, reference, idempotencyKey, existingAllocations);
+    if (entry == null) {
+      throw journalReplayService.missingReservedPartnerAllocation(
+          subject, idempotencyKey, PartnerType.DEALER, dealer.getId());
+    }
+    return entry;
   }
 
   private List<SettlementAllocationRequest> resolveDealerReceiptAllocationsForPosting(

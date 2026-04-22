@@ -1228,6 +1228,162 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
   }
 
   @Test
+  void dealerReceipt_replayFailsClosed_whenAllocationRowsAreMissing() {
+    String companyCode = "CR-DR-MISSING-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    String referenceNumber = "DR-MISSING-" + UUID.randomUUID();
+    String idempotencyKey = "DR-MISSING-IDEMP-" + UUID.randomUUID();
+    DealerReceiptRequest request =
+        new DealerReceiptRequest(
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            new BigDecimal("125.00"),
+            referenceNumber,
+            "CODE-RED degraded replay receipt",
+            idempotencyKey,
+            List.of());
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceipt(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("first write persists explicit allocation truth")
+        .hasSize(1);
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded replay fixture has no allocation rows")
+        .isEmpty();
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceipt(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation not found")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+  }
+
+  @Test
+  void dealerReceiptSplit_replayFailsClosed_whenAllocationRowsAreMissing() {
+    String companyCode = "CR-DRS-MISSING-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    String referenceNumber = "DRS-MISSING-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-MISSING-IDEMP-" + UUID.randomUUID();
+    DealerReceiptSplitRequest request =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), new BigDecimal("125.00"))),
+            referenceNumber,
+            "CODE-RED degraded replay split receipt",
+            idempotencyKey);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceiptSplit(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("first split receipt write persists explicit allocation truth")
+        .hasSize(1);
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded split replay fixture has no allocation rows")
+        .isEmpty();
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceiptSplit(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation not found")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+  }
+
+  @Test
   void dealerReceipt_rejectsCrossDealerInvoiceAllocation() {
     String companyCode = "CR-DR-CROSS-DEALER-" + shortId();
     Company company = bootstrapCompany(companyCode, "UTC");
