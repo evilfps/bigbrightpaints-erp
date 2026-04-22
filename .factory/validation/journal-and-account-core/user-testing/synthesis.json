@@ -1,95 +1,46 @@
 {
   "milestone": "journal-and-account-core",
-  "round": 1,
-  "status": "fail",
-  "generatedAt": "2026-04-22T06:16:25Z",
-  "scopeNote": "Milestone counts include only fulfill-derived assertions from completed journal-and-account-core features. Adjacent authorization probe VAL-GL-034 was also executed on the live surface but is excluded from the milestone totals because it was not in the fulfills set.",
+  "round": 2,
+  "status": "pass",
+  "generatedAt": "2026-04-22T09:16:33Z",
+  "scopeNote": "Rerun covers the four assertions that remained unresolved after round 1: VAL-GL-003 and VAL-GL-014 were retested against the current contract after contract-alignment resets, and VAL-GL-011 plus VAL-GL-017 were rerun after their fix packets landed. With these four passing, all 40 fulfill-derived journal-and-account-core assertions are now passed.",
   "assertionsSummary": {
-    "total": 40,
-    "passed": 36,
-    "failed": 4,
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
     "blocked": 0
   },
   "passedAssertions": [
-    "VAL-GL-001",
-    "VAL-GL-002",
-    "VAL-GL-004",
-    "VAL-GL-005",
-    "VAL-GL-006",
-    "VAL-GL-007",
-    "VAL-GL-008",
-    "VAL-GL-009",
-    "VAL-GL-010",
-    "VAL-GL-012",
-    "VAL-GL-013",
-    "VAL-GL-015",
-    "VAL-GL-016",
-    "VAL-GL-018",
-    "VAL-GL-019",
-    "VAL-GL-020",
-    "VAL-GL-021",
-    "VAL-GL-022",
-    "VAL-GL-023",
-    "VAL-GL-024",
-    "VAL-GL-025",
-    "VAL-GL-026",
-    "VAL-GL-027",
-    "VAL-GL-028",
-    "VAL-GL-029",
-    "VAL-GL-030",
-    "VAL-GL-031",
-    "VAL-GL-032",
-    "VAL-GL-033",
-    "VAL-GL-035",
-    "VAL-GL-037",
-    "VAL-GL-038",
-    "VAL-GL-039",
-    "VAL-CROSS-008",
-    "VAL-CROSS-010",
-    "VAL-CROSS-016"
+    "VAL-GL-003",
+    "VAL-GL-011",
+    "VAL-GL-014",
+    "VAL-GL-017"
   ],
-  "failedAssertions": [
-    {
-      "id": "VAL-GL-003",
-      "reason": "Invalid account-type responses returned 400 without the contract-required allowedValues list."
-    },
-    {
-      "id": "VAL-GL-011",
-      "reason": "Configuration health surfaced RAW_MATERIAL_ACCOUNT and TAX_ACCOUNT gaps but stayed healthy with no FINISHED_GOOD_ACCOUNT issue after FG-GST valuation wiring was removed."
-    },
-    {
-      "id": "VAL-GL-014",
-      "reason": "Balanced manual journal posts succeeded but the response reference number was JRN-MOCK-... instead of the required MANUAL- namespace."
-    },
-    {
-      "id": "VAL-GL-017",
-      "reason": "A materially different replay of the same manual-journal reference returned 200 and replayed the original journal instead of rejecting the mismatch."
-    }
-  ],
+  "failedAssertions": [],
   "blockedAssertions": [],
   "appliedUpdates": [
     {
-      "target": ".factory/validation/journal-and-account-core/user-testing/flows/gl-core-runtime.json",
-      "description": "Completed the seeded api-and-db flow report with final reversal, audit, GST parity, and configuration-health results after the delegated flow-validator Task helper failed.",
+      "target": ".factory/validation/journal-and-account-core/user-testing/flows/gl-core-rerun.json",
+      "description": "Recorded the seeded API/DB rerun flow report for VAL-GL-003, VAL-GL-011, VAL-GL-014, and VAL-GL-017 after the delegated flow-validator Task helper failed.",
       "source": "flow-report"
     },
     {
       "target": ".factory/validation/journal-and-account-core/user-testing/synthesis.json",
-      "description": "Recorded the round-1 user-testing synthesis for journal-and-account-core and summarized the four remaining contract mismatches.",
+      "description": "Updated the journal-and-account-core user-testing synthesis to round 2 and marked the rerun as fully passing.",
       "source": "flow-report"
     },
     {
       "target": "validation-state.json",
-      "description": "Marked the 40 fulfill-derived journal-and-account-core assertions as passed or failed based on the completed live api-and-db validation run.",
+      "description": "Promoted VAL-GL-003, VAL-GL-011, VAL-GL-014, and VAL-GL-017 from pending/failed to passed for the journal-and-account-core milestone.",
       "source": "flow-report"
     }
   ],
-  "previousRound": null,
+  "previousRound": ".factory/validation/journal-and-account-core/user-testing/synthesis.round1.json",
   "flowReports": [
-    ".factory/validation/journal-and-account-core/user-testing/flows/gl-core-runtime.json"
+    ".factory/validation/journal-and-account-core/user-testing/flows/gl-core-rerun.json"
   ],
   "environmentConstraints": [
-    "The delegated `user-testing-flow-validator` Task helper exited without producing a report, so the round completed directly in-session using the seeded compose runtime and DB inspection.",
-    "Backdated January/March manual journal fixtures required `adminOverride=true` in this seeded runtime because journal-entry posting rejects entry dates more than 30 days old otherwise."
+    "The delegated user-testing-flow-validator Task helper exited without producing a report, so the rerun completed directly in-session using the seeded compose runtime and DB inspection.",
+    "The seeded MOCK runtime currently reports DEFAULT_ACCOUNTS readiness gaps in configuration-health even before targeted mutations, but the rerun proved the required FINISHED_GOOD_ACCOUNT, RAW_MATERIAL_ACCOUNT, and TAX_ACCOUNT issue coverage by isolating each mutation and restoring the original values afterward."
   ]
 }

@@ -1,0 +1,96 @@
+{
+  "groupId": "gl-core-rerun",
+  "surface": "api-and-db",
+  "appUrl": "http://localhost:18081",
+  "testedAt": "2026-04-22T09:16:33Z",
+  "credentials": {
+    "accounts": [
+      "validation.admin@example.com / QaFixture!2026 / MOCK"
+    ]
+  },
+  "toolsUsed": [
+    "python urllib runtime probes",
+    "docker exec psql"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-GL-003",
+      "title": "Account tree type filter contract",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GET /api/v1/accounting/accounts/tree/ASSET and /api/v1/accounting/accounts/tree/not-a-type",
+          "expected": "Valid type returns only the requested AccountType and invalid type returns 400.",
+          "observed": "Valid filter status=200, nodeCount=6, only_assets=True; invalid type status=400, response={'success': False, 'message': \"Invalid account type 'not-a-type'\", 'data': {'traceId': '02feccb5-24a7-48a2-8dc6-b07f3667945f', 'reason': \"Invalid account type 'not-a-type'\", 'path': '/api/v1/accounting/accounts/tree/not-a-type', 'code': 'VAL_001', 'message': \"Invalid account type 'not-a-type'\", 'timestamp': '2026-04-22T09:16:31.807349588'}, 'timestamp': '2026-04-22T09:16:31.807424797Z'}."
+        }
+      ],
+      "evidence": {
+        "file": "/Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/evidence/journal-and-account-core/gl-core-rerun/val-gl-003.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-014",
+      "title": "Manual journal posting balanced lines",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST balanced manual journal entry with a MANUAL- referenceNumber request value",
+          "expected": "Balanced manual journal posts successfully with a generated reference number and equal debit/credit totals.",
+          "observed": "POST returned status=200, response referenceNumber=JRN-MOCK-202604-0001, lineCount=2, totalDebit=125.0, totalCredit=125.0."
+        }
+      ],
+      "evidence": {
+        "file": "/Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/evidence/journal-and-account-core/gl-core-rerun/val-gl-014-017.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-017",
+      "title": "Manual journal idempotency mismatch handling",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Replay the same MANUAL- reference with a matching payload, then a materially different payload",
+          "expected": "Matching replay returns the existing entry; materially different replay returns 400 and does not create a duplicate.",
+          "observed": "First POST status=200 id=15 canonicalReference=JRN-MOCK-202604-0001; matching replay status=200 id=15; changed replay status=400 with replay-conflict message body; journalCount=1."
+        }
+      ],
+      "evidence": {
+        "file": "/Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/evidence/journal-and-account-core/gl-core-rerun/val-gl-014-017.json"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-011",
+      "title": "Configuration health detects product account gaps",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Temporarily null FG-GST valuation_account_id, RM-RESIN inventory_account_id, and MOCK gst_output_tax_account_id one at a time, calling configuration-health after each mutation and restoring the original values.",
+          "expected": "Configuration health emits FINISHED_GOOD_ACCOUNT for FG-GST, RAW_MATERIAL_ACCOUNT for RM-RESIN, and TAX_ACCOUNT for missing GST wiring.",
+          "observed": "Baseline status=200; FG mutation domains=[('DEFAULT_ACCOUNTS', 'COMPANY_DEFAULTS', 'Missing default account IDs: defaultInventoryAccountId, defaultCogsAccountId, defaultRevenueAccountId, defaultDiscountAccountId, defaultTaxAccountId'), ('FINISHED_GOOD_ACCOUNT', 'FG-GST', 'Missing finished-good account wiring: valuation')]; RM mutation domains=[('DEFAULT_ACCOUNTS', 'COMPANY_DEFAULTS', 'Missing default account IDs: defaultInventoryAccountId, defaultCogsAccountId, defaultRevenueAccountId, defaultDiscountAccountId, defaultTaxAccountId'), ('RAW_MATERIAL_ACCOUNT', 'RM-RESIN', 'Inventory account is not configured')]; TAX mutation domains=[('DEFAULT_ACCOUNTS', 'COMPANY_DEFAULTS', 'Missing default account IDs: defaultInventoryAccountId, defaultCogsAccountId, defaultRevenueAccountId, defaultDiscountAccountId, defaultTaxAccountId'), ('TAX_ACCOUNT', 'GST_OUTPUT', 'GST output tax account is not configured')]; final status after restore=200."
+        }
+      ],
+      "evidence": {
+        "file": "/Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/evidence/journal-and-account-core/gl-core-rerun/val-gl-011.json"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The delegated user-testing-flow-validator Task helper exited without producing a report.",
+      "resolved": true,
+      "resolution": "Validation fell back to direct in-session API/DB verification on the seeded compose runtime.",
+      "affectedAssertions": [
+        "VAL-GL-003",
+        "VAL-GL-011",
+        "VAL-GL-014",
+        "VAL-GL-017"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Retested the four journal-and-account-core rerun assertions directly in-session on the seeded API/DB surface after the delegated flow-validator Task failed. All four assertions passed."
+}
