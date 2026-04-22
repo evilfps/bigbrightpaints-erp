@@ -44,6 +44,7 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
           "journal_entries",
           "journal_lines",
           "journal_reference_mappings",
+          "partner_payment_events",
           "dealer_ledger_entries",
           "supplier_ledger_entries",
           "partner_settlement_allocations",
