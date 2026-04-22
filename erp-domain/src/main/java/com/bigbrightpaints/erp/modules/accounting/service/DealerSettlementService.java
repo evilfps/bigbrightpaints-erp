@@ -21,11 +21,12 @@ import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentEvent;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentFlow;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -45,9 +46,12 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesOrderAutoCloseService;
 @Service
 class DealerSettlementService {
 
+  private static final String DEALER_SETTLEMENT_ROUTE = "/api/v1/accounting/settlements/dealers";
+  private static final String DEALER_AUTO_SETTLEMENT_ROUTE =
+      "/api/v1/accounting/dealers/{dealerId}/auto-settle";
+
   private final CompanyContextService companyContextService;
   private final JournalEntryService journalEntryService;
-  private final DealerReceiptService dealerReceiptService;
   private final DealerRepository dealerRepository;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyScopedAccountingLookupService accountingLookupService;
@@ -64,6 +68,7 @@ class DealerSettlementService {
   private final SettlementJournalLineDraftService settlementJournalLineDraftService;
   private final SettlementOutcomeService settlementOutcomeService;
   private final AccountingAuditService accountingAuditService;
+  private final PartnerPaymentEventService partnerPaymentEventService;
 
   @Autowired(required = false)
   private SalesOrderAutoCloseService salesOrderAutoCloseService;
@@ -71,7 +76,6 @@ class DealerSettlementService {
   DealerSettlementService(
       CompanyContextService companyContextService,
       JournalEntryService journalEntryService,
-      DealerReceiptService dealerReceiptService,
       DealerRepository dealerRepository,
       ReferenceNumberService referenceNumberService,
       CompanyScopedAccountingLookupService accountingLookupService,
@@ -87,10 +91,10 @@ class DealerSettlementService {
       SettlementTotalsValidationService settlementTotalsValidationService,
       SettlementJournalLineDraftService settlementJournalLineDraftService,
       SettlementOutcomeService settlementOutcomeService,
-      AccountingAuditService accountingAuditService) {
+      AccountingAuditService accountingAuditService,
+      PartnerPaymentEventService partnerPaymentEventService) {
     this.companyContextService = companyContextService;
     this.journalEntryService = journalEntryService;
-    this.dealerReceiptService = dealerReceiptService;
     this.dealerRepository = dealerRepository;
     this.referenceNumberService = referenceNumberService;
     this.accountingLookupService = accountingLookupService;
@@ -107,6 +111,7 @@ class DealerSettlementService {
     this.settlementJournalLineDraftService = settlementJournalLineDraftService;
     this.settlementOutcomeService = settlementOutcomeService;
     this.accountingAuditService = accountingAuditService;
+    this.partnerPaymentEventService = partnerPaymentEventService;
   }
 
   @Retryable(
@@ -115,6 +120,11 @@ class DealerSettlementService {
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   PartnerSettlementResponse settleDealerInvoices(PartnerSettlementRequest request) {
+    return settleDealerInvoices(request, DEALER_SETTLEMENT_ROUTE);
+  }
+
+  private PartnerSettlementResponse settleDealerInvoices(
+      PartnerSettlementRequest request, String sourceRoute) {
     Company company = companyContextService.requireCurrentCompany();
     Dealer dealer =
         dealerRepository
@@ -199,6 +209,18 @@ class DealerSettlementService {
         JournalEntry entry =
             journalReplayService.resolveReplayJournalEntry(
                 trimmedIdempotencyKey, existingEntry, existingAllocations);
+        PartnerPaymentEvent paymentEvent =
+            resolveDealerSettlementPaymentEvent(
+                company,
+                dealer,
+                totals.totalApplied(),
+                entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
+                reference,
+                trimmedIdempotencyKey,
+                memo,
+                sourceRoute);
+        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+        attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
         journalReplayService.linkReferenceMapping(
             company, trimmedIdempotencyKey, entry, "DEALER_SETTLEMENT");
         settlementReplayValidationService.validateSettlementIdempotencyKey(
@@ -227,6 +249,18 @@ class DealerSettlementService {
       JournalEntry entry =
           journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
               company, reference, trimmedIdempotencyKey, existingAllocations);
+      PartnerPaymentEvent paymentEvent =
+          resolveDealerSettlementPaymentEvent(
+              company,
+              dealer,
+              totals.totalApplied(),
+              entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
+              reference,
+              trimmedIdempotencyKey,
+              memo,
+              sourceRoute);
+      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+      attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
       journalReplayService.linkReferenceMapping(
           company, trimmedIdempotencyKey, entry, "DEALER_SETTLEMENT");
       settlementReplayValidationService.validateSettlementIdempotencyKey(
@@ -257,6 +291,16 @@ class DealerSettlementService {
     BigDecimal totalFxGain = totals.totalFxGain();
     BigDecimal totalFxLoss = totals.totalFxLoss();
     BigDecimal cashAmount = lineDraft.cashAmount();
+    PartnerPaymentEvent paymentEvent =
+        resolveDealerSettlementPaymentEvent(
+            company,
+            dealer,
+            totals.totalApplied(),
+            entryDate,
+            reference,
+            trimmedIdempotencyKey,
+            memo,
+            sourceRoute);
     List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
     List<Invoice> touchedInvoices = new ArrayList<>();
     Map<Long, BigDecimal> remainingByInvoice = new HashMap<>();
@@ -331,6 +375,7 @@ class DealerSettlementService {
       row.setWriteOffAmount(writeOff);
       row.setFxDifferenceAmount(fxAdjustment);
       row.setIdempotencyKey(trimmedIdempotencyKey);
+      row.setPaymentEvent(paymentEvent);
       if (invoice != null && invoice.getCurrency() != null) {
         row.setCurrency(invoice.getCurrency());
       }
@@ -359,6 +404,7 @@ class DealerSettlementService {
 
     JournalEntry journalEntry =
         accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
+    partnerPaymentEventService.linkJournalEntry(paymentEvent, journalEntry);
     journalReplayService.linkReferenceMapping(
         company, trimmedIdempotencyKey, journalEntry, "DEALER_SETTLEMENT");
     for (PartnerSettlementAllocation allocation : settlementRows) {
@@ -419,6 +465,44 @@ class DealerSettlementService {
         allocationSummaries);
   }
 
+  private PartnerPaymentEvent resolveDealerSettlementPaymentEvent(
+      Company company,
+      Dealer dealer,
+      BigDecimal paymentAmount,
+      LocalDate paymentDate,
+      String reference,
+      String idempotencyKey,
+      String memo,
+      String sourceRoute) {
+    return partnerPaymentEventService.resolveOrCreateDealerPaymentEvent(
+        company,
+        dealer,
+        PartnerPaymentFlow.DEALER_SETTLEMENT,
+        paymentAmount,
+        paymentDate,
+        reference,
+        idempotencyKey,
+        memo,
+        sourceRoute);
+  }
+
+  private void attachPaymentEventToSettlementRows(
+      List<PartnerSettlementAllocation> allocations, PartnerPaymentEvent paymentEvent) {
+    if (paymentEvent == null || allocations == null || allocations.isEmpty()) {
+      return;
+    }
+    boolean updated = false;
+    for (PartnerSettlementAllocation allocation : allocations) {
+      if (allocation.getPaymentEvent() == null) {
+        allocation.setPaymentEvent(paymentEvent);
+        updated = true;
+      }
+    }
+    if (updated) {
+      settlementAllocationRepository.saveAll(allocations);
+    }
+  }
+
   private void autoClosePaidOrders(Company company, List<Invoice> touchedInvoices) {
     if (salesOrderAutoCloseService == null) {
       return;
@@ -448,24 +532,28 @@ class DealerSettlementService {
     Long cashAccountId =
         accountResolutionService.resolveAutoSettlementCashAccountId(
             company, request.cashAccountId(), "dealer auto-settlement");
-    List<SettlementAllocationRequest> allocations =
-        settlementAllocationResolutionService.buildDealerAutoSettlementAllocations(
-            company, dealer, amount);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Auto-settlement for dealer " + dealer.getName();
-    DealerReceiptRequest receiptRequest =
-        new DealerReceiptRequest(
+    PartnerSettlementRequest settlementRequest =
+        new PartnerSettlementRequest(
+            PartnerType.DEALER,
             dealer.getId(),
             cashAccountId,
+            null,
+            null,
+            null,
+            null,
             amount,
+            null,
+            null,
             request.referenceNumber(),
             memo,
             request.idempotencyKey(),
-            allocations);
-    JournalEntryDto journalEntry = dealerReceiptService.recordDealerReceipt(receiptRequest);
-    return settlementOutcomeService.buildAutoSettlementResponse(company, journalEntry);
+            Boolean.FALSE,
+            null);
+    return settleDealerInvoices(settlementRequest, DEALER_AUTO_SETTLEMENT_ROUTE);
   }
 
   private String requireAdminExceptionReason(

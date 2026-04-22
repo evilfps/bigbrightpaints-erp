@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
+import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -627,6 +628,242 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
         .as("invoice allocation plus future-application row")
         .hasSize(2);
+  }
+
+  @Test
+  void dealerSettlement_paymentEventFirst_linksJournalAndAllocations() {
+    String companyCode = "CR-SET-PE-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice invoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("90.00"),
+            LocalDate.now().minusDays(7),
+            LocalDate.now().plusDays(10),
+            "CR-SET-PE");
+    BigDecimal outstanding = invoice.getOutstandingAmount();
+    String referenceNumber = "DS-PE-" + UUID.randomUUID();
+    String idempotencyKey = "DS-PE-IDEMP-" + UUID.randomUUID();
+    PartnerSettlementRequest request =
+        new PartnerSettlementRequest(
+            PartnerType.DEALER,
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            referenceNumber,
+            "CODE-RED payment-event settlement",
+            idempotencyKey,
+            Boolean.FALSE,
+            List.of(
+                new SettlementAllocationRequest(
+                    invoice.getId(),
+                    null,
+                    outstanding,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null,
+                    "Apply to invoice")));
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first = accountingService.settleDealerInvoices(request);
+      PartnerSettlementResponse replay = accountingService.settleDealerInvoices(request);
+      journalId = first.journalEntry().id();
+      assertThat(replay.journalEntry().id()).isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Long paymentEventId =
+        jdbcTemplate.queryForObject(
+            """
+            select id
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/settlements/dealers'
+              and lower(reference_number) = lower(?)
+            """,
+            Long.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventId).isNotNull();
+
+    Integer paymentEventCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/settlements/dealers'
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventCount).isEqualTo(1);
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    Instant paymentEventCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from partner_payment_events where id = ?",
+            Instant.class,
+            paymentEventId);
+    Instant journalCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from journal_entries where id = ?",
+            Instant.class,
+            journalId);
+    assertThat(paymentEventCreatedAt).isNotNull();
+    assertThat(journalCreatedAt).isNotNull();
+    assertThat(paymentEventCreatedAt).isBeforeOrEqualTo(journalCreatedAt);
+
+    List<Long> allocationPaymentEventIds =
+        jdbcTemplate.queryForList(
+            """
+            select payment_event_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            Long.class,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationPaymentEventIds).isNotEmpty();
+    assertThat(allocationPaymentEventIds).allMatch(id -> id != null && id.equals(paymentEventId));
+  }
+
+  @Test
+  void dealerAutoSettle_usesSettlementPaymentFlow_andAllocatesOldestFirst() {
+    String companyCode = "CR-AUTO-SET-PE-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice earliestDue =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(12),
+            LocalDate.now().plusDays(1),
+            "CR-AUTO-SET-1");
+    Invoice sameDueOlderInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("30.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-2");
+    Invoice sameDueNewerInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("25.00"),
+            LocalDate.now().minusDays(3),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-3");
+
+    String referenceNumber = "DAS-PE-" + UUID.randomUUID();
+    String idempotencyKey = "DAS-PE-IDEMP-" + UUID.randomUUID();
+    AutoSettlementRequest request =
+        new AutoSettlementRequest(
+            accounts.get("BANK").getId(),
+            new BigDecimal("20.00"),
+            referenceNumber,
+            "CODE-RED auto settlement",
+            idempotencyKey);
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first = accountingService.autoSettleDealer(dealer.getId(), request);
+      PartnerSettlementResponse replay = accountingService.autoSettleDealer(dealer.getId(), request);
+      journalId = first.journalEntry().id();
+      assertThat(replay.journalEntry().id()).isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Long paymentEventId =
+        jdbcTemplate.queryForObject(
+            """
+            select id
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/dealers/{dealerId}/auto-settle'
+              and lower(reference_number) = lower(?)
+            """,
+            Long.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventId).isNotNull();
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select invoice_id, allocation_amount, payment_event_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationRows).hasSize(1);
+
+    assertThat(((Number) allocationRows.get(0).get("invoice_id")).longValue())
+        .isEqualTo(earliestDue.getId());
+    assertThat(new BigDecimal(allocationRows.get(0).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("20.00"));
+
+    assertThat(allocationRows)
+        .allSatisfy(
+            row ->
+                assertThat(((Number) row.get("payment_event_id")).longValue())
+                    .isEqualTo(paymentEventId));
+
+    assertThat(invoiceRepository.findByCompanyAndId(company, earliestDue.getId()).orElseThrow()
+            .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueOlderInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(new BigDecimal("30.00"));
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueNewerInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(new BigDecimal("25.00"));
   }
 
   @Test
