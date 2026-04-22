@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentEventRepo
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentFlow;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 
 @Service
@@ -89,6 +90,74 @@ class PartnerPaymentEventService {
     event.setCompany(resolvedCompany);
     event.setPartnerType(PartnerType.DEALER);
     event.setDealer(resolvedDealer);
+    event.setPaymentFlow(resolvedFlow);
+    event.setSourceRoute(resolvedRoute);
+    event.setReferenceNumber(resolvedReference);
+    event.setIdempotencyKey(resolvedIdempotencyKey);
+    event.setPaymentDate(resolvedPaymentDate);
+    event.setAmount(resolvedAmount);
+    event.setCurrency(resolveCurrency(resolvedCompany));
+    event.setMemo(normalizedMemo);
+    return partnerPaymentEventRepository.save(event);
+  }
+
+  PartnerPaymentEvent resolveOrCreateSupplierPaymentEvent(
+      Company company,
+      Supplier supplier,
+      PartnerPaymentFlow paymentFlow,
+      BigDecimal amount,
+      LocalDate paymentDate,
+      String referenceNumber,
+      String idempotencyKey,
+      String memo,
+      String sourceRoute) {
+    Company resolvedCompany = ValidationUtils.requireNotNull(company, "company");
+    Supplier resolvedSupplier = ValidationUtils.requireNotNull(supplier, "supplier");
+    PartnerPaymentFlow resolvedFlow = ValidationUtils.requireNotNull(paymentFlow, "paymentFlow");
+    BigDecimal resolvedAmount = ValidationUtils.requirePositive(amount, "amount");
+    LocalDate resolvedPaymentDate = ValidationUtils.requireNotNull(paymentDate, "paymentDate");
+    String resolvedReference = requiredTrimmedValue(referenceNumber, "referenceNumber");
+    String resolvedIdempotencyKey = requiredTrimmedValue(idempotencyKey, "idempotencyKey");
+    String resolvedRoute = requiredTrimmedValue(sourceRoute, "sourceRoute");
+    String normalizedMemo = normalizeMemo(memo);
+
+    Optional<PartnerPaymentEvent> byIdempotency =
+        findFirstByIdempotencyKey(resolvedCompany, resolvedIdempotencyKey);
+    if (byIdempotency.isPresent()) {
+      PartnerPaymentEvent existing = byIdempotency.get();
+      validateSupplierPaymentEventReplay(
+          existing,
+          resolvedSupplier,
+          resolvedFlow,
+          resolvedAmount,
+          resolvedReference,
+          normalizedMemo,
+          resolvedRoute,
+          resolvedIdempotencyKey);
+      return existing;
+    }
+
+    Optional<PartnerPaymentEvent> byReference =
+        partnerPaymentEventRepository.findByCompanyAndPaymentFlowAndReferenceNumberIgnoreCase(
+            resolvedCompany, resolvedFlow, resolvedReference);
+    if (byReference.isPresent()) {
+      PartnerPaymentEvent existing = byReference.get();
+      validateSupplierPaymentEventReplay(
+          existing,
+          resolvedSupplier,
+          resolvedFlow,
+          resolvedAmount,
+          resolvedReference,
+          normalizedMemo,
+          resolvedRoute,
+          resolvedIdempotencyKey);
+      return existing;
+    }
+
+    PartnerPaymentEvent event = new PartnerPaymentEvent();
+    event.setCompany(resolvedCompany);
+    event.setPartnerType(PartnerType.SUPPLIER);
+    event.setSupplier(resolvedSupplier);
     event.setPaymentFlow(resolvedFlow);
     event.setSourceRoute(resolvedRoute);
     event.setReferenceNumber(resolvedReference);
@@ -181,6 +250,61 @@ class PartnerPaymentEventService {
     if (StringUtils.hasText(sourceRoute) && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
       throw replayConflict(
               "Idempotency key already used for a different dealer payment route", idempotencyKey)
+          .withDetail("existingRoute", existing.getSourceRoute())
+          .withDetail("requestedRoute", sourceRoute);
+    }
+  }
+
+  private void validateSupplierPaymentEventReplay(
+      PartnerPaymentEvent existing,
+      Supplier supplier,
+      PartnerPaymentFlow paymentFlow,
+      BigDecimal amount,
+      String referenceNumber,
+      String memo,
+      String sourceRoute,
+      String idempotencyKey) {
+    if (existing == null) {
+      throw replayConflict("Payment event missing for replay", idempotencyKey);
+    }
+    if (existing.getPartnerType() != PartnerType.SUPPLIER
+        || existing.getSupplier() == null
+        || existing.getSupplier().getId() == null
+        || !Objects.equals(existing.getSupplier().getId(), supplier.getId())) {
+      throw replayConflict(
+          "Idempotency key already used for a different supplier payment event", idempotencyKey);
+    }
+    if (existing.getPaymentFlow() != paymentFlow) {
+      throw replayConflict(
+          "Idempotency key already used for a different supplier payment flow", idempotencyKey);
+    }
+    if (!equalsIgnoreCaseTrimmed(existing.getReferenceNumber(), referenceNumber)) {
+      throw replayConflict(
+              "Idempotency key already used for a different supplier payment reference",
+              idempotencyKey)
+          .withDetail("existingReference", existing.getReferenceNumber())
+          .withDetail("requestedReference", referenceNumber);
+    }
+    if (MoneyUtils.zeroIfNull(existing.getAmount())
+            .compareTo(MoneyUtils.zeroIfNull(amount).abs())
+        != 0) {
+      throw replayConflict(
+              "Idempotency key already used for a different supplier payment amount",
+              idempotencyKey)
+          .withDetail("existingAmount", existing.getAmount())
+          .withDetail("requestedAmount", amount);
+    }
+    if (StringUtils.hasText(memo) && !Objects.equals(existing.getMemo(), memo)) {
+      throw replayConflict(
+              "Idempotency key already used with a different supplier payment memo",
+              idempotencyKey)
+          .withDetail("existingMemo", existing.getMemo())
+          .withDetail("requestedMemo", memo);
+    }
+    if (StringUtils.hasText(sourceRoute) && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
+      throw replayConflict(
+              "Idempotency key already used for a different supplier payment route",
+              idempotencyKey)
           .withDetail("existingRoute", existing.getSourceRoute())
           .withDetail("requestedRoute", sourceRoute);
     }

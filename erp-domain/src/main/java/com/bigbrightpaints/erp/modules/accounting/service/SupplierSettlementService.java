@@ -22,6 +22,8 @@ import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentEvent;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentFlow;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
@@ -33,7 +35,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
@@ -45,10 +46,12 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 class SupplierSettlementService {
 
   private static final Logger log = LoggerFactory.getLogger(SupplierSettlementService.class);
+  private static final String SUPPLIER_SETTLEMENT_ROUTE = "/api/v1/accounting/settlements/suppliers";
+  private static final String SUPPLIER_AUTO_SETTLEMENT_ROUTE =
+      "/api/v1/accounting/suppliers/{supplierId}/auto-settle";
 
   private final CompanyContextService companyContextService;
   private final JournalEntryService journalEntryService;
-  private final SupplierPaymentService supplierPaymentService;
   private final SupplierRepository supplierRepository;
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final PartnerSettlementAllocationRepository settlementAllocationRepository;
@@ -62,11 +65,11 @@ class SupplierSettlementService {
   private final SettlementJournalLineDraftService settlementJournalLineDraftService;
   private final SettlementOutcomeService settlementOutcomeService;
   private final AccountingAuditService accountingAuditService;
+  private final PartnerPaymentEventService partnerPaymentEventService;
 
   SupplierSettlementService(
       CompanyContextService companyContextService,
       JournalEntryService journalEntryService,
-      SupplierPaymentService supplierPaymentService,
       SupplierRepository supplierRepository,
       CompanyScopedAccountingLookupService accountingLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
@@ -79,10 +82,10 @@ class SupplierSettlementService {
       SettlementTotalsValidationService settlementTotalsValidationService,
       SettlementJournalLineDraftService settlementJournalLineDraftService,
       SettlementOutcomeService settlementOutcomeService,
-      AccountingAuditService accountingAuditService) {
+      AccountingAuditService accountingAuditService,
+      PartnerPaymentEventService partnerPaymentEventService) {
     this.companyContextService = companyContextService;
     this.journalEntryService = journalEntryService;
-    this.supplierPaymentService = supplierPaymentService;
     this.supplierRepository = supplierRepository;
     this.accountingLookupService = accountingLookupService;
     this.settlementAllocationRepository = settlementAllocationRepository;
@@ -96,6 +99,7 @@ class SupplierSettlementService {
     this.settlementJournalLineDraftService = settlementJournalLineDraftService;
     this.settlementOutcomeService = settlementOutcomeService;
     this.accountingAuditService = accountingAuditService;
+    this.partnerPaymentEventService = partnerPaymentEventService;
   }
 
   @Retryable(
@@ -104,6 +108,12 @@ class SupplierSettlementService {
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   PartnerSettlementResponse settleSupplierInvoices(PartnerSettlementRequest request) {
+    return settleSupplierInvoices(
+        request, SUPPLIER_SETTLEMENT_ROUTE, "SUPPLIER_SETTLEMENT");
+  }
+
+  private PartnerSettlementResponse settleSupplierInvoices(
+      PartnerSettlementRequest request, String sourceRoute, String journalSource) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier =
         supplierRepository
@@ -166,7 +176,10 @@ class SupplierSettlementService {
             company, supplier, request, trimmedIdempotencyKey);
     JournalReplayService.IdempotencyReservation reservation =
         journalReplayService.reserveReferenceMapping(
-            company, trimmedIdempotencyKey, reference, "SUPPLIER_SETTLEMENT");
+            company, trimmedIdempotencyKey, reference, journalSource);
+    SettlementLineDraft replayLineDraft =
+        settlementJournalLineDraftService.buildSupplierSettlementLines(
+            company, request, payableAccount, totals, memo, false);
 
     if (!reservation.leader()) {
       JournalEntry existingEntry =
@@ -174,14 +187,23 @@ class SupplierSettlementService {
       List<PartnerSettlementAllocation> existingAllocations =
           journalReplayService.awaitAllocations(company, trimmedIdempotencyKey);
       if (!existingAllocations.isEmpty()) {
-        SettlementLineDraft replayLineDraft =
-            settlementJournalLineDraftService.buildSupplierSettlementLines(
-                company, request, payableAccount, totals, memo, false);
         JournalEntry entry =
             journalReplayService.resolveReplayJournalEntry(
                 trimmedIdempotencyKey, existingEntry, existingAllocations);
+        PartnerPaymentEvent paymentEvent =
+            resolveSupplierSettlementPaymentEvent(
+                company,
+                supplier,
+                totals.totalApplied(),
+                entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
+                reference,
+                trimmedIdempotencyKey,
+                memo,
+                sourceRoute);
+        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+        attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
         journalReplayService.linkReferenceMapping(
-            company, trimmedIdempotencyKey, entry, "SUPPLIER_SETTLEMENT");
+            company, trimmedIdempotencyKey, entry, journalSource);
         settlementReplayValidationService.validateSettlementIdempotencyKey(
             trimmedIdempotencyKey,
             PartnerType.SUPPLIER,
@@ -208,8 +230,20 @@ class SupplierSettlementService {
       JournalEntry entry =
           journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
               company, reference, trimmedIdempotencyKey, existingAllocations);
+      PartnerPaymentEvent paymentEvent =
+          resolveSupplierSettlementPaymentEvent(
+              company,
+              supplier,
+              totals.totalApplied(),
+              entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
+              reference,
+              trimmedIdempotencyKey,
+              memo,
+              sourceRoute);
+      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+      attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
       journalReplayService.linkReferenceMapping(
-          company, trimmedIdempotencyKey, entry, "SUPPLIER_SETTLEMENT");
+          company, trimmedIdempotencyKey, entry, journalSource);
       settlementReplayValidationService.validateSettlementIdempotencyKey(
           trimmedIdempotencyKey,
           PartnerType.SUPPLIER,
@@ -223,9 +257,7 @@ class SupplierSettlementService {
           requestedEffectiveSettlementDate,
           memo,
           entry,
-          settlementJournalLineDraftService
-              .buildSupplierSettlementLines(company, request, payableAccount, totals, memo, false)
-              .lines());
+          replayLineDraft.lines());
       return settlementOutcomeService.buildSupplierSettlementResponse(existingAllocations);
     }
 
@@ -240,6 +272,16 @@ class SupplierSettlementService {
     BigDecimal totalFxGain = totals.totalFxGain();
     BigDecimal totalFxLoss = totals.totalFxLoss();
     BigDecimal cashAmount = lineDraft.cashAmount();
+    PartnerPaymentEvent paymentEvent =
+        resolveSupplierSettlementPaymentEvent(
+            company,
+            supplier,
+            totals.totalApplied(),
+            entryDate,
+            reference,
+            trimmedIdempotencyKey,
+            memo,
+            sourceRoute);
     List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
     List<RawMaterialPurchase> touchedPurchases = new ArrayList<>();
     Map<Long, BigDecimal> remainingByPurchase = new HashMap<>();
@@ -318,6 +360,7 @@ class SupplierSettlementService {
       row.setWriteOffAmount(writeOff);
       row.setFxDifferenceAmount(fxAdjustment);
       row.setIdempotencyKey(trimmedIdempotencyKey);
+      row.setPaymentEvent(paymentEvent);
       row.setMemo(
           settlementTotalsValidationService.encodeSettlementAllocationMemo(
               applicationType, allocation.memo()));
@@ -331,7 +374,7 @@ class SupplierSettlementService {
                 null,
                 null,
                 memo,
-                "SUPPLIER_SETTLEMENT",
+                journalSource,
                 reference,
                 null,
                 toCreationLines(lineDraft.lines()),
@@ -342,8 +385,9 @@ class SupplierSettlementService {
                 List.of()));
     JournalEntry journalEntry =
         accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
+    partnerPaymentEventService.linkJournalEntry(paymentEvent, journalEntry);
     journalReplayService.linkReferenceMapping(
-        company, trimmedIdempotencyKey, journalEntry, "SUPPLIER_SETTLEMENT");
+        company, trimmedIdempotencyKey, journalEntry, journalSource);
     for (PartnerSettlementAllocation allocation : settlementRows) {
       allocation.setJournalEntry(journalEntry);
     }
@@ -430,9 +474,6 @@ class SupplierSettlementService {
     Long cashAccountId =
         accountResolutionService.resolveAutoSettlementCashAccountId(
             company, request.cashAccountId(), "supplier auto-settlement");
-    List<SettlementAllocationRequest> allocations =
-        settlementAllocationResolutionService.buildSupplierAutoSettlementAllocations(
-            company, supplier, amount);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
@@ -441,14 +482,66 @@ class SupplierSettlementService {
         StringUtils.hasText(request.referenceNumber())
             ? request.referenceNumber().trim()
             : settlementReferenceService.buildSupplierAutoSettlementReference(
-                supplier, cashAccountId, amount, allocations);
+                supplier, cashAccountId, amount, List.of());
     String idempotencyKey =
         StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : reference;
-    SupplierPaymentRequest paymentRequest =
-        new SupplierPaymentRequest(
-            supplier.getId(), cashAccountId, amount, reference, memo, idempotencyKey, allocations);
-    JournalEntryDto journalEntry = supplierPaymentService.recordSupplierPayment(paymentRequest);
-    return settlementOutcomeService.buildAutoSettlementResponse(company, journalEntry);
+    PartnerSettlementRequest settlementRequest =
+        new PartnerSettlementRequest(
+            PartnerType.SUPPLIER,
+            supplier.getId(),
+            cashAccountId,
+            null,
+            null,
+            null,
+            null,
+            amount,
+            null,
+            null,
+            reference,
+            memo,
+            idempotencyKey,
+            Boolean.FALSE,
+            null);
+    return settleSupplierInvoices(
+        settlementRequest, SUPPLIER_AUTO_SETTLEMENT_ROUTE, "SUPPLIER_PAYMENT");
+  }
+
+  private PartnerPaymentEvent resolveSupplierSettlementPaymentEvent(
+      Company company,
+      Supplier supplier,
+      BigDecimal paymentAmount,
+      LocalDate paymentDate,
+      String reference,
+      String idempotencyKey,
+      String memo,
+      String sourceRoute) {
+    return partnerPaymentEventService.resolveOrCreateSupplierPaymentEvent(
+        company,
+        supplier,
+        PartnerPaymentFlow.SUPPLIER_SETTLEMENT,
+        paymentAmount,
+        paymentDate,
+        reference,
+        idempotencyKey,
+        memo,
+        sourceRoute);
+  }
+
+  private void attachPaymentEventToSettlementRows(
+      List<PartnerSettlementAllocation> allocations, PartnerPaymentEvent paymentEvent) {
+    if (paymentEvent == null || allocations == null || allocations.isEmpty()) {
+      return;
+    }
+    boolean updated = false;
+    for (PartnerSettlementAllocation allocation : allocations) {
+      if (allocation.getPaymentEvent() == null) {
+        allocation.setPaymentEvent(paymentEvent);
+        updated = true;
+      }
+    }
+    if (updated) {
+      settlementAllocationRepository.saveAll(allocations);
+    }
   }
 
   private String requireAdminExceptionReason(
