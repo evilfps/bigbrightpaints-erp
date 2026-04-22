@@ -1,0 +1,646 @@
+{
+  "groupId": "gl-core-runtime",
+  "surface": "api-and-db",
+  "appUrl": "http://localhost:18081",
+  "testedAt": "2026-04-22T06:16:25Z",
+  "credentials": {
+    "accounts": [
+      "validation.admin@example.com / QaFixture!2026 / MOCK",
+      "validation.accounting@example.com / QaFixture!2026 / MOCK",
+      "validation.sales@example.com / QaFixture!2026 / MOCK",
+      "validation.rival.admin@example.com / QaFixture!2026 / RIVAL"
+    ]
+  },
+  "toolsUsed": [
+    "python urllib runtime probes",
+    "docker exec psql"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-GL-001",
+      "title": "Chart of accounts list",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Chart of accounts list",
+          "expected": "200 sorted company-scoped account list; unauthenticated denied.",
+          "observed": "MOCK returned 15 accounts sorted by code; RIVAL returned 1 company-scoped account(s); unauthenticated call returned 403."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-002",
+      "title": "Chart of accounts tree",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Chart of accounts tree",
+          "expected": "200 hierarchical tree containing all company accounts.",
+          "observed": "Account tree returned 15 root node(s) covering 15 account ids, with valid parentId relationships."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-003",
+      "title": "Account tree type filter invalid-type contract",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Account tree type filter invalid-type contract",
+          "expected": "Valid type returns only requested AccountType and invalid type returns 400 with allowed values.",
+          "observed": "Valid filter status=200, only_assets=True; invalid type status=400, allowedValues=None, response={'traceId': 'fc3fa796-91bc-431f-82ed-f9d61b20be85', 'reason': \"Invalid account type 'not-a-type'\", 'path': '/api/v1/accounting/accounts/tree/not-a-type', 'code': 'VAL_001', 'message': \"Invalid account type 'not-a-type'\", 'timestamp': '2026-04-22T05:51:55.932507927'}."
+        }
+      ],
+      "evidence": {},
+      "issues": "Valid filter status=200, only_assets=True; invalid type status=400, allowedValues=None, response={'traceId': 'fc3fa796-91bc-431f-82ed-f9d61b20be85', 'reason': \"Invalid account type 'not-a-type'\", 'path': '/api/v1/accounting/accounts/tree/not-a-type', 'code': 'VAL_001', 'message': \"Invalid account type 'not-a-type'\", 'timestamp': '2026-04-22T05:51:55.932507927'}."
+    },
+    {
+      "id": "VAL-GL-004",
+      "title": "Account creation valid payload",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account creation valid payload",
+          "expected": "Valid account create returns 200 with generated id/publicId and zero balance.",
+          "observed": "Created account id=17 code=UTA837115 with zero balance and non-null publicId."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-005",
+      "title": "Account creation parent hierarchy rules",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account creation parent hierarchy rules",
+          "expected": "Same-type parent create succeeds; different-type parent returns 400.",
+          "observed": "Child account under same-type parent returned 200 (child id=19); cross-type parent returned 400 with body={'traceId': '236318f7-b3bf-46e4-849a-40007a3d3ee5', 'reason': 'Child account must have same type as parent', 'path': '/api/v1/accounting/accounts', 'code': 'VAL_001', 'message': 'Child account must have same type as parent', 'timestamp': '2026-04-22T05:51:57.940068106'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-006",
+      "title": "Account creation required field validation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account creation required field validation",
+          "expected": "Missing code/name/type returns 400 with field-level validation details.",
+          "observed": "Missing-field create returned 400 with field errors {'name': 'must not be blank', 'type': 'must not be null', 'code': 'must not be blank'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-035",
+      "title": "Duplicate account code conflict",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Duplicate account code conflict",
+          "expected": "Duplicate company-scoped account code returns 409 conflict and creates no second account.",
+          "observed": "Duplicate code UTA837115 returned 409 with body={'traceId': '7a43e979-9699-4ce2-b5c7-ce13fab1e52d', 'reason': \"Account code 'UTA837115' already exists for company MOCK\", 'path': '/api/v1/accounting/accounts', 'code': 'BUS_002', 'message': \"Account code 'UTA837115' already exists for company MOCK\", 'timestamp': '2026-04-22T05:51:58.304369138'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-007",
+      "title": "Default accounts read",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Default accounts read",
+          "expected": "GET default-accounts returns all six default-account slots.",
+          "observed": "Default accounts read returned {'inventoryAccountId': None, 'cogsAccountId': None, 'revenueAccountId': None, 'discountAccountId': None, 'fgDiscountAccountId': None, 'taxAccountId': None}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-008",
+      "title": "Default accounts update valid wiring",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Default accounts update valid wiring",
+          "expected": "Valid default-account update returns 200 and omitting fgDiscountAccountId resolves it to discountAccountId.",
+          "observed": "Valid default-account update returned status=200 payload={'inventoryAccountId': 5, 'cogsAccountId': 6, 'revenueAccountId': 7, 'discountAccountId': 11, 'fgDiscountAccountId': 11, 'taxAccountId': 9}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-009",
+      "title": "Default accounts discount validation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Default accounts discount validation",
+          "expected": "Discount account accepts REVENUE or EXPENSE only, and explicit discount + fgDiscount must match.",
+          "observed": "Revenue discount account update returned 200; asset discount update returned 400; mismatched discount/fgDiscount returned 400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-010",
+      "title": "Configuration health readiness",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Configuration health readiness",
+          "expected": "Configuration health reports unhealthy when defaults are missing and healthy=true, issues=[] after wiring is complete.",
+          "observed": "Before wiring: healthy=False issues=[{'companyCode': 'MOCK', 'domain': 'DEFAULT_ACCOUNTS', 'reference': 'COMPANY_DEFAULTS', 'message': 'Missing default account IDs: defaultInventoryAccountId, defaultCogsAccountId, defaultRevenueAccountId, defaultDiscountAccountId, defaultTaxAccountId'}]; after wiring defaults: healthy=True issues=[]."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-011",
+      "title": "Configuration health detects product account gaps",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Configuration health detects product account gaps",
+          "expected": "Finished-good valuation/revenue/tax gaps should emit FINISHED_GOOD_ACCOUNT issues; raw-material inventory gaps should emit RAW_MATERIAL_ACCOUNT issues; missing GST accounts should emit TAX_ACCOUNT issues.",
+          "observed": "After nulling FG-GST valuation_account_id, configuration health still returned healthy=True with issues=[]; nulling RM-RESIN inventory_account_id returned healthy=False with RAW_MATERIAL_ACCOUNT; nulling MOCK gst_output_tax_account_id returned healthy=False with TAX_ACCOUNT."
+        }
+      ],
+      "evidence": {},
+      "issues": "After nulling FG-GST valuation_account_id, configuration health still returned healthy=True with issues=[]; nulling RM-RESIN inventory_account_id returned healthy=False with RAW_MATERIAL_ACCOUNT; nulling MOCK gst_output_tax_account_id returned healthy=False with TAX_ACCOUNT."
+    },
+    {
+      "id": "VAL-GL-012",
+      "title": "Journal entries list filters",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal entries list filters",
+          "expected": "Journal-entry list supports pagination plus dealerId/supplierId/source filters.",
+          "observed": "Pagination returned 5 items; dealerId=3 returned 5 dealer rows; supplierId=1 returned 2 supplier rows; source=PURCHASING returned 1 row(s)."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-013",
+      "title": "Journals list date/type/source filters",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journals list date/type/source filters",
+          "expected": "Journals list respects date range, journal type, sourceModule, page, and size filters.",
+          "observed": "Automated/date-range journals returned 13; sourceModule=PURCHASING returned 1."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-014",
+      "title": "Manual journal posting balanced lines",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Manual journal posting balanced lines",
+          "expected": "Balanced manual journal posts successfully with MANUAL- reference number and equal debits/credits.",
+          "observed": "Balanced manual journal posting returned status=200 but the server ignored the requested MANUAL- reference namespace and emitted referenceNumber=JRN-MOCK-202604-0001 while keeping debits/credits balanced."
+        }
+      ],
+      "evidence": {},
+      "issues": "Balanced manual journal posting returned status=200 but the server ignored the requested MANUAL- reference namespace and emitted referenceNumber=JRN-MOCK-202604-0001 while keeping debits/credits balanced."
+    },
+    {
+      "id": "VAL-GL-037",
+      "title": "Manual journal memo required",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Manual journal memo required",
+          "expected": "Blank or missing memo is rejected with a validation error.",
+          "observed": "Blank memo returned status=400, body={'traceId': 'ecc36621-541b-42ea-ab55-b00420281673', 'reason': 'Manual journal reason is required', 'path': '/api/v1/accounting/journal-entries', 'code': 'VAL_002', 'message': 'Manual journal reason is required', 'timestamp': '2026-04-22T05:52:05.283259596'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-015",
+      "title": "Manual journal rejects imbalance",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Manual journal rejects imbalance",
+          "expected": "Unbalanced manual journal returns 400.",
+          "observed": "Unbalanced manual journal returned status=400, body={'traceId': '0052e08c-25a0-4bdb-b7c1-16420aeae054', 'reason': 'Journal entry must balance', 'path': '/api/v1/accounting/journal-entries', 'code': 'VAL_001', 'message': 'Journal entry must balance', 'timestamp': '2026-04-22T05:52:05.541582142'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-016",
+      "title": "Manual journal reserved namespace protection",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Manual journal reserved namespace protection",
+          "expected": "System-reserved references are rejected, but MANUAL- is allowed.",
+          "observed": "Reserved prefix status=400, reserved -INV- pattern status=400, MANUAL- prefix status=200."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-017",
+      "title": "Manual journal idempotency",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Manual journal idempotency",
+          "expected": "Same reference with same payload replays the existing journal, while a materially different replay of that reference returns 400.",
+          "observed": "A MANUAL-REPLAY probe returned 200/200/200 for first/same/changed payloads; both replays returned the original journal id=36 with unchanged memo/line amounts instead of rejecting the materially different payload."
+        }
+      ],
+      "evidence": {},
+      "issues": "A MANUAL-REPLAY probe returned 200/200/200 for first/same/changed payloads; both replays returned the original journal id=36 with unchanged memo/line amounts instead of rejecting the materially different payload."
+    },
+    {
+      "id": "VAL-GL-018",
+      "title": "Manual journal line validation",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Manual journal line validation",
+          "expected": "Missing accountId, negative amounts, zero-only lines, and both-debit-and-credit lines are rejected with 400.",
+          "observed": "Invalid line cases returned ['missing accountId:400', 'negative amount:400', 'zero line:400', 'both debit/credit:400']."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-019",
+      "title": "Journal reversal \u2014 full reversal in open period",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 full reversal in open period",
+          "expected": "Open-period reversal returns 200 with flipped debit/credit lines and marks the original REVERSED.",
+          "observed": "Entry 22 reversed with status=200 into entry 23; DB status for the original became REVERSED and the reversal lines flipped 300.00 debit/credit exactly."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-020",
+      "title": "Journal reversal \u2014 void-only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 void-only",
+          "expected": "voidOnly=true returns 200, marks the original VOIDED, and posts a counter-entry with flipped lines and VOID metadata.",
+          "observed": "Entry 24 reversed with status=200 into entry 25; DB status for the original became VOIDED and the counter-entry carried correctionType=VOID with flipped 310.00 lines."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-021",
+      "title": "Journal reversal \u2014 partial reversal",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 partial reversal",
+          "expected": "reversalPercentage=50.00 returns 200 with reversal lines at exactly 50% of the original amounts.",
+          "observed": "Entry 26 reversed with status=200 into entry 27; the reversal summed to debit=500.00 credit=500.00 for the original 1000.00/1000.00 journal."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-022",
+      "title": "Journal reversal \u2014 blocked for locked period",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 blocked for locked period",
+          "expected": "Reversing an entry whose accounting period is LOCKED returns 400 and leaves the original unchanged.",
+          "observed": "A March journal posted with adminOverride was then placed in LOCKED period 2; reversing entry 29 returned 400 \"Cannot reverse entry from LOCKED period 2026-3\" and the original remained POSTED."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-023",
+      "title": "Journal reversal \u2014 closed period requires admin override",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 closed period requires admin override",
+          "expected": "Reversing in a CLOSED period returns 400 without adminOverride and succeeds with an override plus audit metadata.",
+          "observed": "Entry 30 in CLOSED March period returned 400 without override, then 200 with adminOverride=true into entry 31; audit_action_events recorded JOURNAL_REVERSAL_ADMIN_OVERRIDE metadata including adminOverrideAuthorized=true and the before/after states."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-024",
+      "title": "Journal reversal \u2014 already reversed or voided",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal \u2014 already reversed or voided",
+          "expected": "Reversing an already REVERSED entry returns 400 and reversing a VOIDED entry returns 400.",
+          "observed": "Reversing entry 22 again returned 400 \"Entry has already been reversed\"; reversing entry 24 again returned 400 \"Entry is already voided\"."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-025",
+      "title": "GST return GST-mode company",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GST return GST-mode company",
+          "expected": "GST-mode company returns document-backed GST totals and future periods are rejected; journal-only GST entries without source docs do not alter totals.",
+          "observed": "January GST return before/after journal-only GST entry was {'period': '2026-01', 'periodStart': '2026-01-01', 'periodEnd': '2026-01-31', 'outputTax': 180.0, 'inputTax': 0.0, 'netPayable': 180.0} / {'period': '2026-01', 'periodStart': '2026-01-01', 'periodEnd': '2026-01-31', 'outputTax': 180.0, 'inputTax': 0.0, 'netPayable': 180.0}; future-period status=400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-026",
+      "title": "GST return non-GST company",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GST return non-GST company",
+          "expected": "Non-GST company returns zeros when clean and 400 if GST accounts are configured.",
+          "observed": "Non-GST RIVAL return before GST accounts was {'period': '2026-04', 'periodStart': '2026-04-01', 'periodEnd': '2026-04-30', 'outputTax': 0, 'inputTax': 0, 'netPayable': 0.0}; after configuring GST accounts status=400, body={'traceId': '298093b6-5b9b-4046-aabf-bbccab5babd1', 'reason': 'Non-GST mode company cannot have GST tax accounts configured', 'path': '/api/v1/accounting/gst/return', 'code': 'VAL_001', 'message': 'Non-GST mode company cannot have GST tax accounts configured', 'timestamp': '2026-04-22T05:52:14.506723455'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-027",
+      "title": "GST reconciliation breakdown",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GST reconciliation breakdown",
+          "expected": "GST reconciliation exposes collected/input/net components and excludes journal-only GST entries without source docs for persisted-company truth.",
+          "observed": "January GST reconciliation before/after journal-only GST entry was {'period': '2026-01', 'periodStart': '2026-01-01', 'periodEnd': '2026-01-31', 'collected': {'cgst': 90.0, 'sgst': 90.0, 'igst': 0.0, 'total': 180.0}, 'inputTaxCredit': {'cgst': 0.0, 'sgst': 0.0, 'igst': 0.0, 'total': 0.0}, 'netLiability': {'cgst': 90.0, 'sgst': 90.0, 'igst': 0.0, 'total': 180.0}} / {'period': '2026-01', 'periodStart': '2026-01-01', 'periodEnd': '2026-01-31', 'collected': {'cgst': 90.0, 'sgst': 90.0, 'igst': 0.0, 'total': 180.0}, 'inputTaxCredit': {'cgst': 0.0, 'sgst': 0.0, 'igst': 0.0, 'total': 0.0}, 'netLiability': {'cgst': 90.0, 'sgst': 90.0, 'igst': 0.0, 'total': 180.0}}; report summary={'cgst': 90.0, 'sgst': 90.0, 'igst': 0.0, 'total': 180.0}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-028",
+      "title": "Accounting date context",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Accounting date context",
+          "expected": "Date context exposes companyId/companyCode/timezone/today/now and today matches company timezone.",
+          "observed": "Date context returned {'companyCode': 'MOCK', 'companyId': 1, 'timezone': 'UTC', 'today': '2026-04-22', 'now': '2026-04-22T05:52:07.484970113Z'}."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-029",
+      "title": "Account balance as of date",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account balance as of date",
+          "expected": "Balance as-of returns numeric value for valid date and 400 for invalid date.",
+          "observed": "Valid as-of status=200 value=254.45; invalid-date status=400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-030",
+      "title": "Account balance compare",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account balance compare",
+          "expected": "Balance compare returns from/to/change and 400 when dates are missing.",
+          "observed": "Compare status=200, payload={'from': '2026-04-01', 'fromBalance': 0, 'to': '2026-04-30', 'toBalance': 254.45, 'change': 254.45}; missing-date status=400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-031",
+      "title": "Account activity report",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Account activity report",
+          "expected": "Account activity returns opening/closing/netMovement with closing = opening + netMovement, and missing dates return 400.",
+          "observed": "Activity status=200, opening=0, net=254.45, closing=254.45; missing-date status=400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-032",
+      "title": "Trial balance as of date",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Trial balance as of date",
+          "expected": "Trial balance is balanced and missing date returns 400.",
+          "observed": "Trial balance totals debits=9471.95 credits=9471.95; missing-date status=400."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-033",
+      "title": "Audit trail transaction list and detail",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Audit trail transaction list and detail",
+          "expected": "Audit list/detail endpoints return 200 for admin/accounting, 403 outside policy, and 404 for missing journal ids.",
+          "observed": "GET /audit/transactions returned 200 for admin and accounting, 403 for sales; detail for journal 34 returned 200 with eventTrail and linkedReferenceChain; journal 99999999 returned 404."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-034",
+      "title": "Authorization enforced on GL core endpoints",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Authorization enforced on GL core endpoints",
+          "expected": "Core accounting endpoints deny unauthenticated/insufficient-role callers while admin/accounting access succeeds.",
+          "observed": "GET /api/v1/accounting/accounts returned 403 unauthenticated, 200 for ROLE_ACCOUNTING, and 403 for ROLE_SALES; audit list remained 200 for admin and 403 for sales."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-038",
+      "title": "Journal reversal rejects unsupported cascade options",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Journal reversal rejects unsupported cascade options",
+          "expected": "cascadeRelatedEntries=true or relatedEntryIds should return 400 and create no reversal rows.",
+          "observed": "Reversing entry 32 with cascadeRelatedEntries=true and relatedEntryIds=[22] returned 400 \"Cascade reversal is not supported; reverse each related entry individually\" and journal_entries contained zero rows with reversal_of_id=32."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-GL-039",
+      "title": "Void-only reversal cannot be partial",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Void-only reversal cannot be partial",
+          "expected": "voidOnly=true with reversalPercentage<100 returns 400.",
+          "observed": "Reversing entry 33 with voidOnly=true and reversalPercentage=50.0 returned 400 \"voidOnly reversal cannot use reversalPercentage less than 100\"."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-008",
+      "title": "Trial balance reflects all posted journals across modules",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Trial balance reflects all posted journals across modules",
+          "expected": "Trial balance remains balanced and includes posted journal truth from all contributing modules.",
+          "observed": "Trial balance as of 2026-04-30 returned totalDebits=9227.5 and totalCredits=9227.5; April journal source_module counts were MANUAL=10, NULL=19, and PURCHASING=1, confirming cross-module posting contributions."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-010",
+      "title": "GST surfaces agree on document-backed tax truth",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GST surfaces agree on document-backed tax truth",
+          "expected": "GST return, reconciliation, and report endpoints should agree on document-backed tax truth, and a journal-only GST entry without source documents must not change canonical January totals.",
+          "observed": "After posting January journal 35 under adminOverride between GST-IN and GST-OUT, /accounting/gst/return, /accounting/gst/reconciliation, and /reports/gst-return?periodId=4 all remained at 180.0 total tax/net liability with one rateSummary and one transactionDetail."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-016",
+      "title": "Posted journal in closed/locked period cannot be reversed without reopen",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Posted journal in closed/locked period cannot be reversed without reopen",
+          "expected": "Locked and closed periods should block reversal without the required lifecycle state/override, while supported reversal paths remain balanced.",
+          "observed": "Live API/DB probes covered open reversal, void-only, partial reversal, locked-period rejection, closed-period rejection without override, closed-period override with audit record, duplicate reversal rejection, cascade rejection, and partial-void rejection; all observed behaviors matched the contract."
+        }
+      ],
+      "evidence": {},
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The delegated user-testing-flow-validator Task helper exited without producing a report.",
+      "resolved": true,
+      "resolution": "Validation fell back to direct in-session API/DB verification on the seeded compose runtime.",
+      "affectedAssertions": [
+        "VAL-CROSS-008",
+        "VAL-CROSS-010",
+        "VAL-CROSS-016",
+        "VAL-GL-001",
+        "VAL-GL-002",
+        "VAL-GL-003",
+        "VAL-GL-004",
+        "VAL-GL-005",
+        "VAL-GL-006",
+        "VAL-GL-007",
+        "VAL-GL-008",
+        "VAL-GL-009",
+        "VAL-GL-010",
+        "VAL-GL-011",
+        "VAL-GL-012",
+        "VAL-GL-013",
+        "VAL-GL-014",
+        "VAL-GL-015",
+        "VAL-GL-016",
+        "VAL-GL-017",
+        "VAL-GL-018",
+        "VAL-GL-019",
+        "VAL-GL-020",
+        "VAL-GL-021",
+        "VAL-GL-022",
+        "VAL-GL-023",
+        "VAL-GL-024",
+        "VAL-GL-025",
+        "VAL-GL-026",
+        "VAL-GL-027",
+        "VAL-GL-028",
+        "VAL-GL-029",
+        "VAL-GL-030",
+        "VAL-GL-031",
+        "VAL-GL-032",
+        "VAL-GL-033",
+        "VAL-GL-034",
+        "VAL-GL-035",
+        "VAL-GL-037",
+        "VAL-GL-038",
+        "VAL-GL-039"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Completed seeded API/DB validation for 41 assertions (40 fulfill-derived plus adjacent auth probe VAL-GL-034). Four fulfill-derived contract mismatches remain: VAL-GL-003, VAL-GL-011, VAL-GL-014, and VAL-GL-017."
+}
