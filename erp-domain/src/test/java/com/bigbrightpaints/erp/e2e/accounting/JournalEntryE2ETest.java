@@ -291,6 +291,134 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName("Journal Entry: Manual idempotency rejects materially different replay payloads")
+  void journalEntry_ManualIdempotencyKey_RejectsMaterialReplayConflict() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Account cashAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+    Account revenueAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+
+    LocalDate entryDate = LocalDate.now();
+    String manualRef = "MANUAL-REPLAY-" + System.currentTimeMillis();
+    BigDecimal originalAmount = new BigDecimal("125.00");
+
+    Map<String, Object> originalDebitLine =
+        Map.of(
+            "accountId",
+            cashAccount.getId(),
+            "debit",
+            originalAmount,
+            "credit",
+            BigDecimal.ZERO,
+            "description",
+            "Replay baseline debit");
+
+    Map<String, Object> originalCreditLine =
+        Map.of(
+            "accountId",
+            revenueAccount.getId(),
+            "debit",
+            BigDecimal.ZERO,
+            "credit",
+            originalAmount,
+            "description",
+            "Replay baseline credit");
+
+    Map<String, Object> firstRequest =
+        Map.of(
+            "entryDate",
+            entryDate,
+            "referenceNumber",
+            manualRef,
+            "memo",
+            "Manual replay baseline",
+            "lines",
+            List.of(originalDebitLine, originalCreditLine));
+
+    ResponseEntity<Map> firstResponse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(firstRequest, headers),
+            Map.class);
+    assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> firstData = (Map<?, ?>) firstResponse.getBody().get("data");
+    assertThat(firstData).isNotNull();
+    Long firstId = ((Number) firstData.get("id")).longValue();
+
+    ResponseEntity<Map> replayResponse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(firstRequest, headers),
+            Map.class);
+    assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> replayData = (Map<?, ?>) replayResponse.getBody().get("data");
+    assertThat(replayData).isNotNull();
+    assertThat(((Number) replayData.get("id")).longValue()).isEqualTo(firstId);
+
+    BigDecimal changedAmount = new BigDecimal("130.00");
+    Map<String, Object> changedDebitLine =
+        Map.of(
+            "accountId",
+            cashAccount.getId(),
+            "debit",
+            changedAmount,
+            "credit",
+            BigDecimal.ZERO,
+            "description",
+            "Replay changed debit");
+    Map<String, Object> changedCreditLine =
+        Map.of(
+            "accountId",
+            revenueAccount.getId(),
+            "debit",
+            BigDecimal.ZERO,
+            "credit",
+            changedAmount,
+            "description",
+            "Replay changed credit");
+    Map<String, Object> changedRequest =
+        Map.of(
+            "entryDate",
+            entryDate,
+            "referenceNumber",
+            manualRef,
+            "memo",
+            "Manual replay changed memo",
+            "lines",
+            List.of(changedDebitLine, changedCreditLine));
+
+    ResponseEntity<Map> changedResponse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(changedRequest, headers),
+            Map.class);
+    assertThat(changedResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    Map<?, ?> changedBody = changedResponse.getBody();
+    assertThat(changedBody).isNotNull();
+    assertThat(changedBody.toString().toLowerCase(Locale.ROOT))
+        .contains("replay")
+        .contains("conflict");
+    Object changedPayload = changedBody.get("data");
+    if (changedPayload instanceof Map<?, ?> changedError) {
+      assertThat(changedError.get("code")).isEqualTo("VAL_001");
+      Object details = changedError.get("details");
+      if (details instanceof Map<?, ?> detailMap) {
+        assertThat(detailMap.get("outcome")).isEqualTo("replay-conflict");
+      }
+    }
+
+    List<JournalReferenceMapping> mappings =
+        journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(
+            company, manualRef);
+    assertThat(mappings).hasSize(1);
+    assertThat(mappings.getFirst().getEntityId()).isEqualTo(firstId);
+  }
+
+  @Test
   @DisplayName("Journal Entry: FX rounding metadata persists on audit trail live path")
   void journalEntry_FxRoundingMetadata_PersistsOnAuditTrailLivePath() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();

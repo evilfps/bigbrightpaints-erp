@@ -1,5 +1,12 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -11,10 +18,12 @@ import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @Service
@@ -26,6 +35,7 @@ class ManualJournalService {
   private final JournalReferenceResolver journalReferenceResolver;
   private final JournalReferenceMappingRepository journalReferenceMappingRepository;
   private final JournalReplayService journalReplayService;
+  private final JournalReferenceService journalReferenceService;
   private final AccountingDtoMapperService dtoMapperService;
 
   ManualJournalService(
@@ -35,6 +45,7 @@ class ManualJournalService {
       JournalReferenceResolver journalReferenceResolver,
       JournalReferenceMappingRepository journalReferenceMappingRepository,
       JournalReplayService journalReplayService,
+      JournalReferenceService journalReferenceService,
       AccountingDtoMapperService dtoMapperService) {
     this.journalPostingService = journalPostingService;
     this.companyContextService = companyContextService;
@@ -42,6 +53,7 @@ class ManualJournalService {
     this.journalReferenceResolver = journalReferenceResolver;
     this.journalReferenceMappingRepository = journalReferenceMappingRepository;
     this.journalReplayService = journalReplayService;
+    this.journalReferenceService = journalReferenceService;
     this.dtoMapperService = dtoMapperService;
   }
 
@@ -60,12 +72,12 @@ class ManualJournalService {
       Optional<JournalEntry> existingByReference =
           journalEntryRepository.findByCompanyAndReferenceNumber(company, rawKey);
       if (existingByReference.isPresent()) {
-        return dtoMapperService.toJournalEntryDto(existingByReference.get());
+        return replayExistingEntryIfEquivalent(existingByReference.get(), request, company, rawKey);
       }
       Optional<JournalEntry> existingByResolver =
           journalReferenceResolver.findExistingEntry(company, rawKey);
       if (existingByResolver.isPresent()) {
-        return dtoMapperService.toJournalEntryDto(existingByResolver.get());
+        return replayExistingEntryIfEquivalent(existingByResolver.get(), request, company, rawKey);
       }
       int reserved =
           journalReferenceMappingRepository.reserveManualReference(
@@ -77,7 +89,7 @@ class ManualJournalService {
       if (reserved == 0) {
         JournalEntry already = journalReplayService.awaitJournalEntry(company, rawKey, key);
         if (already != null) {
-          return dtoMapperService.toJournalEntryDto(already);
+          return replayExistingEntryIfEquivalent(already, request, company, rawKey);
         }
         throw new ApplicationException(
                 ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
@@ -112,7 +124,7 @@ class ManualJournalService {
       }
       JournalEntry already = journalReplayService.awaitJournalEntry(company, rawKey, key);
       if (already != null) {
-        return dtoMapperService.toJournalEntryDto(already);
+        return replayExistingEntryIfEquivalent(already, request, company, rawKey);
       }
       throw ex;
     }
@@ -134,4 +146,149 @@ class ManualJournalService {
     }
     return created;
   }
+
+  private JournalEntryDto replayExistingEntryIfEquivalent(
+      JournalEntry existingEntry,
+      JournalEntryRequest request,
+      Company company,
+      String idempotencyKey) {
+    ensureReplayPayloadMatchesExisting(existingEntry, request, company, idempotencyKey);
+    return dtoMapperService.toJournalEntryDto(existingEntry);
+  }
+
+  private void ensureReplayPayloadMatchesExisting(
+      JournalEntry existingEntry,
+      JournalEntryRequest request,
+      Company company,
+      String idempotencyKey) {
+    if (existingEntry == null || request == null) {
+      return;
+    }
+    List<String> mismatches = new ArrayList<>();
+    if (!Objects.equals(existingEntry.getEntryDate(), request.entryDate())) {
+      mismatches.add("entryDate");
+    }
+    if (!Objects.equals(existingDealerId(existingEntry), request.dealerId())) {
+      mismatches.add("dealerId");
+    }
+    if (!Objects.equals(existingSupplierId(existingEntry), request.supplierId())) {
+      mismatches.add("supplierId");
+    }
+    if (!Objects.equals(existingEntry.getMemo(), normalizeMemo(request.memo()))) {
+      mismatches.add("memo");
+    }
+
+    String requestedCurrency = journalReferenceService.resolveCurrency(request.currency(), company);
+    BigDecimal requestedFxRate =
+        journalReferenceService.resolveFxRate(requestedCurrency, company, request.fxRate());
+    if (!sameCurrency(existingEntry.getCurrency(), requestedCurrency)) {
+      mismatches.add("currency");
+    }
+    if (!sameFxRate(existingEntry.getFxRate(), requestedFxRate)) {
+      mismatches.add("fxRate");
+    }
+    if (!lineSignatureCounts(existingEntry.getLines())
+        .equals(lineSignatureCountsFromRequest(request.lines(), requestedFxRate))) {
+      mismatches.add("lines");
+    }
+    if (!mismatches.isEmpty()) {
+      throw replayConflict(idempotencyKey, existingEntry, mismatches);
+    }
+  }
+
+  private Long existingDealerId(JournalEntry entry) {
+    return entry != null && entry.getDealer() != null ? entry.getDealer().getId() : null;
+  }
+
+  private Long existingSupplierId(JournalEntry entry) {
+    return entry != null && entry.getSupplier() != null ? entry.getSupplier().getId() : null;
+  }
+
+  private String normalizeMemo(String memo) {
+    return StringUtils.hasText(memo) ? memo.trim() : null;
+  }
+
+  private boolean sameCurrency(String left, String right) {
+    if (left == null && right == null) {
+      return true;
+    }
+    return left != null && right != null && left.equalsIgnoreCase(right);
+  }
+
+  private boolean sameFxRate(BigDecimal left, BigDecimal right) {
+    BigDecimal normalizedLeft = left == null ? BigDecimal.ONE : left;
+    BigDecimal normalizedRight = right == null ? BigDecimal.ONE : right;
+    return normalizedLeft.compareTo(normalizedRight) == 0;
+  }
+
+  private Map<LineSignature, Integer> lineSignatureCounts(List<JournalLine> lines) {
+    Map<LineSignature, Integer> counts = new HashMap<>();
+    if (lines == null) {
+      return counts;
+    }
+    for (JournalLine line : lines) {
+      if (line == null || line.getAccount() == null || line.getAccount().getId() == null) {
+        continue;
+      }
+      LineSignature signature =
+          new LineSignature(
+              line.getAccount().getId(),
+              normalizeAmount(line.getDebit()),
+              normalizeAmount(line.getCredit()));
+      counts.merge(signature, 1, Integer::sum);
+    }
+    return counts;
+  }
+
+  private Map<LineSignature, Integer> lineSignatureCountsFromRequest(
+      List<JournalEntryRequest.JournalLineRequest> lines, BigDecimal fxRate) {
+    Map<LineSignature, Integer> counts = new HashMap<>();
+    if (lines == null) {
+      return counts;
+    }
+    for (JournalEntryRequest.JournalLineRequest line : lines) {
+      if (line == null || line.accountId() == null) {
+        continue;
+      }
+      BigDecimal baseDebit =
+          journalReferenceService.toBaseCurrency(
+              line.debit() == null ? BigDecimal.ZERO : line.debit(), fxRate);
+      BigDecimal baseCredit =
+          journalReferenceService.toBaseCurrency(
+              line.credit() == null ? BigDecimal.ZERO : line.credit(), fxRate);
+      LineSignature signature =
+          new LineSignature(line.accountId(), normalizeAmount(baseDebit), normalizeAmount(baseCredit));
+      counts.merge(signature, 1, Integer::sum);
+    }
+    return counts;
+  }
+
+  private BigDecimal normalizeAmount(BigDecimal amount) {
+    if (amount == null) {
+      return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+    }
+    return amount.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private ApplicationException replayConflict(
+      String idempotencyKey, JournalEntry existingEntry, List<String> mismatches) {
+    String normalizedIdempotencyKey =
+        StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : idempotencyKey;
+    ApplicationException exception =
+        new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Manual journal replay conflict: idempotency key already used with materially"
+                    + " different payload")
+            .withDetail("outcome", "replay-conflict")
+            .withDetail("referenceNumber", normalizedIdempotencyKey)
+            .withDetail("mismatches", mismatches);
+    if (existingEntry != null) {
+      exception
+          .withDetail("existingReferenceNumber", existingEntry.getReferenceNumber())
+          .withDetail("existingJournalEntryId", existingEntry.getId());
+    }
+    return exception;
+  }
+
+  private record LineSignature(Long accountId, BigDecimal debit, BigDecimal credit) {}
 }
