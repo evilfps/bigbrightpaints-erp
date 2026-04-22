@@ -134,11 +134,10 @@ class DealerSettlementService {
                     new ApplicationException(
                         ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
     Account receivableAccount = accountResolutionService.requireDealerReceivable(dealer);
-    String trimmedIdempotencyKey =
-        settlementReferenceService.resolveDealerSettlementIdempotencyKey(request);
+    String replayLookupKey = settlementReferenceService.resolveExplicitSettlementReplayKey(request);
     List<SettlementAllocationRequest> allocations =
         settlementAllocationResolutionService.resolveDealerSettlementAllocations(
-            company, dealer, request, trimmedIdempotencyKey);
+            company, dealer, request, replayLookupKey);
     PartnerSettlementRequest requestForReplay =
         request.allocations() == allocations
             ? request
@@ -158,7 +157,7 @@ class DealerSettlementService {
                 request.idempotencyKey(),
                 request.adminOverride(),
                 allocations);
-    trimmedIdempotencyKey =
+    String trimmedIdempotencyKey =
         settlementReferenceService.resolveDealerSettlementIdempotencyKey(requestForReplay);
     if (!StringUtils.hasText(trimmedIdempotencyKey)) {
       throw new ApplicationException(

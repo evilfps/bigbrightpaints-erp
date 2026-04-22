@@ -869,6 +869,93 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
   }
 
   @Test
+  void dealerAutoSettle_keylessSuccessiveSameAmount_settlesNextOldestInvoice() {
+    String companyCode = "CR-AUTO-SET-KEYLESS-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice oldestInvoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(14),
+            LocalDate.now().plusDays(1),
+            "CR-AUTO-SET-KEYLESS-1");
+    Invoice nextOldestInvoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-KEYLESS-2");
+
+    AutoSettlementRequest keylessRequest =
+        new AutoSettlementRequest(
+            accounts.get("BANK").getId(),
+            new BigDecimal("20.00"),
+            null,
+            "CODE-RED keyless dealer auto-settlement",
+            null);
+
+    Long firstJournalId;
+    Long secondJournalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first =
+          accountingService.autoSettleDealer(dealer.getId(), keylessRequest);
+      PartnerSettlementResponse second =
+          accountingService.autoSettleDealer(dealer.getId(), keylessRequest);
+
+      firstJournalId = first.journalEntry().id();
+      secondJournalId = second.journalEntry().id();
+      assertThat(firstJournalId).isNotNull();
+      assertThat(secondJournalId).isNotNull();
+      assertThat(secondJournalId).isNotEqualTo(firstJournalId);
+      assertThat(first.allocations()).hasSize(1);
+      assertThat(second.allocations()).hasSize(1);
+      assertThat(first.allocations().get(0).invoiceId()).isEqualTo(oldestInvoice.getId());
+      assertThat(second.allocations().get(0).invoiceId()).isEqualTo(nextOldestInvoice.getId());
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select invoice_id, idempotency_key
+            from partner_settlement_allocations
+            where company_id = ?
+              and dealer_id = ?
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            dealer.getId());
+    assertThat(allocationRows).hasSize(2);
+    assertThat(((Number) allocationRows.get(0).get("invoice_id")).longValue())
+        .isEqualTo(oldestInvoice.getId());
+    assertThat(((Number) allocationRows.get(1).get("invoice_id")).longValue())
+        .isEqualTo(nextOldestInvoice.getId());
+    assertThat(allocationRows.get(0).get("idempotency_key").toString())
+        .isNotEqualToIgnoringCase(allocationRows.get(1).get("idempotency_key").toString());
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, oldestInvoice.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, nextOldestInvoice.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
   void
       dealerSettlement_reusedReferenceWithDifferentIdempotencyKey_failsClosedWithoutDuplicateAllocations() {
     String companyCode = "CR-SET-REF-REUSE-" + shortId();
