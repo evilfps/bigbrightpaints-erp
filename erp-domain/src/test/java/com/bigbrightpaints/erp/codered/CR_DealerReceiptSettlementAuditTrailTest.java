@@ -727,9 +727,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             paymentEventId);
     Instant journalCreatedAt =
         jdbcTemplate.queryForObject(
-            "select created_at from journal_entries where id = ?",
-            Instant.class,
-            journalId);
+            "select created_at from journal_entries where id = ?", Instant.class, journalId);
     assertThat(paymentEventCreatedAt).isNotNull();
     assertThat(journalCreatedAt).isNotNull();
     assertThat(paymentEventCreatedAt).isBeforeOrEqualTo(journalCreatedAt);
@@ -796,7 +794,8 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     CompanyContextHolder.setCompanyCode(companyCode);
     try {
       PartnerSettlementResponse first = accountingService.autoSettleDealer(dealer.getId(), request);
-      PartnerSettlementResponse replay = accountingService.autoSettleDealer(dealer.getId(), request);
+      PartnerSettlementResponse replay =
+          accountingService.autoSettleDealer(dealer.getId(), request);
       journalId = first.journalEntry().id();
       assertThat(replay.journalEntry().id()).isEqualTo(journalId);
     } finally {
@@ -849,8 +848,11 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
                 assertThat(((Number) row.get("payment_event_id")).longValue())
                     .isEqualTo(paymentEventId));
 
-    assertThat(invoiceRepository.findByCompanyAndId(company, earliestDue.getId()).orElseThrow()
-            .getOutstandingAmount())
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
         .isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(
             invoiceRepository
@@ -1203,9 +1205,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             paymentEventId);
     Instant journalCreatedAt =
         jdbcTemplate.queryForObject(
-            "select created_at from journal_entries where id = ?",
-            Instant.class,
-            journalId);
+            "select created_at from journal_entries where id = ?", Instant.class, journalId);
     assertThat(paymentEventCreatedAt).isNotNull();
     assertThat(journalCreatedAt).isNotNull();
     assertThat(paymentEventCreatedAt).isBeforeOrEqualTo(journalCreatedAt);
@@ -1390,8 +1390,11 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             paymentEventId);
     assertThat(linkedJournalId).isEqualTo(journalId);
 
-    assertThat(invoiceRepository.findByCompanyAndId(company, earliestDue.getId()).orElseThrow()
-            .getOutstandingAmount())
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
         .isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(
             invoiceRepository

@@ -216,7 +216,9 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             .findByCompanyAndReferenceNumber(company, settlementRef)
             .orElseThrow();
     PartnerPaymentEvent settlementPaymentEvent =
-        partnerPaymentEventRepository.findByCompanyAndJournalEntry(company, settlementJournal).orElseThrow();
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, settlementJournal)
+            .orElseThrow();
     assertThat(settlementPaymentEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
     assertThat(settlementPaymentEvent.getSupplier()).isNotNull();
     assertThat(settlementPaymentEvent.getSupplier().getId()).isEqualTo(supplierId);
@@ -685,16 +687,17 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     JournalEntry paymentJournal =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, paymentRef).orElseThrow();
     PartnerPaymentEvent paymentEvent =
-        partnerPaymentEventRepository.findByCompanyAndJournalEntry(company, paymentJournal).orElseThrow();
-    assertThat(paymentEvent.getPartnerType())
-        .isEqualTo(PartnerType.SUPPLIER);
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, paymentJournal)
+            .orElseThrow();
+    assertThat(paymentEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
     assertThat(paymentEvent.getPaymentFlow()).isEqualTo(PartnerPaymentFlow.SUPPLIER_SETTLEMENT);
-    assertThat(paymentEvent.getSourceRoute())
-        .isEqualTo("/api/v1/accounting/settlements/suppliers");
+    assertThat(paymentEvent.getSourceRoute()).isEqualTo("/api/v1/accounting/settlements/suppliers");
     assertThat(paymentEvent.getAmount()).isEqualByComparingTo(totalAmount);
     assertThat(
-            settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
-                company, paymentRef))
+            settlementAllocationRepository
+                .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                    company, paymentRef))
         .allSatisfy(
             settlementRow -> {
               assertThat(settlementRow.getPaymentEvent()).isNotNull();
@@ -707,12 +710,14 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Supplier auto-settle posts SUPPLIER_PAYMENT via payment-event and oldest-open order")
+  @DisplayName(
+      "Supplier auto-settle posts SUPPLIER_PAYMENT via payment-event and oldest-open order")
   void supplierAutoSettleUsesCanonicalPaymentEventFlow() {
     LocalDate entryDate = TestDateUtils.safeDate(company);
     Long supplierId = createSupplier("P2P Auto Supplier", "AUTO-" + shortSuffix());
     Long rawMaterialId =
-        createRawMaterial("Auto Settlement Material", "RM-AUTO-" + shortSuffix(), inventory.getId());
+        createRawMaterial(
+            "Auto Settlement Material", "RM-AUTO-" + shortSuffix(), inventory.getId());
 
     BigDecimal quantity = new BigDecimal("5");
     BigDecimal costPerUnit = new BigDecimal("10.00");
@@ -771,9 +776,10 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         journalEntryRepository.findByCompanyAndReferenceNumber(company, autoRef).orElseThrow();
     assertThat(autoJournal.getSourceModule()).isEqualTo("SUPPLIER_PAYMENT");
     PartnerPaymentEvent autoEvent =
-        partnerPaymentEventRepository.findByCompanyAndJournalEntry(company, autoJournal).orElseThrow();
-    assertThat(autoEvent.getPartnerType())
-        .isEqualTo(PartnerType.SUPPLIER);
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, autoJournal)
+            .orElseThrow();
+    assertThat(autoEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
     assertThat(autoEvent.getSupplier()).isNotNull();
     assertThat(autoEvent.getSupplier().getId()).isEqualTo(supplierId);
     assertThat(autoEvent.getPaymentFlow()).isEqualTo(PartnerPaymentFlow.SUPPLIER_SETTLEMENT);
@@ -784,8 +790,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(autoEvent.getIdempotencyKey()).isEqualTo(autoRef);
 
     List<PartnerSettlementAllocation> autoAllocations =
-        settlementAllocationRepository.findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
-            company, autoRef);
+        settlementAllocationRepository
+            .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(company, autoRef);
     assertThat(autoAllocations).hasSize(2);
     assertThat(autoAllocations.get(0).getPurchase()).isNotNull();
     assertThat(autoAllocations.get(0).getPurchase().getId()).isEqualTo(firstPurchaseId);
@@ -802,7 +808,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             });
 
     RawMaterialPurchase firstPurchase = purchaseRepository.findById(firstPurchaseId).orElseThrow();
-    RawMaterialPurchase secondPurchase = purchaseRepository.findById(secondPurchaseId).orElseThrow();
+    RawMaterialPurchase secondPurchase =
+        purchaseRepository.findById(secondPurchaseId).orElseThrow();
     assertThat(firstPurchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(firstPurchase.getStatus()).isEqualTo("PAID");
     assertThat(secondPurchase.getOutstandingAmount())

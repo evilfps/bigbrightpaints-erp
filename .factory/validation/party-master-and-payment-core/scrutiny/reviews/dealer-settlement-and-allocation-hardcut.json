@@ -1,0 +1,28 @@
+{
+  "featureId": "dealer-settlement-and-allocation-hardcut",
+  "reviewedAt": "2026-04-22T17:55:00Z",
+  "commitId": "8fb771dade50f78052eb320ff95a3560d9bbea8c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The hard-cut mostly unifies dealer settlement onto the payment-event core, but it regresses the public dealer auto-settle route when callers omit both referenceNumber and idempotencyKey.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerSettlementService.java",
+        "line": 539,
+        "severity": "blocking",
+        "description": "`autoSettleDealer` now forwards a `PartnerSettlementRequest` with `allocations = null` into `settleDealerInvoices` (DealerSettlementService:539-556). When the caller omits both `referenceNumber` and `idempotencyKey`, dealer-settlement idempotency falls back to `buildDealerSettlementIdempotencyKey()` (SettlementReferenceService:49-59,220-246), whose fingerprint only includes dealer/cashAccount/amount until allocations exist. The pre-hard-cut path built the auto-settle allocations before deriving the receipt identity, so different oldest-open invoice sets produced different implicit references. After this change, two legitimate auto-settle calls for the same dealer/account/amount can collide and replay the first journal instead of settling the next oldest invoice, breaking the existing public auto-settle contract."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The validation coverage for dealer auto-settle only exercised requests with explicit `referenceNumber` and `idempotencyKey`, so it missed the default keyless auto-settle path that used to derive identity from resolved allocations.",
+      "evidence": "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java:783-790 creates the new auto-settle request with both explicit fields populated; the handoff's manual validation notes auto-settle success but does not mention the no-reference/no-idempotency route."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: dealer settlements are moved onto the payment-event core, but dealer auto-settle now reuses the same implicit idempotency/reference for repeated same-amount calls without explicit keys, so later legitimate auto-settlements can replay the first posting instead of allocating the next oldest invoice."
+}

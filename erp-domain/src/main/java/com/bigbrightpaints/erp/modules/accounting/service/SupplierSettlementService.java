@@ -46,7 +46,8 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 class SupplierSettlementService {
 
   private static final Logger log = LoggerFactory.getLogger(SupplierSettlementService.class);
-  private static final String SUPPLIER_SETTLEMENT_ROUTE = "/api/v1/accounting/settlements/suppliers";
+  private static final String SUPPLIER_SETTLEMENT_ROUTE =
+      "/api/v1/accounting/settlements/suppliers";
   private static final String SUPPLIER_AUTO_SETTLEMENT_ROUTE =
       "/api/v1/accounting/suppliers/{supplierId}/auto-settle";
 
@@ -108,8 +109,7 @@ class SupplierSettlementService {
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   PartnerSettlementResponse settleSupplierInvoices(PartnerSettlementRequest request) {
-    return settleSupplierInvoices(
-        request, SUPPLIER_SETTLEMENT_ROUTE, "SUPPLIER_SETTLEMENT");
+    return settleSupplierInvoices(request, SUPPLIER_SETTLEMENT_ROUTE, "SUPPLIER_SETTLEMENT");
   }
 
   private PartnerSettlementResponse settleSupplierInvoices(

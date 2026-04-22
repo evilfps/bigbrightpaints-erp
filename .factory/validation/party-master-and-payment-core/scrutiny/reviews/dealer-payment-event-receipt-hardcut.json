@@ -1,0 +1,28 @@
+{
+  "featureId": "dealer-payment-event-receipt-hardcut",
+  "reviewedAt": "2026-04-22T12:13:21Z",
+  "commitId": "b4107358a41be6e4d5c76367d1fd29aabbea5b94",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The payment-event-first refactor lands the new dealer receipt truth model, but replay handling still lets both dealer receipt routes succeed when the journal exists without the explicit allocation rows that this feature is supposed to make canonical.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerReceiptPostingService.java",
+        "line": 224,
+        "severity": "blocking",
+        "description": "When replay finds an existing journal entry but no saved allocation rows, the new code returns the old journal instead of failing or repairing the missing allocation truth. In `recordDealerReceipt()` the fallback replay path accepts that state because `resolveDealerReceiptReplayValidationAllocations()` returns an empty request set for empty `existingAllocations` on the on-account path (DealerReceiptPostingService:224-256,460-470), so a journal/payment-event pair can remain without the required explicit unapplied allocation row. `recordDealerReceiptSplit()` has the same hole for hybrid receipts because its replay branch returns success as soon as the journal replays and `validateSplitReceiptIdempotency()` never checks allocations at all (DealerReceiptPostingService:359-384; SettlementReplayValidationService:53-59). That breaks the feature's explicit-allocation invariant: a partial first attempt or legacy journal-only state can replay 200 while permanently losing the on-account / auto-allocation rows that should stay first-class truth."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The validation coverage for this packet only replays requests after the first call has fully persisted its allocation rows, so it misses the degraded replay state where the journal exists but the explicit allocation rows do not.",
+      "evidence": "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java:871-892 and 916-990 both prove replay after a successful initial write and then assert the persisted allocation rows; there is no characterization/runtime proof for replay against a journal/payment-event state missing those rows."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: dealer receipts now create payment events first, but replay can still return success for journal-only states without the explicit allocation rows, so the feature does not fully preserve the new unapplied/auto-allocation truth guarantees."
+}

@@ -233,8 +233,7 @@ class PartnerPaymentEventService {
           .withDetail("existingReference", existing.getReferenceNumber())
           .withDetail("requestedReference", referenceNumber);
     }
-    if (MoneyUtils.zeroIfNull(existing.getAmount())
-            .compareTo(MoneyUtils.zeroIfNull(amount).abs())
+    if (MoneyUtils.zeroIfNull(existing.getAmount()).compareTo(MoneyUtils.zeroIfNull(amount).abs())
         != 0) {
       throw replayConflict(
               "Idempotency key already used for a different dealer payment amount", idempotencyKey)
@@ -247,7 +246,8 @@ class PartnerPaymentEventService {
           .withDetail("existingMemo", existing.getMemo())
           .withDetail("requestedMemo", memo);
     }
-    if (StringUtils.hasText(sourceRoute) && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
+    if (StringUtils.hasText(sourceRoute)
+        && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
       throw replayConflict(
               "Idempotency key already used for a different dealer payment route", idempotencyKey)
           .withDetail("existingRoute", existing.getSourceRoute())
@@ -285,8 +285,7 @@ class PartnerPaymentEventService {
           .withDetail("existingReference", existing.getReferenceNumber())
           .withDetail("requestedReference", referenceNumber);
     }
-    if (MoneyUtils.zeroIfNull(existing.getAmount())
-            .compareTo(MoneyUtils.zeroIfNull(amount).abs())
+    if (MoneyUtils.zeroIfNull(existing.getAmount()).compareTo(MoneyUtils.zeroIfNull(amount).abs())
         != 0) {
       throw replayConflict(
               "Idempotency key already used for a different supplier payment amount",
@@ -296,15 +295,14 @@ class PartnerPaymentEventService {
     }
     if (StringUtils.hasText(memo) && !Objects.equals(existing.getMemo(), memo)) {
       throw replayConflict(
-              "Idempotency key already used with a different supplier payment memo",
-              idempotencyKey)
+              "Idempotency key already used with a different supplier payment memo", idempotencyKey)
           .withDetail("existingMemo", existing.getMemo())
           .withDetail("requestedMemo", memo);
     }
-    if (StringUtils.hasText(sourceRoute) && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
+    if (StringUtils.hasText(sourceRoute)
+        && !Objects.equals(existing.getSourceRoute(), sourceRoute)) {
       throw replayConflict(
-              "Idempotency key already used for a different supplier payment route",
-              idempotencyKey)
+              "Idempotency key already used for a different supplier payment route", idempotencyKey)
           .withDetail("existingRoute", existing.getSourceRoute())
           .withDetail("requestedRoute", sourceRoute);
     }

@@ -269,7 +269,8 @@ class ConfigurationHealthServiceTest {
         .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("FINISHED_GOOD_ACCOUNT"));
     assertThat(report.issues())
         .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("RAW_MATERIAL_ACCOUNT"));
-    assertThat(report.issues()).anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT"));
+    assertThat(report.issues())
+        .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT"));
   }
 
   private Company configuredCompany(String code) {

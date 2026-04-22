@@ -47,7 +47,8 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesOrderAutoCloseService;
 class DealerReceiptPostingService {
 
   private static final String DEALER_RECEIPT_ROUTE = "/api/v1/accounting/receipts/dealer";
-  private static final String DEALER_RECEIPT_SPLIT_ROUTE = "/api/v1/accounting/receipts/dealer/hybrid";
+  private static final String DEALER_RECEIPT_SPLIT_ROUTE =
+      "/api/v1/accounting/receipts/dealer/hybrid";
 
   private final CompanyContextService companyContextService;
   private final DealerRepository dealerRepository;
@@ -295,13 +296,7 @@ class DealerReceiptPostingService {
     partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
     journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
     applyDealerAllocations(
-        company,
-        dealer,
-        reference,
-        entry,
-        paymentEvent,
-        idempotencyKey,
-        allocationsForPosting);
+        company, dealer, reference, entry, paymentEvent, idempotencyKey, allocationsForPosting);
     accountingAuditService.recordDealerReceiptPostedEventSafe(
         entry, dealer.getId(), amount, idempotencyKey);
     return entryDto;
@@ -471,7 +466,8 @@ class DealerReceiptPostingService {
     return List.of(buildDealerOnAccountAllocation(amount, memo));
   }
 
-  private SettlementAllocationRequest buildDealerOnAccountAllocation(BigDecimal amount, String memo) {
+  private SettlementAllocationRequest buildDealerOnAccountAllocation(
+      BigDecimal amount, String memo) {
     return new SettlementAllocationRequest(
         null,
         null,

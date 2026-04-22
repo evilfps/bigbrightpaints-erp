@@ -198,9 +198,12 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
-                    "email", sharedEmail,
-                    "displayName", "Shared Dealer " + suffix,
-                    "roles", List.of("ROLE_DEALER")),
+                    "email",
+                    sharedEmail,
+                    "displayName",
+                    "Shared Dealer " + suffix,
+                    "roles",
+                    List.of("ROLE_DEALER")),
                 createUserHeaders),
             Map.class);
     assertThat(adminCreateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -216,17 +219,24 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
-                    "name", "Shared Dealer " + suffix,
-                    "companyName", "Shared Dealer Company " + suffix,
-                    "contactEmail", sharedEmail,
-                    "contactPhone", "9000012345",
-                    "address", "Shared Dealer Street",
-                    "creditLimit", new BigDecimal("25000.00")),
+                    "name",
+                    "Shared Dealer " + suffix,
+                    "companyName",
+                    "Shared Dealer Company " + suffix,
+                    "contactEmail",
+                    sharedEmail,
+                    "contactPhone",
+                    "9000012345",
+                    "address",
+                    "Shared Dealer Street",
+                    "creditLimit",
+                    new BigDecimal("25000.00")),
                 createDealerHeaders),
             Map.class);
     assertThat(salesCreateResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<?, ?> salesDealerData = (Map<?, ?>) salesCreateResponse.getBody().get("data");
-    assertThat(((Number) salesDealerData.get("id")).longValue()).isEqualTo(adminProvisionedDealerId);
+    assertThat(((Number) salesDealerData.get("id")).longValue())
+        .isEqualTo(adminProvisionedDealerId);
 
     Map<?, ?> dealerDetail =
         dealerDetail(adminHeaders, ((Number) salesDealerData.get("id")).longValue());
@@ -272,10 +282,16 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> baselineLedgerResponse =
         rest.exchange(
-            "/api/v1/dealer-portal/ledger", HttpMethod.GET, new HttpEntity<>(dealerHeaders), Map.class);
+            "/api/v1/dealer-portal/ledger",
+            HttpMethod.GET,
+            new HttpEntity<>(dealerHeaders),
+            Map.class);
     ResponseEntity<Map> baselineAgingResponse =
         rest.exchange(
-            "/api/v1/dealer-portal/aging", HttpMethod.GET, new HttpEntity<>(dealerHeaders), Map.class);
+            "/api/v1/dealer-portal/aging",
+            HttpMethod.GET,
+            new HttpEntity<>(dealerHeaders),
+            Map.class);
     assertThat(baselineLedgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(baselineAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -291,10 +307,16 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> heldDealerLedgerResponse =
         rest.exchange(
-            "/api/v1/dealer-portal/ledger", HttpMethod.GET, new HttpEntity<>(dealerHeaders), Map.class);
+            "/api/v1/dealer-portal/ledger",
+            HttpMethod.GET,
+            new HttpEntity<>(dealerHeaders),
+            Map.class);
     ResponseEntity<Map> heldDealerAgingResponse =
         rest.exchange(
-            "/api/v1/dealer-portal/aging", HttpMethod.GET, new HttpEntity<>(dealerHeaders), Map.class);
+            "/api/v1/dealer-portal/aging",
+            HttpMethod.GET,
+            new HttpEntity<>(dealerHeaders),
+            Map.class);
     ResponseEntity<Map> heldPortalFinanceLedgerResponse =
         rest.exchange(
             "/api/v1/portal/finance/ledger?dealerId=" + dealerA.getId(),
@@ -361,7 +383,8 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/dealers?status=ALL", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
     assertThat(directoryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    List<Map<String, Object>> rows = (List<Map<String, Object>>) directoryResponse.getBody().get("data");
+    List<Map<String, Object>> rows =
+        (List<Map<String, Object>>) directoryResponse.getBody().get("data");
     return rows.stream()
         .filter(row -> email.equalsIgnoreCase(String.valueOf(row.get("email"))))
         .map(row -> ((Number) row.get("id")).longValue())
@@ -375,7 +398,8 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/dealers?status=ALL", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
     assertThat(directoryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    List<Map<String, Object>> rows = (List<Map<String, Object>>) directoryResponse.getBody().get("data");
+    List<Map<String, Object>> rows =
+        (List<Map<String, Object>>) directoryResponse.getBody().get("data");
     return (int)
         rows.stream()
             .filter(row -> email.equalsIgnoreCase(String.valueOf(row.get("email"))))

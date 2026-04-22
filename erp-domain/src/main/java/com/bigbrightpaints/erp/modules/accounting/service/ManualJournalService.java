@@ -257,7 +257,8 @@ class ManualJournalService {
           journalReferenceService.toBaseCurrency(
               line.credit() == null ? BigDecimal.ZERO : line.credit(), fxRate);
       LineSignature signature =
-          new LineSignature(line.accountId(), normalizeAmount(baseDebit), normalizeAmount(baseCredit));
+          new LineSignature(
+              line.accountId(), normalizeAmount(baseDebit), normalizeAmount(baseCredit));
       counts.merge(signature, 1, Integer::sum);
     }
     return counts;

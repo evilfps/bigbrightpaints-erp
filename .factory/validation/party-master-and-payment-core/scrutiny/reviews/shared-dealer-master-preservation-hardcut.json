@@ -1,0 +1,40 @@
+{
+  "featureId": "shared-dealer-master-preservation-hardcut",
+  "reviewedAt": "2026-04-22T12:12:48.701124Z",
+  "commitId": "ee89cc109cb96786f5c8106d3b2a9b5785daf277",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The packet successfully proves happy-path dealer convergence, receivable wiring visibility, and the absence of a public DELETE dealer route, but it does not actually preserve held/suspended dealer state across both onboarding entry points and it broadens dealer-portal access beyond the finance-read contract it revalidated.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerService.java",
+        "line": 109,
+        "severity": "blocking",
+        "description": "`createDealer` now reuses the shared dealer master, but it still unconditionally sets that surviving dealer to `ACTIVE`. Re-running sales onboarding for a dealer that is already `ON_HOLD`, `SUSPENDED`, or `BLOCKED` clears the preserved hold/suspend state instead of preserving it, which violates VAL-PARTNER-037's requirement that the dealer survive hold/suspend behavior without being functionally reactivated by onboarding."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java",
+        "line": 185,
+        "severity": "blocking",
+        "description": "The tenant-admin role-assignment path still forces any matched dealer to `ACTIVE` inside `createDealerForUser`. That means assigning `ROLE_DEALER` to an existing held/suspended dealer also clears the preserved state, so the feature does not satisfy its own requirement across both convergence entry points (`POST /api/v1/admin/users` and `POST /api/v1/dealers`)."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerPortalService.java",
+        "line": 43,
+        "severity": "non_blocking",
+        "description": "The new portal-enabled status allow-list is applied via `getCurrentDealer()` for every dealer-portal flow, not just ledger/aging. As a result `ON_HOLD`/`SUSPENDED`/`BLOCKED` mappings now also unlock dashboard, order, invoice-PDF, and credit-limit-request access (`DealerPortalController.java:60-146`), but the feature only re-proved finance visibility. Narrow the relaxed gate to the required finance reads or add explicit contract coverage for the broader portal behavior."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Shared validation guidance does not mention that freshly provisioned dealer users may require a change-password flow before dealer-portal runtime proof succeeds, which forced ad-hoc MailHog reverse-engineering during this feature run.",
+      "evidence": "`.factory/library/user-testing.md` does not mention `mustChangePassword` or `/api/v1/auth/change-password`, while the reviewed transcript skeleton for worker session `354c8885-c15e-487d-bb87-837022d37074` contains repeated MailHog credential-parsing/debug commands and later auth-controller inspection before manual dealer-portal verification could complete."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: the feature removes the public dealer-delete surface and proves happy-path shared-master convergence, but both onboarding entry points still reactivate held/suspended dealers, so hold/suspend preservation is not actually sealed."
+}

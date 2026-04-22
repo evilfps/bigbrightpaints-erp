@@ -146,7 +146,8 @@ public class DealerService {
     return toResponse(dealer, portalUser.getEmail());
   }
 
-  private Dealer resolveSharedDealerMaster(Company company, String contactEmail, String dealerName) {
+  private Dealer resolveSharedDealerMaster(
+      Company company, String contactEmail, String dealerName) {
     List<Dealer> portalMappedDealers =
         dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, contactEmail);
     if (portalMappedDealers.size() > 1) {
