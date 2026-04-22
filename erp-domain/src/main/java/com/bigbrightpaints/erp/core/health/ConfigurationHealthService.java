@@ -222,27 +222,49 @@ public class ConfigurationHealthService {
 
   private void checkFinishedGoodAccounts(
       Company company, FinishedGood finishedGood, List<ConfigurationIssue> issues) {
-    if (finishedGood.getRevenueAccountId() == null || finishedGood.getTaxAccountId() == null) {
+    List<String> missingAccountWiring = new ArrayList<>();
+    if (finishedGood.getValuationAccountId() == null) {
+      missingAccountWiring.add("valuation");
+    }
+    if (finishedGood.getRevenueAccountId() == null) {
+      missingAccountWiring.add("revenue");
+    }
+    if (finishedGood.getTaxAccountId() == null) {
+      missingAccountWiring.add("tax");
+    }
+    if (!missingAccountWiring.isEmpty()) {
       issues.add(
           issue(
               company,
               "FINISHED_GOOD_ACCOUNT",
               finishedGood.getProductCode(),
-              "Revenue or tax account is not configured on finished good"));
+              "Missing finished-good account wiring: " + String.join(", ", missingAccountWiring)));
     }
   }
 
   private void checkFinishedGoodMetadataFallback(
       Company company, ProductionProduct product, String sku, List<ConfigurationIssue> issues) {
+    Long valuationAccountId = metadataLong(product, "fgValuationAccountId");
     Long revenueAccountId = metadataLong(product, "fgRevenueAccountId");
     Long taxAccountId = metadataLong(product, "fgTaxAccountId");
-    if (revenueAccountId == null || taxAccountId == null) {
+    List<String> missingAccountWiring = new ArrayList<>();
+    if (valuationAccountId == null) {
+      missingAccountWiring.add("valuation");
+    }
+    if (revenueAccountId == null) {
+      missingAccountWiring.add("revenue");
+    }
+    if (taxAccountId == null) {
+      missingAccountWiring.add("tax");
+    }
+    if (!missingAccountWiring.isEmpty()) {
       issues.add(
           issue(
               company,
               "FINISHED_GOOD_ACCOUNT",
               sku,
-              "Finished good not seeded and production metadata missing revenue/tax accounts"));
+              "Finished good not seeded and production metadata missing account wiring: "
+                  + String.join(", ", missingAccountWiring)));
     }
   }
 
