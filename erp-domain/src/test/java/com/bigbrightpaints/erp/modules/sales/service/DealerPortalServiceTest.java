@@ -163,6 +163,20 @@ class DealerPortalServiceTest {
   }
 
   @Test
+  void getCurrentDealer_allowsOnHoldDealerMapping() {
+    UserAccount user = userWithId(100L, "dealer@tenant.com");
+    Dealer dealer = dealerWithId(21L);
+    dealer.setStatus("ON_HOLD");
+    authenticate(user, "ROLE_DEALER");
+    when(dealerRepository.findAllByCompanyAndPortalUserId(company, 100L))
+        .thenReturn(List.of(dealer));
+
+    Dealer resolved = dealerPortalService.getCurrentDealer();
+
+    assertThat(resolved).isSameAs(dealer);
+  }
+
+  @Test
   void getCurrentDealer_fallsBackToEmailWhenPrincipalUserIdMissing() {
     UserAccount user = new UserAccount("dealer@tenant.com", "hash", "Dealer");
     Dealer dealer = dealerWithId(33L);
@@ -208,6 +222,22 @@ class DealerPortalServiceTest {
     assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("inactive dealer mapping");
+  }
+
+  @Test
+  void getCurrentDealer_allowsOnHoldDealerOnEmailFallback() {
+    UserAccount user = userWithId(100L, "dealer@tenant.com");
+    Dealer dealer = dealerWithId(33L);
+    dealer.setStatus(" on_hold ");
+    authenticate(user, "ROLE_DEALER");
+    when(dealerRepository.findAllByCompanyAndPortalUserId(company, 100L)).thenReturn(List.of());
+    when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
+            company, "dealer@tenant.com"))
+        .thenReturn(List.of(dealer));
+
+    Dealer resolved = dealerPortalService.getCurrentDealer();
+
+    assertThat(resolved).isSameAs(dealer);
   }
 
   @Test

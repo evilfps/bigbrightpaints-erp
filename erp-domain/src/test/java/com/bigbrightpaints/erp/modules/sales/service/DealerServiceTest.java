@@ -55,6 +55,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
 
 @Tag("critical")
 @ExtendWith(MockitoExtension.class)
@@ -207,14 +208,37 @@ class DealerServiceTest {
   }
 
   @Test
-  void createDealer_rejectsDuplicatePortalMappingGracefully() {
+  void createDealer_reusesExistingDealerByPortalEmailMapping() {
+    Dealer existing = new Dealer();
+    existing.setCompany(company);
+    existing.setCode("PORTAL-MAPPED");
+    existing.setName("Portal Dealer");
+    existing.setStatus("INACTIVE");
+    ReflectionTestUtils.setField(existing, "id", 88L);
+
     when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
             eq(company), eq("dealer@example.com")))
-        .thenReturn(List.of(new Dealer()));
+        .thenReturn(List.of(existing));
+
+    DealerResponse response = dealerService.createDealer(request());
+
+    assertThat(response.id()).isEqualTo(88L);
+    assertThat(response.code()).isEqualTo("PORTAL-MAPPED");
+    assertThat(response.arAccountId()).isNotNull();
+    assertThat(response.receivableAccountCode()).isNotBlank();
+  }
+
+  @Test
+  void createDealer_rejectsAmbiguousPortalMappingsFailClosed() {
+    Dealer first = new Dealer();
+    Dealer second = new Dealer();
+    when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
+            eq(company), eq("dealer@example.com")))
+        .thenReturn(List.of(first, second));
 
     assertThatThrownBy(() -> dealerService.createDealer(request()))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Dealer already exists for this portal user")
+        .hasMessageContaining("Dealer onboarding is ambiguous for this portal user")
         .extracting(ex -> ((ApplicationException) ex).getErrorCode())
         .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
   }

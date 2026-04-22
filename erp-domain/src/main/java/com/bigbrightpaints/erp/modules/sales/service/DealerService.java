@@ -95,25 +95,7 @@ public class DealerService {
   public DealerResponse createDealer(CreateDealerRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     String contactEmail = request.contactEmail().trim();
-    if (!dealerRepository
-        .findAllByCompanyAndPortalUserEmailIgnoreCase(company, contactEmail)
-        .isEmpty()) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Dealer already exists for this portal user");
-    }
-
-    Dealer dealer =
-        dealerRepository
-            .findByCompanyAndEmailIgnoreCase(company, contactEmail)
-            .orElseGet(
-                () -> {
-                  Dealer fresh = new Dealer();
-                  fresh.setCompany(company);
-                  fresh.setCode(
-                      DealerProvisioningSupport.generateDealerCode(
-                          request.name(), company, dealerRepository));
-                  return fresh;
-                });
+    Dealer dealer = resolveSharedDealerMaster(company, contactEmail, request.name());
     dealer.setName(request.name().trim());
     dealer.setCompanyName(request.companyName().trim());
     dealer.setEmail(contactEmail);
@@ -162,6 +144,29 @@ public class DealerService {
     dealer.setReceivableAccount(receivableAccount);
     dealer = dealerRepository.save(dealer);
     return toResponse(dealer, portalUser.getEmail());
+  }
+
+  private Dealer resolveSharedDealerMaster(Company company, String contactEmail, String dealerName) {
+    List<Dealer> portalMappedDealers =
+        dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, contactEmail);
+    if (portalMappedDealers.size() > 1) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Dealer onboarding is ambiguous for this portal user");
+    }
+    if (!portalMappedDealers.isEmpty()) {
+      return portalMappedDealers.get(0);
+    }
+    return dealerRepository
+        .findByCompanyAndEmailIgnoreCase(company, contactEmail)
+        .orElseGet(
+            () -> {
+              Dealer fresh = new Dealer();
+              fresh.setCompany(company);
+              fresh.setCode(
+                  DealerProvisioningSupport.generateDealerCode(
+                      dealerName, company, dealerRepository));
+              return fresh;
+            });
   }
 
   @Transactional

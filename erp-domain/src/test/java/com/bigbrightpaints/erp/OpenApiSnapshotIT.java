@@ -733,6 +733,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/invoices", "get");
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/aging", "get");
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/credit-utilization", "get");
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}", "delete");
     assertOperationMissing(root, "/api/v1/invoices/dealers/{dealerId}", "get");
     assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}", "get");
     assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}/pdf", "get");

@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,7 +40,8 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 public class DealerPortalService {
 
   private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
-  private static final String ACTIVE_DEALER_STATUS = "ACTIVE";
+  private static final Set<String> PORTAL_ENABLED_DEALER_STATUSES =
+      Set.of("ACTIVE", "ON_HOLD", "SUSPENDED", "BLOCKED");
 
   public record RequesterIdentity(Long userId, String email) {}
 
@@ -394,7 +396,8 @@ public class DealerPortalService {
       throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
     }
     String status = dealer.getStatus();
-    if (status != null && ACTIVE_DEALER_STATUS.equalsIgnoreCase(status.trim())) {
+    if (status != null
+        && PORTAL_ENABLED_DEALER_STATUSES.contains(status.trim().toUpperCase(Locale.ROOT))) {
       return dealer;
     }
     throw new AccessDeniedException("Dealer portal access is disabled for inactive dealer mapping");
