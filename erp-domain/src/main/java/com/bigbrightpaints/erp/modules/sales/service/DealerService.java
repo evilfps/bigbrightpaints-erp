@@ -106,7 +106,7 @@ public class DealerService {
     dealer.setGstRegistrationType(resolveRegistrationType(request.gstRegistrationType()));
     dealer.setPaymentTerms(resolvePaymentTerms(request.paymentTerms()));
     dealer.setRegion(normalizeRegion(request.region()));
-    dealer.setStatus(DealerProvisioningSupport.ACTIVE_STATUS);
+    dealer.setStatus(DealerProvisioningSupport.resolveStatusForOnboarding(dealer.getStatus()));
     if (request.creditLimit() != null) {
       dealer.setCreditLimit(request.creditLimit());
     }

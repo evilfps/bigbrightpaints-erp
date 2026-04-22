@@ -35,13 +35,18 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 
 @Service
 public class DealerPortalService {
 
   private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
   private static final Set<String> PORTAL_ENABLED_DEALER_STATUSES =
-      Set.of("ACTIVE", "ON_HOLD", "SUSPENDED", "BLOCKED");
+      Set.of(
+          DealerProvisioningSupport.ACTIVE_STATUS,
+          DealerProvisioningSupport.ON_HOLD_STATUS,
+          DealerProvisioningSupport.SUSPENDED_STATUS,
+          DealerProvisioningSupport.BLOCKED_STATUS);
 
   public record RequesterIdentity(Long userId, String email) {}
 
@@ -120,6 +125,11 @@ public class DealerPortalService {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null) return false;
     return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DEALER"));
+  }
+
+  public boolean isFinanceReadOnlyDealer(Dealer dealer) {
+    return dealer != null
+        && DealerProvisioningSupport.isPreservedNonActiveStatus(dealer.getStatus());
   }
 
   public void verifyDealerAccess(Long dealerId) {

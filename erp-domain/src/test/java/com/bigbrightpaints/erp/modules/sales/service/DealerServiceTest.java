@@ -213,7 +213,7 @@ class DealerServiceTest {
     existing.setCompany(company);
     existing.setCode("PORTAL-MAPPED");
     existing.setName("Portal Dealer");
-    existing.setStatus("INACTIVE");
+    existing.setStatus("SUSPENDED");
     ReflectionTestUtils.setField(existing, "id", 88L);
 
     when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
@@ -226,6 +226,10 @@ class DealerServiceTest {
     assertThat(response.code()).isEqualTo("PORTAL-MAPPED");
     assertThat(response.arAccountId()).isNotNull();
     assertThat(response.receivableAccountCode()).isNotBlank();
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+    Dealer saved = dealerCaptor.getAllValues().get(dealerCaptor.getAllValues().size() - 1);
+    assertThat(saved.getStatus()).isEqualTo("SUSPENDED");
   }
 
   @Test
@@ -904,6 +908,28 @@ class DealerServiceTest {
     assertThat(saved.getId()).isEqualTo(77L);
     assertThat(saved.getCode()).isEqualTo("LEGACY-DEALER");
     assertThat(saved.getStatus()).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void createDealer_preservesBlockedStatusWhenReusingExistingDealerByContactEmail() {
+    Dealer existing = new Dealer();
+    existing.setCompany(company);
+    ReflectionTestUtils.setField(existing, "id", 78L);
+    existing.setCode("BLOCKED-DEALER");
+    existing.setName("Blocked Dealer");
+    existing.setStatus("BLOCKED");
+
+    when(dealerRepository.findByCompanyAndEmailIgnoreCase(eq(company), eq("dealer@example.com")))
+        .thenReturn(Optional.of(existing));
+
+    dealerService.createDealer(request());
+
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+    Dealer saved = dealerCaptor.getAllValues().get(dealerCaptor.getAllValues().size() - 1);
+    assertThat(saved.getId()).isEqualTo(78L);
+    assertThat(saved.getCode()).isEqualTo("BLOCKED-DEALER");
+    assertThat(saved.getStatus()).isEqualTo("BLOCKED");
   }
 
   private CreateDealerRequest request() {

@@ -182,7 +182,7 @@ public class AdminUserService {
     }
     dealer.setEmail(user.getEmail());
     dealer.setPortalUser(user);
-    dealer.setStatus(DealerProvisioningSupport.ACTIVE_STATUS);
+    dealer.setStatus(DealerProvisioningSupport.resolveStatusForOnboarding(dealer.getStatus()));
     dealer = dealerRepository.save(dealer);
 
     if (dealer.getReceivableAccount() == null) {

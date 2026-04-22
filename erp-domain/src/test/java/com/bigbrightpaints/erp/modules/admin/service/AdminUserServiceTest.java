@@ -173,6 +173,42 @@ class AdminUserServiceTest {
   }
 
   @Test
+  void createUser_relinksExistingDealerByEmailAndPreservesBlockedStatus() {
+    Dealer existingDealer = new Dealer();
+    existingDealer.setCompany(company);
+    ReflectionTestUtils.setField(existingDealer, "id", 45L);
+    existingDealer.setCode("BLOCKED45");
+    existingDealer.setName("Blocked Dealer");
+    existingDealer.setStatus("BLOCKED");
+    existingDealer.setEmail("blocked-dealer@example.com");
+
+    Account receivable = new Account();
+    receivable.setCompany(company);
+    receivable.setCode("AR-BLOCKED45");
+    receivable.setActive(false);
+    existingDealer.setReceivableAccount(receivable);
+
+    when(dealerRepository.findByCompanyAndPortalUserEmail(company, "blocked-dealer@example.com"))
+        .thenReturn(Optional.empty());
+    when(dealerRepository.findByCompanyAndEmailIgnoreCase(company, "blocked-dealer@example.com"))
+        .thenReturn(Optional.of(existingDealer));
+
+    service.createUser(
+        new CreateUserRequest(
+            "blocked-dealer@example.com", "Blocked Dealer", List.of("ROLE_DEALER")));
+
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository).save(dealerCaptor.capture());
+    Dealer savedDealer = dealerCaptor.getValue();
+    assertThat(savedDealer.getId()).isEqualTo(45L);
+    assertThat(savedDealer.getStatus()).isEqualTo("BLOCKED");
+    assertThat(savedDealer.getPortalUser()).isNotNull();
+    assertThat(savedDealer.getPortalUser().getEmail()).isEqualTo("blocked-dealer@example.com");
+    assertThat(receivable.isActive()).isTrue();
+    verify(accountRepository).save(receivable);
+  }
+
+  @Test
   void createUser_nonSuperAdminCannotAssignSuperAdminRole() {
     assertThatThrownBy(
             () ->

@@ -16,6 +16,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -176,6 +177,60 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  @DisplayName("Non-active dealer login is limited to finance read-only portal endpoints")
+  void nonActiveDealerLogin_isLimitedToFinanceReadOnlyPortalEndpoints() {
+    dealerA.setStatus("ON_HOLD");
+    dealerRepository.saveAndFlush(dealerA);
+
+    HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+    ResponseEntity<Map> ledgerResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/ledger", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    ResponseEntity<Map> agingResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/aging", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    ResponseEntity<Map> invoicesResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/invoices", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    ResponseEntity<Map> dashboardResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/dashboard",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    ResponseEntity<Map> ordersResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/orders", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    ResponseEntity<Map> supportTicketsResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    HttpHeaders requestHeaders = new HttpHeaders();
+    requestHeaders.putAll(headers);
+    requestHeaders.setContentType(MediaType.APPLICATION_JSON);
+    ResponseEntity<Map> creditLimitRequestResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/credit-limit-requests",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "amountRequested", "1500.00",
+                    "reason", "need-more-credit"),
+                requestHeaders),
+            Map.class);
+
+    assertThat(ledgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(agingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(invoicesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(dashboardResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(ordersResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(supportTicketsResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(creditLimitRequestResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
   @Test

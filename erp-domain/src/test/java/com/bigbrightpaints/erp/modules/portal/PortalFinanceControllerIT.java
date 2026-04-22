@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -273,6 +274,121 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
     assertThat(((Map<?, ?>) agingResponse.getBody().get("data")).get("dealerId"))
         .isEqualTo(adminProvisionedDealerId.intValue());
     assertThat(countDealersByEmail(adminHeaders, sharedEmail)).isEqualTo(1);
+  }
+
+  @Test
+  void salesReOnboardingPreservesNonActiveStatusOnSharedDealerMaster() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, COMPANY_CODE);
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+    for (String preservedStatus : List.of("ON_HOLD", "SUSPENDED", "BLOCKED")) {
+      String suffix = Long.toHexString(System.nanoTime());
+      String sharedEmail =
+          "portal-fin-sales-preserve-"
+              + preservedStatus.toLowerCase(Locale.ROOT)
+              + "-"
+              + suffix
+              + "@bbp.com";
+      Dealer existingDealer =
+          upsertDealer(
+              company,
+              "PORTAL-FIN-SALES-" + preservedStatus + "-" + suffix,
+              "Portal Finance " + preservedStatus,
+              null);
+      existingDealer.setEmail(sharedEmail);
+      existingDealer.setStatus(preservedStatus);
+      existingDealer.setPortalUser(null);
+      existingDealer = dealerRepository.saveAndFlush(existingDealer);
+
+      HttpHeaders createDealerHeaders = new HttpHeaders();
+      createDealerHeaders.putAll(adminHeaders);
+      createDealerHeaders.setContentType(MediaType.APPLICATION_JSON);
+      ResponseEntity<Map> salesCreateResponse =
+          rest.exchange(
+              "/api/v1/dealers",
+              HttpMethod.POST,
+              new HttpEntity<>(
+                  Map.of(
+                      "name",
+                      "Sales Preserve " + preservedStatus,
+                      "companyName",
+                      "Sales Preserve Co " + preservedStatus,
+                      "contactEmail",
+                      sharedEmail,
+                      "contactPhone",
+                      "9000012345",
+                      "address",
+                      "Preserved Status Street",
+                      "creditLimit",
+                      new BigDecimal("12500.00")),
+                  createDealerHeaders),
+              Map.class);
+      assertThat(salesCreateResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+      Map<?, ?> salesDealerData = (Map<?, ?>) salesCreateResponse.getBody().get("data");
+      Long sharedDealerId = ((Number) salesDealerData.get("id")).longValue();
+      assertThat(sharedDealerId).isEqualTo(existingDealer.getId());
+      Map<String, Object> detail = dealerDetail(adminHeaders, sharedDealerId);
+      assertThat(detail.get("receivableAccountId")).isNotNull();
+      assertThat(detail.get("receivableAccountCode")).isNotNull();
+      Dealer reloadedDealer = dealerRepository.findById(sharedDealerId).orElseThrow();
+      assertThat(reloadedDealer.getStatus()).isEqualTo(preservedStatus);
+      assertThat(countDealersByEmail(adminHeaders, sharedEmail)).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void adminRoleAssignmentPreservesNonActiveStatusOnSharedDealerMaster() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, COMPANY_CODE);
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+
+    for (String preservedStatus : List.of("ON_HOLD", "SUSPENDED", "BLOCKED")) {
+      String suffix = Long.toHexString(System.nanoTime());
+      String sharedEmail =
+          "portal-fin-admin-preserve-"
+              + preservedStatus.toLowerCase(Locale.ROOT)
+              + "-"
+              + suffix
+              + "@bbp.com";
+      Dealer existingDealer =
+          upsertDealer(
+              company,
+              "PORTAL-FIN-ADMIN-" + preservedStatus + "-" + suffix,
+              "Portal Finance Admin Preserve " + preservedStatus,
+              null);
+      existingDealer.setEmail(sharedEmail);
+      existingDealer.setStatus(preservedStatus);
+      existingDealer.setPortalUser(null);
+      existingDealer = dealerRepository.saveAndFlush(existingDealer);
+
+      HttpHeaders createUserHeaders = new HttpHeaders();
+      createUserHeaders.putAll(adminHeaders);
+      createUserHeaders.setContentType(MediaType.APPLICATION_JSON);
+      ResponseEntity<Map> adminCreateResponse =
+          rest.exchange(
+              "/api/v1/admin/users",
+              HttpMethod.POST,
+              new HttpEntity<>(
+                  Map.of(
+                      "email",
+                      sharedEmail,
+                      "displayName",
+                      "Admin Preserve " + preservedStatus,
+                      "roles",
+                      List.of("ROLE_DEALER")),
+                  createUserHeaders),
+              Map.class);
+      assertThat(adminCreateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+      Long sharedDealerId = dealerIdByEmail(adminHeaders, sharedEmail);
+      assertThat(sharedDealerId).isEqualTo(existingDealer.getId());
+      Map<String, Object> detail = dealerDetail(adminHeaders, sharedDealerId);
+      assertThat(detail.get("receivableAccountId")).isNotNull();
+      assertThat(detail.get("receivableAccountCode")).isNotNull();
+      Dealer reloadedDealer = dealerRepository.findById(sharedDealerId).orElseThrow();
+      assertThat(reloadedDealer.getStatus()).isEqualTo(preservedStatus);
+      assertThat(countDealersByEmail(adminHeaders, sharedEmail)).isEqualTo(1);
+    }
   }
 
   @Test
