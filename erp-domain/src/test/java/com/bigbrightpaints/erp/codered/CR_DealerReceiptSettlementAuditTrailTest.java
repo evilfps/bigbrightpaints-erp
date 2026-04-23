@@ -1471,6 +1471,141 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
   }
 
   @Test
+  void dealerReceiptSplit_replayFailsClosed_whenOnlySubsetOfAllocationRowsSurvives() {
+    String companyCode = "CR-DRS-SUBSET-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice earliestDue =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(12),
+            LocalDate.now().plusDays(1),
+            "CR-DRS-SUBSET-1");
+    Invoice sameDueOlderInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("30.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-SUBSET-2");
+    Invoice sameDueNewerInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("25.00"),
+            LocalDate.now().minusDays(3),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-SUBSET-3");
+
+    String referenceNumber = "DRS-SUBSET-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-SUBSET-IDEMP-" + UUID.randomUUID();
+    DealerReceiptSplitRequest request =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), new BigDecimal("100.00")),
+                new DealerReceiptSplitRequest.IncomingLine(cash.getId(), new BigDecimal("5.00"))),
+            referenceNumber,
+            "CODE-RED degraded subset split receipt",
+            idempotencyKey);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceiptSplit(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select id, invoice_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationRows).hasSize(4);
+
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+              and invoice_id = ?
+            """,
+            company.getId(),
+            idempotencyKey,
+            sameDueOlderInvoiceDate.getId());
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded split replay fixture keeps only a subset of canonical allocation rows")
+        .hasSize(3);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceiptSplit(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueOlderInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueNewerInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
   void dealerReceipt_rejectsCrossDealerInvoiceAllocation() {
     String companyCode = "CR-DR-CROSS-DEALER-" + shortId();
     Company company = bootstrapCompany(companyCode, "UTC");

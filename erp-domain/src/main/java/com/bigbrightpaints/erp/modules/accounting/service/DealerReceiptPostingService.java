@@ -365,6 +365,8 @@ class DealerReceiptPostingService {
           company, idempotencyKey, entry, "DEALER_RECEIPT_SPLIT");
       settlementReplayValidationService.validateSplitReceiptIdempotency(
           idempotencyKey, dealer, memo, entry, lines);
+      validateSplitReplayAllocationCompleteness(
+          idempotencyKey, dealer, total, existingAllocations);
       return dtoMapperService.toJournalEntryDto(entry);
     }
     for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {
@@ -514,6 +516,44 @@ class DealerReceiptPostingService {
       return company.getBaseCurrency().trim();
     }
     return "INR";
+  }
+
+  private void validateSplitReplayAllocationCompleteness(
+      String idempotencyKey,
+      Dealer dealer,
+      BigDecimal requestedAmount,
+      List<PartnerSettlementAllocation> existingAllocations) {
+    if (existingAllocations == null || existingAllocations.isEmpty()) {
+      return;
+    }
+    List<PartnerSettlementAllocation> replayScopeAllocations =
+        existingAllocations.stream()
+            .filter(
+                allocation ->
+                    StringUtils.hasText(allocation.getIdempotencyKey())
+                        && allocation.getIdempotencyKey().equalsIgnoreCase(idempotencyKey))
+            .toList();
+    if (replayScopeAllocations.isEmpty()) {
+      replayScopeAllocations = existingAllocations;
+    }
+    BigDecimal persistedAllocationTotal =
+        replayScopeAllocations.stream()
+            .map(PartnerSettlementAllocation::getAllocationAmount)
+            .map(MoneyUtils::zeroIfNull)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (persistedAllocationTotal
+            .subtract(MoneyUtils.zeroIfNull(requestedAmount))
+            .abs()
+            .compareTo(AccountingConstants.ALLOCATION_TOLERANCE)
+        <= 0) {
+      return;
+    }
+    throw journalReplayService
+        .missingReservedPartnerAllocation(
+            "Dealer hybrid receipt", idempotencyKey, PartnerType.DEALER, dealer.getId())
+        .withDetail("requestedAmount", requestedAmount)
+        .withDetail("persistedAllocationTotal", persistedAllocationTotal)
+        .withDetail("persistedAllocationCount", replayScopeAllocations.size());
   }
 
   private void applyDealerAllocations(
