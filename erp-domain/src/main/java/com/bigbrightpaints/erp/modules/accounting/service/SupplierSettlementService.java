@@ -123,11 +123,10 @@ class SupplierSettlementService {
                     new ApplicationException(
                         ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
     Account payableAccount = accountResolutionService.requireSupplierPayable(supplier);
-    String trimmedIdempotencyKey =
-        settlementReferenceService.resolveSupplierSettlementIdempotencyKey(request);
+    String replayLookupKey = settlementReferenceService.resolveExplicitSettlementReplayKey(request);
     List<SettlementAllocationRequest> allocations =
         settlementAllocationResolutionService.resolveSupplierSettlementAllocations(
-            company, supplier, request, trimmedIdempotencyKey);
+            company, supplier, request, replayLookupKey);
     PartnerSettlementRequest requestForReplay =
         request.allocations() == allocations
             ? request
@@ -147,7 +146,7 @@ class SupplierSettlementService {
                 request.idempotencyKey(),
                 request.adminOverride(),
                 allocations);
-    trimmedIdempotencyKey =
+    String trimmedIdempotencyKey =
         settlementReferenceService.resolveSupplierSettlementIdempotencyKey(requestForReplay);
     boolean replayCandidate =
         journalReplayService.hasExistingIdempotencyMapping(company, trimmedIdempotencyKey)
@@ -478,13 +477,20 @@ class SupplierSettlementService {
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Auto-settlement for supplier " + supplier.getName();
-    String reference =
-        StringUtils.hasText(request.referenceNumber())
-            ? request.referenceNumber().trim()
-            : settlementReferenceService.buildSupplierAutoSettlementReference(
-                supplier, cashAccountId, amount, List.of());
-    String idempotencyKey =
-        StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : reference;
+    boolean explicitReference = StringUtils.hasText(request.referenceNumber());
+    boolean explicitIdempotencyKey = StringUtils.hasText(request.idempotencyKey());
+    List<SettlementAllocationRequest> resolvedAllocations = null;
+    String reference = explicitReference ? request.referenceNumber().trim() : null;
+    String idempotencyKey = explicitIdempotencyKey ? request.idempotencyKey().trim() : null;
+    if (!explicitReference && !explicitIdempotencyKey) {
+      resolvedAllocations =
+          settlementAllocationResolutionService.buildSupplierAutoSettlementAllocations(
+              company, supplier, amount);
+      reference =
+          settlementReferenceService.buildSupplierAutoSettlementReference(
+              supplier, cashAccountId, amount, resolvedAllocations);
+      idempotencyKey = reference;
+    }
     PartnerSettlementRequest settlementRequest =
         new PartnerSettlementRequest(
             PartnerType.SUPPLIER,
@@ -501,7 +507,7 @@ class SupplierSettlementService {
             memo,
             idempotencyKey,
             Boolean.FALSE,
-            null);
+            resolvedAllocations);
     return settleSupplierInvoices(
         settlementRequest, SUPPLIER_AUTO_SETTLEMENT_ROUTE, "SUPPLIER_PAYMENT");
   }

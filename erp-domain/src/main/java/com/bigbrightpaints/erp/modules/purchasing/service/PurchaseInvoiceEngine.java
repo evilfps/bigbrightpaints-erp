@@ -51,6 +51,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierPaymentTerms;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
@@ -522,6 +523,7 @@ public class PurchaseInvoiceEngine {
     purchase.setSupplier(supplier);
     purchase.setInvoiceNumber(invoiceNumber);
     purchase.setInvoiceDate(request.invoiceDate());
+    purchase.setDueDate(resolvePurchaseDueDate(request.invoiceDate(), supplier));
     purchase.setMemo(clean(request.memo()));
     purchase.setTotalAmount(totalAmount);
     purchase.setTaxAmount(taxAmount);
@@ -922,6 +924,18 @@ public class PurchaseInvoiceEngine {
       return null;
     }
     return normalized.substring(0, 2);
+  }
+
+  private java.time.LocalDate resolvePurchaseDueDate(
+      java.time.LocalDate invoiceDate, Supplier supplier) {
+    if (invoiceDate == null || supplier == null) {
+      return null;
+    }
+    SupplierPaymentTerms paymentTerms = supplier.getPaymentTerms();
+    if (paymentTerms == null) {
+      return null;
+    }
+    return invoiceDate.plusDays(paymentTerms.dueDays());
   }
 
   private void transitionPurchaseOrderStatus(

@@ -53,6 +53,9 @@ public class RawMaterialPurchase extends VersionedEntity {
   @Column(name = "invoice_date", nullable = false)
   private LocalDate invoiceDate;
 
+  @Column(name = "due_date")
+  private LocalDate dueDate;
+
   @Column(nullable = false)
   private BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -164,6 +167,14 @@ public class RawMaterialPurchase extends VersionedEntity {
 
   public void setInvoiceDate(LocalDate invoiceDate) {
     this.invoiceDate = invoiceDate;
+  }
+
+  public LocalDate getDueDate() {
+    return dueDate;
+  }
+
+  public void setDueDate(LocalDate dueDate) {
+    this.dueDate = dueDate;
   }
 
   public BigDecimal getTotalAmount() {
