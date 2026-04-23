@@ -1,28 +1,21 @@
 {
   "featureId": "dealer-payment-event-receipt-hardcut",
-  "reviewedAt": "2026-04-23T03:38:49Z",
-  "commitId": "99275a52672ba1b3507931ea00953f1742ec59b3",
+  "reviewedAt": "2026-04-23T04:56:11Z",
+  "commitId": "187c1530a160edf31cce71e51cc1b761858a6e90",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
-  "status": "fail",
+  "status": "pass",
   "codeReview": {
-    "summary": "The fix closes the fully-missing allocation case for dealer receipts, but the hybrid receipt replay path still accepts degraded states when only some of its canonical auto-allocation rows are missing, so the prior failure is not fully resolved.",
-    "issues": [
-      {
-        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerReceiptPostingService.java",
-        "line": 350,
-        "severity": "blocking",
-        "description": "The hybrid replay branch now rejects an empty allocation set, but it still returns success for any non-empty subset of rows. `recordDealerReceiptSplit()` replays through `resolveDealerReplayJournalEntry(...)` and then only calls `validateSplitReceiptIdempotency(...)`, which checks journal lines but never validates the persisted allocation set (DealerReceiptPostingService:350-368; SettlementReplayValidationService:53-59). That is insufficient because `autoApplyDealerSplitAllocations(...)` can persist multiple canonical rows for one request, including several invoice allocations plus an unapplied remainder (DealerReceiptPostingService:632-692), and the existing FIFO characterization already proves a single hybrid receipt can create four allocation rows (CR_DealerReceiptSettlementAuditTrailTest.java:1567-1600). If one of those rows is deleted but at least one survives, replay still returns the old journal instead of failing closed or repairing the missing allocation truth. The new regression only deletes all rows for the split path (CR_DealerReceiptSettlementAuditTrailTest.java:1396-1470), so the feature still violates its explicit-allocation replay guarantee for partial-loss hybrid receipts."
-      }
-    ]
+    "summary": "Current HEAD closes the prior hybrid subset-loss replay hole. `DealerReceiptPostingService.recordDealerReceiptSplit(...)` now validates replay-scope allocation completeness before returning a replayed journal, and the new code-red regression proves that deleting one row from a four-row canonical hybrid allocation set now fails closed instead of succeeding.",
+    "issues": []
   },
   "sharedStateObservations": [
     {
       "area": "skills",
-      "observation": "The accounting hard-cut skill and this packet's added regressions still under-specify degraded replay coverage for multi-row hybrid receipts, so the fix proved only the all-rows-missing case and missed the still-broken partial-loss case.",
-      "evidence": "The skill requires a degraded replay state generically (`.factory/skills/accounting-hardcut-worker/SKILL.md`, Step 4.5), but the worker handoff itself asked for an explicit requirement for both dealer receipt routes. The transcript/handoff shows the fix added only `dealerReceipt_replayFailsClosed_whenAllocationRowsAreMissing` and `dealerReceiptSplit_replayFailsClosed_whenAllocationRowsAreMissing`, while existing characterization at CR_DealerReceiptSettlementAuditTrailTest.java:1567-1600 already showed hybrid receipts can persist four allocation rows."
+      "observation": "The accounting hard-cut skill still phrases degraded replay proof too generically for multi-allocation hybrid corridors; this rerun needed an explicit worker reminder to prove both all-rows-missing and subset-rows-surviving replay failures.",
+      "evidence": ".factory/skills/accounting-hardcut-worker/SKILL.md:91 requires only 'at least one degraded replay state where canonical allocation rows are missing or incomplete', while the worker handoff at /Users/anas/.factory/missions/b3885fb3-3080-480f-9f59-1eba48c5f565/handoffs/2026-04-23T04-43-27-388Z__dealer-payment-event-receipt-hardcut__24d6cb3a-352d-4696-84da-7bf865ea6dbc.json:95 asks for an explicit checklist item covering both all-rows-missing and subset-rows-surviving hybrid cases."
     }
   ],
   "addressesFailureFrom": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/accounting-centralization-20260420/.factory/validation/party-master-and-payment-core/scrutiny/reviews/dealer-payment-event-receipt-hardcut.json",
-  "summary": "Fail: the rerun fixes replay when dealer receipt allocation rows are entirely absent, but dealer hybrid receipt replay still succeeds with an incomplete surviving subset of auto-allocation rows, so the prior degraded-replay failure remains unresolved."
+  "summary": "Pass: the rerun fixes the prior dealer hybrid receipt replay failure. Current HEAD now rejects subset-loss degraded replay states by comparing replay-scope persisted allocations to the requested hybrid receipt amount, and the added regression covers the exact four-row partial-loss scenario that previously slipped through."
 }

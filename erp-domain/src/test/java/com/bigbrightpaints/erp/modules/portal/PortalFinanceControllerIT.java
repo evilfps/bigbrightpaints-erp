@@ -447,9 +447,7 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
             "/api/v1/credit/limit-requests",
             HttpMethod.POST,
             new HttpEntity<>(
-                Map.of(
-                    "amountRequested", new BigDecimal("1500.00"),
-                    "reason", "need-more-credit"),
+                Map.of("amountRequested", new BigDecimal("1500.00"), "reason", "need-more-credit"),
                 creditRequestHeaders),
             Map.class);
     ResponseEntity<Map> heldPortalFinanceLedgerResponse =
@@ -462,7 +460,8 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
     assertThat(heldDealerLedgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(heldDealerAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(heldDealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(heldDealerCreditLimitRequestResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(heldDealerCreditLimitRequestResponse.getStatusCode())
+        .isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(heldPortalFinanceLedgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(((Map<?, ?>) heldDealerLedgerResponse.getBody().get("data")).get("dealerId"))
         .isEqualTo(dealerA.getId().intValue());

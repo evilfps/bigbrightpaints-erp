@@ -365,8 +365,7 @@ class DealerReceiptPostingService {
           company, idempotencyKey, entry, "DEALER_RECEIPT_SPLIT");
       settlementReplayValidationService.validateSplitReceiptIdempotency(
           idempotencyKey, dealer, memo, entry, lines);
-      validateSplitReplayAllocationCompleteness(
-          idempotencyKey, dealer, total, existingAllocations);
+      validateSplitReplayAllocationCompleteness(idempotencyKey, dealer, total, existingAllocations);
       return dtoMapperService.toJournalEntryDto(entry);
     }
     for (DealerReceiptSplitRequest.IncomingLine line : request.incomingLines()) {

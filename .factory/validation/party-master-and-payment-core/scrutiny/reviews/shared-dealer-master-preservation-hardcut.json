@@ -1,28 +1,26 @@
 {
   "featureId": "shared-dealer-master-preservation-hardcut",
-  "reviewedAt": "2026-04-23T03:39:00Z",
-  "commitId": "a0abbefc926c79dc625c05e9ea236248b611921c",
+  "reviewedAt": "2026-04-23T04:57:15Z",
+  "commitId": "28eafbd2f437f7f299401b68e09f8b6eb8a71a59",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
-  "status": "fail",
+  "status": "pass",
   "codeReview": {
-    "summary": "This rerun fixes the two original forced-`ACTIVE` regressions by centralizing preserved-status resolution in `DealerProvisioningSupport` and applying it from both `DealerService.createDealer` and `AdminUserService.createDealerForUser`. It also adds a portal interceptor that correctly fences non-active dealer sessions to the intended read-only `/api/v1/dealer-portal/**` finance routes. However, the effective HEAD still leaves one dealer-facing write surface open: non-active dealer sessions can POST `/api/v1/credit/limit-requests`, so the packet still does not satisfy the mission contract that non-active dealer login access be finance-read-only only until explicit reactivation.",
-    "issues": [
-      {
-        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/CreditLimitRequestController.java",
-        "line": 46,
-        "severity": "blocking",
-        "description": "`createRequest` still grants `ROLE_DEALER` access on `/api/v1/credit/limit-requests`, and the dealer branch at lines 50-57 resolves the caller through `dealerPortalService.getCurrentDealer()`. Because `DealerPortalService` now intentionally accepts `ON_HOLD`/`SUSPENDED`/`BLOCKED` dealers so finance reads keep working, a non-active dealer session can still create credit-limit requests through this non-finance POST endpoint. The new `DealerPortalFinanceReadOnlyInterceptor` only guards `/api/v1/dealer-portal/**`, so the fix seals the portal namespace but not the full non-active dealer login surface required by VAL-PARTNER-037 and mission AGENTS."
-      }
-    ]
+    "summary": "Current HEAD keeps the feature fix from `28eafbd2f437f7f299401b68e09f8b6eb8a71a59` intact. `CreditLimitRequestController.createRequest` now resolves dealer sessions through `DealerPortalService`, explicitly denies preserved non-active dealers before request creation, and therefore closes the previously missed canonical write surface on `POST /api/v1/credit/limit-requests`. `PortalFinanceControllerIT` now proves the intended contract end-to-end: a held dealer can still read ledger and aging, but both broader dealer-portal access (`/api/v1/dealer-portal/dashboard`) and the canonical credit-limit write route return `403`. I did not find any new high-confidence blocking correctness issues in scope.",
+    "issues": []
   },
   "sharedStateObservations": [
     {
       "area": "knowledge",
-      "observation": "Shared-state guidance frames the restriction mostly as blocking broader `dealer-portal` access, but dealer-capable routes are not fully namespaced under `/api/v1/dealer-portal/**`. That makes path-prefix-only hardening easy to misapply.",
-      "evidence": "Mission `AGENTS.md:34` says non-active dealer login access must be finance read-only only while broader dealer-portal access stays blocked, yet `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/CreditLimitRequestController.java:46-57` still exposes a dealer-role POST outside the dealer-portal prefix."
+      "observation": "The mission guidance describes the restriction mostly in terms of blocking broader `dealer-portal` access, but dealer-capable routes are not fully namespaced under `/api/v1/dealer-portal/**`. Workers hardening non-active dealer access need an explicit route inventory, not just prefix-based guarding assumptions.",
+      "evidence": "Mission `AGENTS.md:34,55` requires finance-read-only access for non-active dealer logins, while the canonical dealer write route lives at `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/CreditLimitRequestController.java:28,47-69` (`/api/v1/credit/limit-requests`) outside the dealer-portal prefix."
+    },
+    {
+      "area": "skills",
+      "observation": "The repo's Maven invocation is cwd-sensitive because `.mvn/settings.xml` is resolved relative to `erp-domain`, but that constraint was still easy for the worker to miss during baseline proof execution.",
+      "evidence": "The feature handoff records `skillFeedback.followedProcedure=false` and notes that an initial `-f .../pom.xml` run failed because `erp-domain/.mvn/settings.xml` is cwd-relative, then suggests documenting that explicitly (`.../handoffs/2026-04-23T04-18-35-360Z__shared-dealer-master-preservation-hardcut__1c3ce5fa-9a14-4d59-b5a0-907340350431.json:71-80`)."
     }
   ],
   "addressesFailureFrom": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/accounting-centralization-20260420/.factory/validation/party-master-and-payment-core/scrutiny/reviews/shared-dealer-master-preservation-hardcut.json",
-  "summary": "Fail: the rerun fixes both prior forced-reactivation bugs and correctly narrows non-active dealer access inside `/api/v1/dealer-portal/**`, but it still leaves `/api/v1/credit/limit-requests` writable to non-active dealer sessions, so finance-read-only-only access is not fully enforced."
+  "summary": "Pass: the follow-up fix closes the prior blocking gap by denying non-active dealer sessions on `POST /api/v1/credit/limit-requests` while preserving finance read-only dealer access, and I found no new blocking correctness issues in scope."
 }

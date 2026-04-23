@@ -1,0 +1,82 @@
+{
+  "milestone": "party-master-and-payment-core",
+  "round": 2,
+  "status": "fail",
+  "scopeNote": "Rerun validators all passed on current HEAD, and the milestone's four scrutiny reviews were refreshed against the latest worker sessions. Two prior blockers are fixed (`dealer-settlement-and-allocation-hardcut`, `supplier-payment-and-ap-settlement-hardcut` now pass), but two blocking correctness gaps remain in non-active dealer finance-read-only enforcement and degraded hybrid-receipt replay integrity.",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CriticalAccountingAxesIT,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,ReconciliationControlsIT' test",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn spotless:check",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "failedFeatures": [
+      "shared-dealer-master-preservation-hardcut",
+      "dealer-payment-event-receipt-hardcut"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "shared-dealer-master-preservation-hardcut",
+      "severity": "blocking",
+      "description": "Non-active dealer sessions can still write through `POST /api/v1/credit/limit-requests`, because `CreditLimitRequestController.createRequest` still allows `ROLE_DEALER` and resolves the caller via `dealerPortalService.getCurrentDealer()` outside the new `/api/v1/dealer-portal/**` finance-read-only interceptor."
+    },
+    {
+      "featureId": "dealer-payment-event-receipt-hardcut",
+      "severity": "blocking",
+      "description": "Hybrid dealer-receipt replay still succeeds when only a non-empty subset of canonical allocation rows survives. `recordDealerReceiptSplit()` validates journal lines but not the full persisted allocation set, so degraded partial-loss states can replay 200 without failing closed or repairing missing allocation truth."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": ".factory/validation/party-master-and-payment-core/scrutiny/reviews/*.json",
+      "description": "Refreshed all four scrutiny review artifacts against the latest milestone worker sessions and current HEAD, recording two passes and two remaining failures.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    },
+    {
+      "target": ".factory/validation/party-master-and-payment-core/scrutiny/synthesis.round-1.json",
+      "description": "Archived the prior round-1 scrutiny synthesis before overwriting the active milestone synthesis for this rerun.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    },
+    {
+      "target": ".factory/validation/party-master-and-payment-core/scrutiny/synthesis.json",
+      "description": "Recorded round-2 validator outcomes and synthesized the remaining blocking scrutiny findings for orchestrator follow-up before user testing.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "For dealer shared-master / dealer-portal packets, require reviewers and implementers to inventory all dealer-role routes, including dealer-capable endpoints outside `/api/v1/dealer-portal/**`, before claiming non-active dealer sessions are finance-read-only only.",
+      "evidence": "This rerun fixed forced-reactivation and added a dealer-portal interceptor, but scrutiny still found `POST /api/v1/credit/limit-requests` writable to non-active dealer sessions because the route lives outside the dealer-portal prefix while still using `dealerPortalService.getCurrentDealer()`.",
+      "isSystemic": false
+    },
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "For payment-event / allocation packets with hybrid or multi-line receipts, require degraded replay proof for partial-loss allocation states, not just the all-rows-missing case.",
+      "evidence": "The rerun for `dealer-payment-event-receipt-hardcut` added replay protection for fully missing allocation rows, but scrutiny still found hybrid receipt replay succeeds when only some canonical allocation rows survive because tests covered only the zero-rows-left case.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add a new `.factory/services.yaml` command immediately for the keyless dealer auto-settle fallback replay regression.",
+      "reason": "Rejected as unnecessary for this round because the underlying dealer auto-settle issue is now fixed and the observation is already covered more generally by the guidance updates about explicit keyless fallback and degraded replay proof."
+    }
+  ],
+  "previousRound": ".factory/validation/party-master-and-payment-core/scrutiny/synthesis.round-1.json"
+}
