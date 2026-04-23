@@ -433,6 +433,25 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(dealerHeaders),
             Map.class);
+    ResponseEntity<Map> heldDealerDashboardResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/dashboard",
+            HttpMethod.GET,
+            new HttpEntity<>(dealerHeaders),
+            Map.class);
+    HttpHeaders creditRequestHeaders = new HttpHeaders();
+    creditRequestHeaders.putAll(dealerHeaders);
+    creditRequestHeaders.setContentType(MediaType.APPLICATION_JSON);
+    ResponseEntity<Map> heldDealerCreditLimitRequestResponse =
+        rest.exchange(
+            "/api/v1/credit/limit-requests",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "amountRequested", new BigDecimal("1500.00"),
+                    "reason", "need-more-credit"),
+                creditRequestHeaders),
+            Map.class);
     ResponseEntity<Map> heldPortalFinanceLedgerResponse =
         rest.exchange(
             "/api/v1/portal/finance/ledger?dealerId=" + dealerA.getId(),
@@ -442,6 +461,8 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
 
     assertThat(heldDealerLedgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(heldDealerAgingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(heldDealerDashboardResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(heldDealerCreditLimitRequestResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(heldPortalFinanceLedgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(((Map<?, ?>) heldDealerLedgerResponse.getBody().get("data")).get("dealerId"))
         .isEqualTo(dealerA.getId().intValue());
