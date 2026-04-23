@@ -1,0 +1,114 @@
+{
+  "milestone": "party-master-and-payment-core",
+  "round": 1,
+  "status": "fail",
+  "scopeNote": "Targeted milestone validators passed locally after `MIGRATION_SET=v2 mvn spotless:apply` cleared branch-local formatting drift. Four scrutiny reviews were produced for the completed milestone features, and all four failed with blocking correctness regressions in shared dealer-master preservation, dealer receipt replay/allocation integrity, dealer auto-settle implicit identity, and supplier auto-settle ordering/reference behavior.",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CriticalAccountingAxesIT,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,ReconciliationControlsIT' test",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn spotless:apply && MIGRATION_SET=v2 mvn spotless:check",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 0,
+    "failed": 4,
+    "failedFeatures": [
+      "shared-dealer-master-preservation-hardcut",
+      "dealer-payment-event-receipt-hardcut",
+      "dealer-settlement-and-allocation-hardcut",
+      "supplier-payment-and-ap-settlement-hardcut"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "shared-dealer-master-preservation-hardcut",
+      "severity": "blocking",
+      "description": "`DealerService.createDealer` still forces the surviving shared dealer master to `ACTIVE`, so re-running sales onboarding clears preserved `ON_HOLD` / `SUSPENDED` / `BLOCKED` state instead of preserving it."
+    },
+    {
+      "featureId": "shared-dealer-master-preservation-hardcut",
+      "severity": "blocking",
+      "description": "`AdminUserService.createDealerForUser` also forces matched dealers to `ACTIVE`, so tenant-admin role assignment reactivates held or suspended dealers and breaks the required shared-master preservation contract."
+    },
+    {
+      "featureId": "dealer-payment-event-receipt-hardcut",
+      "severity": "blocking",
+      "description": "Dealer receipt replay still returns success when the journal/payment event exists but explicit allocation rows are missing, so the payment-event-first corridor can persist journal-only truth without the canonical applied/unapplied allocation rows."
+    },
+    {
+      "featureId": "dealer-settlement-and-allocation-hardcut",
+      "severity": "blocking",
+      "description": "Dealer auto-settle now derives fallback identity before allocations are resolved, so repeated same-amount calls without explicit `referenceNumber` or `idempotencyKey` can replay the first posting instead of settling the next oldest invoice."
+    },
+    {
+      "featureId": "supplier-payment-and-ap-settlement-hardcut",
+      "severity": "blocking",
+      "description": "Supplier auto-settle now generates fallback reference/idempotency values without the resolved allocation set, so keyless same-amount requests can collide across different open-purchase sets and replay the first posting."
+    },
+    {
+      "featureId": "supplier-payment-and-ap-settlement-hardcut",
+      "severity": "blocking",
+      "description": "The feature claims `VAL-PARTNER-016`, but supplier auto-settle still orders only by `invoiceDate` then `id`; the contract requires due date when available, then invoice date, then ID, and the current purchasing model does not yet express that due-date-first rule."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": ".factory/validation/party-master-and-payment-core/scrutiny/reviews/*.json",
+      "description": "Added four scrutiny review artifacts for the completed party-master-and-payment-core implementation features, covering dealer shared-master preservation, dealer receipt payment-event replay, dealer settlement auto-settle identity, and supplier settlement ordering/reference behavior.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    },
+    {
+      "target": ".factory/validation/party-master-and-payment-core/scrutiny/synthesis.json",
+      "description": "Recorded the validator outcomes and synthesized the blocking scrutiny findings for this milestone so the orchestrator can queue repair packets before user testing.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    },
+    {
+      "target": "erp-domain/**",
+      "description": "Ran `MIGRATION_SET=v2 mvn spotless:apply` to clear branch-local Spotless drift so the milestone lint validator could be rechecked successfully.",
+      "sourceFeature": "scrutiny-validator-party-master-and-payment-core"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "For shared dealer-master packets, require explicit proof that re-onboarding an already held/suspended dealer through both the sales dealer path and the tenant-admin `ROLE_DEALER` assignment path preserves the existing dealer status instead of reactivating it.",
+      "evidence": "The failed review for `shared-dealer-master-preservation-hardcut` found both `DealerService.createDealer` and `AdminUserService.createDealerForUser` still force matched dealers to `ACTIVE`, and the packet's validation only proved happy-path convergence rather than re-onboarding preserved held/suspended dealers.",
+      "isSystemic": false
+    },
+    {
+      "target": "accounting-hardcut-worker skill",
+      "suggestion": "For payment-event and settlement packets, require focused regression proof for the keyless fallback identity path (no explicit `referenceNumber` / `idempotencyKey`) and for replay against degraded journal/payment-event states where canonical allocation rows are missing.",
+      "evidence": "The failed reviews for `dealer-payment-event-receipt-hardcut` and `dealer-settlement-and-allocation-hardcut` both found correctness holes that only appear when replay/key generation relies on implicit fallback behavior rather than the explicit-key happy path covered in the new tests.",
+      "isSystemic": true
+    },
+    {
+      "target": "validation-contract.md",
+      "suggestion": "Reconcile `VAL-PARTNER-016` with the current purchasing model by either adding a due-date field and due-date-first ordering support to supplier auto-settle or narrowing the contract to the strongest ordering rule the codebase can actually express today.",
+      "evidence": "The failed review for `supplier-payment-and-ap-settlement-hardcut` found `RawMaterialPurchase` has no due-date field and `RawMaterialPurchaseRepository` still orders supplier settlement candidates by `invoiceDate, id`, while the validation contract presently requires due date when available, then invoice date, then ID.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Update `.factory/library/user-testing.md` immediately with a freshly provisioned dealer-user password-change / MailHog note.",
+      "reason": "Not applied in this scrutiny packet because this worker run is constrained from editing repository documentation unless explicitly requested; the factual gap is preserved here for orchestrator triage."
+    },
+    {
+      "observation": "Broaden shared-state guidance right now to document every packet-specific replay edge case discovered in these four reviews.",
+      "reason": "Rejected for this round because the observations are accurate but still feature-specific; I only elevated the systemic test-gap patterns above and left narrower packet details in the review artifacts."
+    }
+  ],
+  "previousRound": null
+}

@@ -1,28 +1,21 @@
 {
   "featureId": "dealer-settlement-and-allocation-hardcut",
-  "reviewedAt": "2026-04-22T17:55:00Z",
-  "commitId": "8fb771dade50f78052eb320ff95a3560d9bbea8c",
+  "reviewedAt": "2026-04-23T03:38:34Z",
+  "commitId": "5584a9d14",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
-  "status": "fail",
+  "status": "pass",
   "codeReview": {
-    "summary": "The hard-cut mostly unifies dealer settlement onto the payment-event core, but it regresses the public dealer auto-settle route when callers omit both referenceNumber and idempotencyKey.",
-    "issues": [
-      {
-        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerSettlementService.java",
-        "line": 539,
-        "severity": "blocking",
-        "description": "`autoSettleDealer` now forwards a `PartnerSettlementRequest` with `allocations = null` into `settleDealerInvoices` (DealerSettlementService:539-556). When the caller omits both `referenceNumber` and `idempotencyKey`, dealer-settlement idempotency falls back to `buildDealerSettlementIdempotencyKey()` (SettlementReferenceService:49-59,220-246), whose fingerprint only includes dealer/cashAccount/amount until allocations exist. The pre-hard-cut path built the auto-settle allocations before deriving the receipt identity, so different oldest-open invoice sets produced different implicit references. After this change, two legitimate auto-settle calls for the same dealer/account/amount can collide and replay the first journal instead of settling the next oldest invoice, breaking the existing public auto-settle contract."
-      }
-    ]
+    "summary": "Pass. The rerun fixes the prior keyless dealer auto-settle regression by resolving replay lookups only from explicit keys first, then deriving the actual dealer-settlement idempotency identity from the resolved allocation set before replay detection and posting. The new codered regression proves two successive same-amount keyless auto-settle calls create distinct journals/idempotency keys and advance from the oldest invoice to the next-oldest invoice instead of replaying the first posting.",
+    "issues": []
   },
   "sharedStateObservations": [
     {
       "area": "skills",
-      "observation": "The validation coverage for dealer auto-settle only exercised requests with explicit `referenceNumber` and `idempotencyKey`, so it missed the default keyless auto-settle path that used to derive identity from resolved allocations.",
-      "evidence": "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java:783-790 creates the new auto-settle request with both explicit fields populated; the handoff's manual validation notes auto-settle success but does not mention the no-reference/no-idempotency route."
+      "observation": "The worker had to deviate from the accounting-hardcut skill's runtime-proof guidance for this settlement-idempotency fix and suggested adding an explicit focused command for the keyless fallback replay scenario.",
+      "evidence": "Handoff skillFeedback marks `followedProcedure` false for Step 4 and suggests: \"For settlement-idempotency packets, include an explicit manifest command that runs only the keyless fallback replay scenario to make Step 4 runtime expectations clearer and faster.\" The worker instead ran a focused Maven regression plus the targeted accounting proof suite."
     }
   ],
-  "addressesFailureFrom": null,
-  "summary": "Fail: dealer settlements are moved onto the payment-event core, but dealer auto-settle now reuses the same implicit idempotency/reference for repeated same-amount calls without explicit keys, so later legitimate auto-settlements can replay the first posting instead of allocating the next oldest invoice."
+  "addressesFailureFrom": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/accounting-centralization-20260420/.factory/validation/party-master-and-payment-core/scrutiny/reviews/dealer-settlement-and-allocation-hardcut.json",
+  "summary": "Pass: the previous blocking issue is fixed in commit `5584a9d14`. `DealerSettlementService` now resolves allocations before deriving keyless dealer-settlement identity, `SettlementReferenceService` limits pre-allocation replay lookup to explicit keys only, and `CR_DealerReceiptSettlementAuditTrailTest#dealerAutoSettle_keylessSuccessiveSameAmount_settlesNextOldestInvoice` verifies successive same-amount keyless calls no longer replay the first posting."
 }
