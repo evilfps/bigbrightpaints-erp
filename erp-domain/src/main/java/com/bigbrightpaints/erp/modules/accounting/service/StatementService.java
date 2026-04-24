@@ -165,6 +165,25 @@ public class StatementService {
   }
 
   public AgingSummaryResponse dealerAging(Dealer dealer, LocalDate asOf, String bucketParam) {
+    return dealerAgingInternal(dealer, asOf, bucketParam, null, null, false);
+  }
+
+  public AgingSummaryResponse dealerAgingWithinEntryWindow(
+      Dealer dealer, LocalDate asOf, String bucketParam, LocalDate startDate, LocalDate endDate) {
+    if (startDate == null || endDate == null) {
+      return dealerAging(dealer, asOf, bucketParam);
+    }
+    validateStatementRange(startDate, endDate);
+    return dealerAgingInternal(dealer, asOf, bucketParam, startDate, endDate, true);
+  }
+
+  private AgingSummaryResponse dealerAgingInternal(
+      Dealer dealer,
+      LocalDate asOf,
+      String bucketParam,
+      LocalDate entryDateStart,
+      LocalDate entryDateEnd,
+      boolean restrictToEntryWindow) {
     Company company = companyContextService.requireCurrentCompany();
     LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
     List<int[]> buckets = parseBuckets(bucketParam);
@@ -179,7 +198,10 @@ public class StatementService {
     List<AgingLine> openInvoices = new ArrayList<>();
     BigDecimal creditPool = BigDecimal.ZERO;
     for (DealerLedgerEntry e : entries) {
-      if (e.getEntryDate().isAfter(ref)) {
+      if (e.getEntryDate() == null || e.getEntryDate().isAfter(ref)) {
+        continue;
+      }
+      if (restrictToEntryWindow && !withinWindow(e.getEntryDate(), entryDateStart, entryDateEnd)) {
         continue;
       }
       BigDecimal delta = safe(e.getDebit()).subtract(safe(e.getCredit()));
@@ -538,6 +560,13 @@ public class StatementService {
           .withDetail("from", start.toString())
           .withDetail("to", end.toString());
     }
+  }
+
+  private boolean withinWindow(LocalDate date, LocalDate startDate, LocalDate endDate) {
+    if (date == null || startDate == null || endDate == null) {
+      return false;
+    }
+    return !date.isBefore(startDate) && !date.isAfter(endDate);
   }
 
   private LocalDate resolveAgingDate(DealerLedgerEntry entry) {
