@@ -172,7 +172,9 @@ public class AdminUserService {
     String requestedEmail = request.email() == null ? null : request.email().trim();
     return userRepository
         .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(requestedEmail, company.getCode())
-        .map(existingUser -> assertDealerConvergenceCandidate(existingUser, company, normalizedRoles));
+        .map(
+            existingUser ->
+                assertDealerConvergenceCandidate(existingUser, company, normalizedRoles));
   }
 
   private UserAccount assertDealerConvergenceCandidate(

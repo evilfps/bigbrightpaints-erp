@@ -555,7 +555,8 @@ class DealerServiceTest {
     when(dealerRepository.searchFiltered(
             eq(company), eq("shared@example.com"), eq(null), eq(null), any()))
         .thenReturn(List.of(dealer));
-    when(dealerLedgerService.currentBalances(List.of(99L))).thenReturn(Map.of(99L, BigDecimal.ZERO));
+    when(dealerLedgerService.currentBalances(List.of(99L)))
+        .thenReturn(Map.of(99L, BigDecimal.ZERO));
     when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
             eq(company), eq(List.of(99L)), any()))
         .thenReturn(List.of());

@@ -112,7 +112,9 @@ class AdminUserServiceTest {
                 anyString(), anyString()))
         .thenReturn(false);
     lenient()
-        .when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+        .when(
+            userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                anyString(), anyString()))
         .thenReturn(Optional.empty());
     lenient()
         .when(userRepository.save(any(UserAccount.class)))
@@ -375,7 +377,8 @@ class AdminUserServiceTest {
     receivable.setActive(true);
     existingDealer.setReceivableAccount(receivable);
 
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("sales-first@example.com", "TEST"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "sales-first@example.com", "TEST"))
         .thenReturn(Optional.of(existingScopedDealer));
     when(dealerRepository.findByCompanyAndPortalUserEmail(company, "sales-first@example.com"))
         .thenReturn(Optional.of(existingDealer));
@@ -388,7 +391,8 @@ class AdminUserServiceTest {
     assertThat(response.id()).isEqualTo(77L);
     assertThat(response.email()).isEqualTo("sales-first@example.com");
     assertThat(response.roles()).contains("ROLE_DEALER");
-    verify(tenantRuntimePolicyService, never()).assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+    verify(tenantRuntimePolicyService, never())
+        .assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
     verify(userRepository, never()).save(any(UserAccount.class));
     verify(emailService, never())
         .sendUserCredentialsEmailRequired(anyString(), anyString(), anyString(), anyString());
@@ -406,7 +410,8 @@ class AdminUserServiceTest {
     salesRole.setName("ROLE_SALES");
     conflictingScopedUser.addRole(salesRole);
 
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("conflict@example.com", "TEST"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "conflict@example.com", "TEST"))
         .thenReturn(Optional.of(conflictingScopedUser));
 
     assertThatThrownBy(
@@ -417,7 +422,8 @@ class AdminUserServiceTest {
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("User already exists for scope: TEST");
 
-    verify(tenantRuntimePolicyService, never()).assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+    verify(tenantRuntimePolicyService, never())
+        .assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
     verify(userRepository, never()).save(any(UserAccount.class));
     verify(dealerRepository, never()).save(any(Dealer.class));
     verify(emailService, never())

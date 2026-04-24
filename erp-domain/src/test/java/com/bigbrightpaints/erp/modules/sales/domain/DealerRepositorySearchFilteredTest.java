@@ -48,17 +48,11 @@ class DealerRepositorySearchFilteredTest extends AbstractIntegrationTest {
         target.getId(),
         rival.getId());
     assertSearchContainsOnlyTarget(
-        company,
-        "Shared Dealer Converge 20260424T054831Z-98eaf2",
-        target.getId(),
-        rival.getId());
+        company, "Shared Dealer Converge 20260424T054831Z-98eaf2", target.getId(), rival.getId());
     assertSearchContainsOnlyTarget(
         company, "20260424T054831Z-98eaf2", target.getId(), rival.getId());
     assertSearchContainsOnlyTarget(
-        company,
-        "Converge 20260424T054831Z-98eaf2",
-        target.getId(),
-        rival.getId());
+        company, "Converge 20260424T054831Z-98eaf2", target.getId(), rival.getId());
   }
 
   private void assertSearchContainsOnlyTarget(
