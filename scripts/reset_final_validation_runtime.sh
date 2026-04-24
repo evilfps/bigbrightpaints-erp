@@ -192,6 +192,7 @@ WITH expected_users(email, expected_scope) AS (
     ('validation.factory@example.com', 'MOCK'),
     ('validation.mfa.admin@example.com', 'MOCK'),
     ('validation.dealer@example.com', 'MOCK'),
+    ('validation.tenant.superadmin@example.com', 'MOCK'),
     ('validation.superadmin@example.com', COALESCE((SELECT UPPER(NULLIF(BTRIM(ss.setting_value), '')) FROM system_settings ss WHERE ss.setting_key = 'auth.platform.code' LIMIT 1), 'PLATFORM')),
     ('validation.hold.admin@example.com', 'HOLD'),
     ('validation.blocked.admin@example.com', 'BLOCK'),
@@ -242,6 +243,25 @@ empty_scope_users AS (
   FROM app_users u
   WHERE LOWER(u.email) IN (SELECT email FROM expected_users)
     AND COALESCE(BTRIM(u.auth_scope_code), '') = ''
+),
+expected_role_memberships(email, role_name) AS (
+  VALUES
+    ('validation.tenant.superadmin@example.com', 'ROLE_SUPER_ADMIN'),
+    ('validation.superadmin@example.com', 'ROLE_SUPER_ADMIN')
+),
+missing_role_memberships AS (
+  SELECT format('seeded actor %s is missing required role %s', erm.email, erm.role_name) AS error
+  FROM expected_role_memberships erm
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM app_users u
+    JOIN user_roles ur
+      ON ur.user_id = u.id
+    JOIN roles r
+      ON r.id = ur.role_id
+    WHERE LOWER(u.email) = erm.email
+      AND UPPER(COALESCE(r.name, '')) = erm.role_name
+  )
 ),
 expected_companies(code) AS (
   VALUES ('MOCK'), ('RIVAL'), ('HOLD'), ('BLOCK'), ('QUOTA')
@@ -467,6 +487,7 @@ pending_validation_credit_missing AS (
 SELECT error FROM missing_users
 UNION ALL SELECT error FROM scope_mismatch_users
 UNION ALL SELECT error FROM empty_scope_users
+UNION ALL SELECT error FROM missing_role_memberships
 UNION ALL SELECT error FROM missing_companies
 UNION ALL SELECT error FROM runtime_setting_mismatches
 UNION ALL SELECT error FROM missing_dealers
@@ -519,6 +540,7 @@ WHERE LOWER(email) IN (
   'validation.factory@example.com',
   'validation.mfa.admin@example.com',
   'validation.dealer@example.com',
+  'validation.tenant.superadmin@example.com',
   'validation.superadmin@example.com',
   'validation.hold.admin@example.com',
   'validation.blocked.admin@example.com',
@@ -533,10 +555,12 @@ SQL
 
 superadmin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.superadmin@example.com" {print $3; exit}')"
 superadmin_scope_code="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.superadmin@example.com" {print $2; exit}')"
+tenant_superadmin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.tenant.superadmin@example.com" {print $3; exit}')"
 mock_admin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' -v target="$mock_admin_email_normalized" '$1==target {print $3; exit}')"
 mfa_admin_public_id="$(printf '%s\n' "$seed_user_rows" | awk -F'|' '$1=="validation.mfa.admin@example.com" {print $3; exit}')"
 superadmin_public_id="${superadmin_public_id:-unavailable}"
 superadmin_scope_code="${superadmin_scope_code:-unavailable}"
+tenant_superadmin_public_id="${tenant_superadmin_public_id:-unavailable}"
 mock_admin_public_id="${mock_admin_public_id:-unavailable}"
 mfa_admin_public_id="${mfa_admin_public_id:-unavailable}"
 
@@ -565,6 +589,7 @@ Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; reset fallback: ${
   validation.blocked.admin@example.com -> BLOCK (ROLE_ADMIN; tenant state BLOCKED)
   validation.quota.alpha@example.com  -> QUOTA (ROLE_ADMIN; active-user quota fixture)
   validation.quota.beta@example.com   -> QUOTA (ROLE_ADMIN; active-user quota fixture)
+  validation.tenant.superadmin@example.com -> MOCK (ROLE_SUPER_ADMIN; tenant period-reopen validation fixture)
   validation.superadmin@example.com   -> ${superadmin_scope_code} (ROLE_SUPER_ADMIN, ROLE_ADMIN)
   validation.rival.admin@example.com  -> RIVAL (ROLE_ADMIN)
   validation.rival.dealer@example.com -> RIVAL (ROLE_DEALER, portal user RIVAL-DEALER)
@@ -572,6 +597,7 @@ Seeded actors (password source: ERP_VALIDATION_SEED_PASSWORD; reset fallback: ${
 Seeded public ids:
   ${ERP_SEED_MOCK_ADMIN_EMAIL}                -> ${mock_admin_public_id}
   validation.mfa.admin@example.com  -> ${mfa_admin_public_id}
+  validation.tenant.superadmin@example.com -> ${tenant_superadmin_public_id}
   validation.superadmin@example.com -> ${superadmin_public_id}
 
 Seeded admin/UAT fixtures:

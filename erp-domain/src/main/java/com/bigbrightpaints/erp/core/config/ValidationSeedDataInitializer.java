@@ -323,6 +323,17 @@ public class ValidationSeedDataInitializer {
           quotaCompany.getCode(),
           List.of(quotaCompany),
           List.of(admin));
+      UserAccount tenantReopenSuperAdmin =
+          ensureUser(
+              userAccountRepository,
+              passwordEncoder,
+              cryptoService,
+              "validation.tenant.superadmin@example.com",
+              "Validation Tenant Super Admin",
+              validatedPassword,
+              mockCompany.getCode(),
+              List.of(mockCompany),
+              List.of(superAdmin));
       UserAccount superAdminUser =
           ensureUser(
               userAccountRepository,
@@ -343,8 +354,9 @@ public class ValidationSeedDataInitializer {
 
       log.info(
           "Validation seed logins ready: admin={}, mustChange={}, locked={}, accounting={},"
-              + " sales={}, factory={}, mfaAdmin={}, dealer={}, superadmin={} (password from"
-              + " erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD)",
+              + " sales={}, factory={}, mfaAdmin={}, dealer={}, tenantReopenSuperAdmin={},"
+              + " superadmin={} (password from erp.validation-seed.password /"
+              + " ERP_VALIDATION_SEED_PASSWORD)",
           mockAdmin.getEmail(),
           "validation.mustchange.admin@example.com",
           "validation.locked.admin@example.com",
@@ -353,6 +365,7 @@ public class ValidationSeedDataInitializer {
           "validation.factory@example.com",
           "validation.mfa.admin@example.com",
           "validation.dealer@example.com",
+          tenantReopenSuperAdmin.getEmail(),
           superAdminUser.getEmail());
       log.info(
           "Validation state companies ready: hold={} blocked={} quota={} with admin actors"
