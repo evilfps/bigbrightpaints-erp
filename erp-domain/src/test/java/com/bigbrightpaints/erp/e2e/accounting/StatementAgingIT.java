@@ -232,6 +232,75 @@ class StatementAgingIT extends AbstractIntegrationTest {
 
   @Test
   @DisplayName(
+      "Windowed aged debtors ignores mutable paid state when payment date is after as-of date")
+  void windowedAgedDebtorsIgnoresMutablePaidStateForPostAsOfPayment() {
+    LocalDate asOfDate = LocalDate.now();
+    LocalDate invoiceDate = asOfDate.minusDays(5);
+    LocalDate paymentDate = asOfDate.plusDays(3);
+
+    Dealer windowDealer =
+        dealerRepository
+            .findByCompanyAndCodeIgnoreCase(company, "D-STMT-LATE-PAY")
+            .orElseGet(
+                () -> {
+                  var d = new Dealer();
+                  d.setCompany(company);
+                  d.setName("Statement Late Pay Dealer");
+                  d.setCode("D-STMT-LATE-PAY");
+                  d.setStatus("ACTIVE");
+                  return dealerRepository.save(d);
+                });
+    windowDealer.setReceivableAccount(ar);
+    dealerRepository.save(windowDealer);
+    dealerLedgerRepository.deleteAll(
+        dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, windowDealer));
+
+    DealerLedgerEntry inWindowInvoice = new DealerLedgerEntry();
+    inWindowInvoice.setCompany(company);
+    inWindowInvoice.setDealer(windowDealer);
+    inWindowInvoice.setEntryDate(invoiceDate);
+    inWindowInvoice.setReferenceNumber("INV-LATE-001");
+    inWindowInvoice.setMemo("In-window invoice with future paid state");
+    inWindowInvoice.setInvoiceNumber("INV-LATE-001");
+    inWindowInvoice.setDueDate(invoiceDate);
+    inWindowInvoice.setDebit(new BigDecimal("100.00"));
+    inWindowInvoice.setCredit(BigDecimal.ZERO);
+    inWindowInvoice.setAmountPaid(new BigDecimal("100.00"));
+    inWindowInvoice.setPaidDate(paymentDate);
+    inWindowInvoice.setPaymentStatus("PAID");
+
+    dealerLedgerRepository.save(inWindowInvoice);
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/reports/aged-debtors?startDate="
+                + invoiceDate.minusDays(1)
+                + "&endDate="
+                + invoiceDate.plusDays(1),
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> rows = (List<Map<String, Object>>) response.getBody().get("data");
+    Map<String, Object> windowDealerRow =
+        rows.stream()
+            .filter(row -> "D-STMT-LATE-PAY".equals(row.get("dealerCode")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(new BigDecimal(windowDealerRow.get("totalOutstanding").toString()))
+        .isEqualByComparingTo("100.00");
+    BigDecimal bucketTotal =
+        new BigDecimal(windowDealerRow.get("current").toString())
+            .add(new BigDecimal(windowDealerRow.get("oneToThirtyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("thirtyOneToSixtyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("sixtyOneToNinetyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("ninetyPlusDays").toString()));
+    assertThat(bucketTotal).isEqualByComparingTo("100.00");
+  }
+
+  @Test
+  @DisplayName(
       "Retired accounting dealer finance aliases are not found for admin-accounting probes")
   void retiredAccountingDealerFinanceAliasesAreNotFound() {
     List<String> retiredPaths =
