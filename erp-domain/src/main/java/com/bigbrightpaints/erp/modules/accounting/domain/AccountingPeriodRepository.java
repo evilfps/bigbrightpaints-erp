@@ -23,8 +23,9 @@ public interface AccountingPeriodRepository extends JpaRepository<AccountingPeri
   Optional<AccountingPeriod> findFirstByCompanyAndStatusOrderByStartDateDesc(
       Company company, AccountingPeriodStatus status);
 
-  Optional<AccountingPeriod> findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
-      Company company, AccountingPeriodStatus status, LocalDate startDate);
+  Optional<AccountingPeriod>
+      findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+          Company company, AccountingPeriodStatus status, LocalDate startDate);
 
   Optional<AccountingPeriod> findFirstByCompanyOrderByStartDateDesc(Company company);
 
