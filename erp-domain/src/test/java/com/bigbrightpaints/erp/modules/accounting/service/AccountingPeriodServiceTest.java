@@ -29,6 +29,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -1428,8 +1429,10 @@ class AccountingPeriodServiceTest {
   }
 
   @Test
-  void createOrUpdatePeriod_createsPeriodWithRequestedCostingMethod() {
+  void createOrUpdatePeriod_createsOpenPeriodWithRequestedDatesAndCostingMethod() {
     Company company = company(1L, "ACME");
+    LocalDate startDate = LocalDate.of(2026, 4, 3);
+    LocalDate endDate = LocalDate.of(2026, 4, 29);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 4))
         .thenReturn(Optional.empty());
@@ -1437,10 +1440,14 @@ class AccountingPeriodServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     var dto =
-        service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 4, CostingMethod.LIFO));
+        service.createOrUpdatePeriod(
+            new AccountingPeriodRequest(2026, 4, startDate, endDate, CostingMethod.LIFO));
 
     assertThat(dto.year()).isEqualTo(2026);
     assertThat(dto.month()).isEqualTo(4);
+    assertThat(dto.startDate()).isEqualTo(startDate);
+    assertThat(dto.endDate()).isEqualTo(endDate);
+    assertThat(dto.status()).isEqualTo("OPEN");
     assertThat(dto.costingMethod()).isEqualTo("LIFO");
   }
 
@@ -1456,7 +1463,13 @@ class AccountingPeriodServiceTest {
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
 
     var dto =
-        service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 7, CostingMethod.FIFO));
+        service.createOrUpdatePeriod(
+            new AccountingPeriodRequest(
+                2026,
+                7,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 31),
+                CostingMethod.FIFO));
 
     assertThat(dto.status()).isEqualTo("OPEN");
     verify(accountingComplianceAuditService)
@@ -1481,9 +1494,63 @@ class AccountingPeriodServiceTest {
     assertThatThrownBy(
             () ->
                 service.createOrUpdatePeriod(
-                    new AccountingPeriodRequest(2026, 13, CostingMethod.FIFO)))
+                    new AccountingPeriodRequest(
+                        2026,
+                        13,
+                        LocalDate.of(2026, 5, 1),
+                        LocalDate.of(2026, 5, 31),
+                        CostingMethod.FIFO)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("month must be between 1 and 12");
+  }
+
+  @Test
+  void createOrUpdatePeriod_rejectsMissingStartDate() {
+    assertThatThrownBy(
+            () ->
+                service.createOrUpdatePeriod(
+                    new AccountingPeriodRequest(2026, 6, null, LocalDate.of(2026, 6, 30), null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("startDate is required");
+  }
+
+  @Test
+  void createOrUpdatePeriod_rejectsInvalidDateRange() {
+    assertThatThrownBy(
+            () ->
+                service.createOrUpdatePeriod(
+                    new AccountingPeriodRequest(
+                        2026,
+                        6,
+                        LocalDate.of(2026, 6, 30),
+                        LocalDate.of(2026, 6, 1),
+                        null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("startDate must be on or before endDate");
+  }
+
+  @Test
+  void createOrUpdatePeriod_rejectsDuplicateCompanyYearMonth() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod existing = openPeriod(company, 2026, 6);
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 6))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(
+            () ->
+                service.createOrUpdatePeriod(
+                    new AccountingPeriodRequest(
+                        2026,
+                        6,
+                        LocalDate.of(2026, 6, 1),
+                        LocalDate.of(2026, 6, 30),
+                        CostingMethod.FIFO)))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY));
   }
 
   @Test
@@ -1495,13 +1562,16 @@ class AccountingPeriodServiceTest {
     when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    var dto = service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 6, null));
+    var dto =
+        service.createOrUpdatePeriod(
+            new AccountingPeriodRequest(
+                2026, 6, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 30), null));
 
     assertThat(dto.costingMethod()).isEqualTo("FIFO");
   }
 
   @Test
-  void updatePeriod_updatesCostingMethodWithoutChangingExistingDates() {
+  void updatePeriod_updatesDatesAndCostingMethodWhenOpen() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 5);
     period.setCostingMethod(CostingMethod.FIFO);
@@ -1511,25 +1581,61 @@ class AccountingPeriodServiceTest {
     when(accountingPeriodRepository.save(period)).thenReturn(period);
 
     var dto =
-        service.updatePeriod(77L, new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE));
+        service.updatePeriod(
+            77L,
+            new AccountingPeriodRequest(
+                2026,
+                5,
+                LocalDate.of(2026, 5, 2),
+                LocalDate.of(2026, 5, 30),
+                CostingMethod.WEIGHTED_AVERAGE));
 
     assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
-    assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 1));
-    assertThat(period.getEndDate()).isEqualTo(LocalDate.of(2026, 5, 31));
+    assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 2));
+    assertThat(period.getEndDate()).isEqualTo(LocalDate.of(2026, 5, 30));
   }
 
   @Test
   void updatePeriod_rejectsNullRequest() {
     assertThatThrownBy(() -> service.updatePeriod(77L, null))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Costing method is required");
+        .hasMessageContaining("Accounting period request is required");
   }
 
   @Test
-  void updatePeriod_rejectsMissingCostingMethod() {
-    assertThatThrownBy(() -> service.updatePeriod(77L, new AccountingPeriodRequest(null)))
+  void updatePeriod_rejectsMissingStartDate() {
+    assertThatThrownBy(
+            () ->
+                service.updatePeriod(
+                    77L, new AccountingPeriodRequest(null, null, null, LocalDate.now(), null)))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Costing method is required");
+        .hasMessageContaining("startDate is required");
+  }
+
+  @Test
+  void updatePeriod_rejectsDateUpdatesWhenPeriodIsNotOpen() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod period = openPeriod(company, 2026, 5);
+    period.setStatus(AccountingPeriodStatus.CLOSED);
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndId(company, 77L))
+        .thenReturn(Optional.of(period));
+
+    assertThatThrownBy(
+            () ->
+                service.updatePeriod(
+                    77L,
+                    new AccountingPeriodRequest(
+                        2026,
+                        5,
+                        LocalDate.of(2026, 5, 1),
+                        LocalDate.of(2026, 5, 31),
+                        CostingMethod.FIFO)))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.VALIDATION_INVALID_STATE));
   }
 
   @Test
@@ -1539,7 +1645,15 @@ class AccountingPeriodServiceTest {
     when(accountingPeriodRepository.lockByCompanyAndId(company, 77L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(
-            () -> service.updatePeriod(77L, new AccountingPeriodRequest(CostingMethod.FIFO)))
+            () ->
+                service.updatePeriod(
+                    77L,
+                    new AccountingPeriodRequest(
+                        2026,
+                        5,
+                        LocalDate.of(2026, 5, 1),
+                        LocalDate.of(2026, 5, 31),
+                        CostingMethod.FIFO)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Accounting period not found");
   }

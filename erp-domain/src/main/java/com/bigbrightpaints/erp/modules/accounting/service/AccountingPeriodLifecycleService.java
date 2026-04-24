@@ -2,12 +2,16 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Supplier;
+
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
@@ -56,44 +60,31 @@ final class AccountingPeriodLifecycleService {
       AccountingComplianceAuditService accountingComplianceAuditService) {
     AccountingComplianceAuditService auditService =
         resolveAuditService(accountingComplianceAuditService);
-    if (request == null) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period request is required");
-    }
-    if (request.year() == null) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period year is required");
-    }
-    if (request.month() == null) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month is required");
-    }
-    if (request.month() < 1 || request.month() > 12) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month must be between 1 and 12");
-    }
+    requirePeriodRequest(request);
+    int year = requirePeriodYear(request.year());
+    int month = requirePeriodMonth(request.month());
+    LocalDate startDate = requirePeriodDate(request.startDate(), "startDate");
+    LocalDate endDate = requirePeriodDate(request.endDate(), "endDate");
+    ValidationUtils.validateDateRange(startDate, endDate, "startDate", "endDate");
     Company company = companyContextService.requireCurrentCompany();
-    Optional<AccountingPeriod> existing =
-        accountingPeriodRepository.lockByCompanyAndYearAndMonth(
-            company, request.year(), request.month());
-    boolean createdNew = existing.isEmpty();
-    AccountingPeriod period =
-        existing.orElseGet(
-            () -> {
-              AccountingPeriod created = new AccountingPeriod();
-              created.setCompany(company);
-              created.setYear(request.year());
-              created.setMonth(request.month());
-              LocalDate start = LocalDate.of(request.year(), request.month(), 1);
-              created.setStartDate(start);
-              created.setEndDate(start.plusMonths(1).minusDays(1));
-              created.setStatus(AccountingPeriodStatus.OPEN);
-              return created;
+    accountingPeriodRepository
+        .lockByCompanyAndYearAndMonth(company, year, month)
+        .ifPresent(
+            existing -> {
+              throw duplicatePeriodException(company, year, month)
+                  .withDetail("existingPeriodId", existing.getId());
             });
+    AccountingPeriod period = new AccountingPeriod();
+    period.setCompany(company);
+    period.setYear(year);
+    period.setMonth(month);
+    period.setStartDate(startDate);
+    period.setEndDate(endDate);
+    period.setStatus(AccountingPeriodStatus.OPEN);
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
-    AccountingPeriod saved = accountingPeriodRepository.save(period);
-    if (auditService != null && createdNew) {
+    AccountingPeriod saved = saveCreatedPeriodWithDuplicateGuard(company, period, year, month);
+    if (auditService != null) {
       auditService.recordPeriodTransition(
           company,
           saved,
@@ -115,10 +106,13 @@ final class AccountingPeriodLifecycleService {
       AccountingComplianceAuditService accountingComplianceAuditService) {
     AccountingComplianceAuditService auditService =
         resolveAuditService(accountingComplianceAuditService);
-    if (request == null || request.costingMethod() == null) {
+    if (request == null) {
       throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Costing method is required");
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period request is required");
     }
+    LocalDate startDate = requirePeriodDate(request.startDate(), "startDate");
+    LocalDate endDate = requirePeriodDate(request.endDate(), "endDate");
+    ValidationUtils.validateDateRange(startDate, endDate, "startDate", "endDate");
     Company company = companyContextService.requireCurrentCompany();
     AccountingPeriod period =
         accountingPeriodRepository
@@ -127,7 +121,16 @@ final class AccountingPeriodLifecycleService {
                 () ->
                     new ApplicationException(
                         ErrorCode.VALIDATION_INVALID_REFERENCE, "Accounting period not found"));
+    if (period.getStatus() != AccountingPeriodStatus.OPEN) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_STATE,
+              "Only OPEN periods can be updated")
+          .withDetail("periodId", periodId)
+          .withDetail("status", period.getStatus() != null ? period.getStatus().name() : null);
+    }
     CostingMethod beforeCostingMethod = period.getCostingMethod();
+    period.setStartDate(startDate);
+    period.setEndDate(endDate);
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
     AccountingPeriod saved = accountingPeriodRepository.save(period);
     if (auditService != null && beforeCostingMethod != saved.getCostingMethod()) {
@@ -296,6 +299,85 @@ final class AccountingPeriodLifecycleService {
     ensurePeriod(company, today);
     ensurePeriod(company, today.minusMonths(1));
     ensurePeriod(company, today.plusMonths(1));
+  }
+
+  private void requirePeriodRequest(AccountingPeriodRequest request) {
+    if (request == null) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period request is required");
+    }
+  }
+
+  private int requirePeriodYear(Integer year) {
+    if (year == null) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period year is required");
+    }
+    return year;
+  }
+
+  private int requirePeriodMonth(Integer month) {
+    if (month == null) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month is required");
+    }
+    if (month < 1 || month > 12) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month must be between 1 and 12");
+    }
+    return month;
+  }
+
+  private LocalDate requirePeriodDate(LocalDate date, String fieldName) {
+    if (date == null) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period " + fieldName + " is required");
+    }
+    return date;
+  }
+
+  private AccountingPeriod saveCreatedPeriodWithDuplicateGuard(
+      Company company, AccountingPeriod period, int year, int month) {
+    try {
+      return accountingPeriodRepository.save(period);
+    } catch (DataIntegrityViolationException ex) {
+      if (isDuplicatePeriodViolation(ex)) {
+        throw duplicatePeriodException(company, year, month);
+      }
+      throw ex;
+    }
+  }
+
+  private ApplicationException duplicatePeriodException(Company company, int year, int month) {
+    String companyCode =
+        company != null && company.getCode() != null ? company.getCode() : "UNKNOWN";
+    return new ApplicationException(
+            ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+            "Accounting period " + year + "-" + month + " already exists for company " + companyCode)
+        .withDetail("field", "year,month")
+        .withDetail("year", year)
+        .withDetail("month", month)
+        .withDetail("companyCode", companyCode);
+  }
+
+  private boolean isDuplicatePeriodViolation(Throwable error) {
+    Throwable cursor = error;
+    while (cursor != null) {
+      String message = cursor.getMessage();
+      if (message != null) {
+        String normalized = message.toLowerCase(Locale.ROOT);
+        if (normalized.contains("accounting_periods_company_id_year_month_key")
+            || (normalized.contains("accounting_periods")
+                && normalized.contains("company_id")
+                && normalized.contains("year")
+                && normalized.contains("month")
+                && normalized.contains("unique"))) {
+          return true;
+        }
+      }
+      cursor = cursor.getCause();
+    }
+    return false;
   }
 
   private CostingMethod resolveCostingMethodOrDefault(CostingMethod costingMethod) {
