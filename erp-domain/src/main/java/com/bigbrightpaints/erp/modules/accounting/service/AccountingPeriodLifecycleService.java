@@ -3,7 +3,6 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -123,8 +122,7 @@ final class AccountingPeriodLifecycleService {
                         ErrorCode.VALIDATION_INVALID_REFERENCE, "Accounting period not found"));
     if (period.getStatus() != AccountingPeriodStatus.OPEN) {
       throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_STATE,
-              "Only OPEN periods can be updated")
+              ErrorCode.VALIDATION_INVALID_STATE, "Only OPEN periods can be updated")
           .withDetail("periodId", periodId)
           .withDetail("status", period.getStatus() != null ? period.getStatus().name() : null);
     }
@@ -353,7 +351,12 @@ final class AccountingPeriodLifecycleService {
         company != null && company.getCode() != null ? company.getCode() : "UNKNOWN";
     return new ApplicationException(
             ErrorCode.BUSINESS_DUPLICATE_ENTRY,
-            "Accounting period " + year + "-" + month + " already exists for company " + companyCode)
+            "Accounting period "
+                + year
+                + "-"
+                + month
+                + " already exists for company "
+                + companyCode)
         .withDetail("field", "year,month")
         .withDetail("year", year)
         .withDetail("month", month)

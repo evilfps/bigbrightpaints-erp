@@ -1465,11 +1465,7 @@ class AccountingPeriodServiceTest {
     var dto =
         service.createOrUpdatePeriod(
             new AccountingPeriodRequest(
-                2026,
-                7,
-                LocalDate.of(2026, 7, 1),
-                LocalDate.of(2026, 7, 31),
-                CostingMethod.FIFO));
+                2026, 7, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), CostingMethod.FIFO));
 
     assertThat(dto.status()).isEqualTo("OPEN");
     verify(accountingComplianceAuditService)
@@ -1520,11 +1516,7 @@ class AccountingPeriodServiceTest {
             () ->
                 service.createOrUpdatePeriod(
                     new AccountingPeriodRequest(
-                        2026,
-                        6,
-                        LocalDate.of(2026, 6, 30),
-                        LocalDate.of(2026, 6, 1),
-                        null)))
+                        2026, 6, LocalDate.of(2026, 6, 30), LocalDate.of(2026, 6, 1), null)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("startDate must be on or before endDate");
   }
