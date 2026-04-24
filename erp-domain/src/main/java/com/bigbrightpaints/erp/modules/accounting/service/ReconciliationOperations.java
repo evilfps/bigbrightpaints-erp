@@ -1188,13 +1188,17 @@ final class ReconciliationOperations {
   }
 
   private void syncCurrentOpenPeriodDiscrepancies(Company company) {
+    LocalDate today = CompanyTime.today(company);
     Optional<AccountingPeriod> maybeOpenPeriod =
-        accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(
-            company, AccountingPeriodStatus.OPEN);
+        accountingPeriodRepository
+            .findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+                company, AccountingPeriodStatus.OPEN, today);
     if (maybeOpenPeriod.isEmpty()) {
       log.debug(
-          "Skipping reconciliation discrepancy sync because no open period exists for company {}",
-          company != null ? company.getCode() : "UNKNOWN");
+          "Skipping reconciliation discrepancy sync because no non-future open period exists for"
+              + " company {} on {}",
+          company != null ? company.getCode() : "UNKNOWN",
+          today);
       return;
     }
 
