@@ -277,6 +277,77 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void salesOnboardingThenAdminRoleDealerAssignmentConvergesOnSharedDealerMaster() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, COMPANY_CODE);
+    String suffix = Long.toHexString(System.nanoTime());
+    String sharedEmail = "portal-fin-sales-first-" + suffix + "@bbp.com";
+
+    HttpHeaders createDealerHeaders = new HttpHeaders();
+    createDealerHeaders.putAll(adminHeaders);
+    createDealerHeaders.setContentType(MediaType.APPLICATION_JSON);
+    ResponseEntity<Map> salesCreateResponse =
+        rest.exchange(
+            "/api/v1/dealers",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name",
+                    "Sales First Shared Dealer " + suffix,
+                    "companyName",
+                    "Sales First Shared Co " + suffix,
+                    "contactEmail",
+                    sharedEmail,
+                    "contactPhone",
+                    "9000012345",
+                    "address",
+                    "Sales First Shared Street",
+                    "creditLimit",
+                    new BigDecimal("25000.00")),
+                createDealerHeaders),
+            Map.class);
+    assertThat(salesCreateResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<?, ?> salesDealerData = (Map<?, ?>) salesCreateResponse.getBody().get("data");
+    Long salesProvisionedDealerId = ((Number) salesDealerData.get("id")).longValue();
+
+    HttpHeaders createUserHeaders = new HttpHeaders();
+    createUserHeaders.putAll(adminHeaders);
+    createUserHeaders.setContentType(MediaType.APPLICATION_JSON);
+    ResponseEntity<Map> adminCreateResponse =
+        rest.exchange(
+            "/api/v1/admin/users",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "email",
+                    sharedEmail,
+                    "displayName",
+                    "Sales First Shared Dealer " + suffix,
+                    "roles",
+                    List.of("ROLE_DEALER")),
+                createUserHeaders),
+            Map.class);
+    assertThat(adminCreateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    Long convergedDealerId = dealerIdByEmail(adminHeaders, sharedEmail);
+    assertThat(convergedDealerId).isEqualTo(salesProvisionedDealerId);
+    assertThat(countDealersByEmail(adminHeaders, sharedEmail)).isEqualTo(1);
+
+    Map<String, Object> detail = dealerDetail(adminHeaders, convergedDealerId);
+    assertThat(detail.get("receivableAccountId")).isNotNull();
+    assertThat(detail.get("receivableAccountCode")).isNotNull();
+
+    ResponseEntity<Map> ledgerResponse =
+        rest.exchange(
+            "/api/v1/portal/finance/ledger?dealerId=" + convergedDealerId,
+            HttpMethod.GET,
+            new HttpEntity<>(adminHeaders),
+            Map.class);
+    assertThat(ledgerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(((Map<?, ?>) ledgerResponse.getBody().get("data")).get("dealerId"))
+        .isEqualTo(convergedDealerId.intValue());
+  }
+
+  @Test
   void salesReOnboardingPreservesNonActiveStatusOnSharedDealerMaster() {
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, COMPANY_CODE);
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
