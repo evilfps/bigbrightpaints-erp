@@ -210,8 +210,8 @@ public class DealerService {
       String query, String status, String region, String creditStatus) {
     Company company = companyContextService.requireCurrentCompany();
     String term = StringUtils.hasText(query) ? query.trim() : "";
-    String normalizedStatus = normalizeOptionalToken(status);
-    String normalizedRegion = normalizeOptionalToken(region);
+    String normalizedStatus = normalizeSearchFilterToken(status);
+    String normalizedRegion = normalizeSearchFilterToken(region);
     String normalizedCreditStatus = normalizeCreditStatus(creditStatus);
 
     List<Dealer> matches =
@@ -478,6 +478,11 @@ public class DealerService {
             () ->
                 com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                     "Dealer not found"));
+  }
+
+  private String normalizeSearchFilterToken(String value) {
+    String normalized = normalizeOptionalToken(value);
+    return "ALL".equals(normalized) ? null : normalized;
   }
 
   private String normalizeOptionalToken(String value) {

@@ -60,7 +60,9 @@ public interface DealerRepository extends JpaRepository<Dealer, Long> {
         and (:status is null or upper(d.status) = :status)
         and (:region is null or upper(coalesce(d.region, '')) = :region)
         and (lower(d.name) like lower(concat('%', :term, '%'))
-          or lower(d.code) like lower(concat('%', :term, '%')))
+          or lower(d.code) like lower(concat('%', :term, '%'))
+          or lower(coalesce(d.email, '')) like lower(concat('%', :term, '%'))
+          or lower(coalesce(d.companyName, '')) like lower(concat('%', :term, '%')))
       order by d.name asc
       """)
   List<Dealer> searchFiltered(

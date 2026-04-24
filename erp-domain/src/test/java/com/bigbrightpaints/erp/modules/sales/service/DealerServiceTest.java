@@ -550,6 +550,26 @@ class DealerServiceTest {
   }
 
   @Test
+  void search_treatsAllStatusAndRegionAsUnfiltered() {
+    Dealer dealer = dealer("D-ALL", new BigDecimal("1000"), "NORTH");
+    when(dealerRepository.searchFiltered(
+            eq(company), eq("shared@example.com"), eq(null), eq(null), any()))
+        .thenReturn(List.of(dealer));
+    when(dealerLedgerService.currentBalances(List.of(99L))).thenReturn(Map.of(99L, BigDecimal.ZERO));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(99L)), any()))
+        .thenReturn(List.of());
+
+    var results = dealerService.search(" shared@example.com ", " all ", " all ", null);
+
+    assertThat(results)
+        .singleElement()
+        .satisfies(result -> assertThat(result.code()).isEqualTo("D-ALL"));
+    verify(dealerRepository)
+        .searchFiltered(eq(company), eq("shared@example.com"), eq(null), eq(null), any());
+  }
+
+  @Test
   void search_rejectsUnknownCreditStatus() {
     assertThatThrownBy(() -> dealerService.search("", null, null, "not-real"))
         .isInstanceOfSatisfying(
