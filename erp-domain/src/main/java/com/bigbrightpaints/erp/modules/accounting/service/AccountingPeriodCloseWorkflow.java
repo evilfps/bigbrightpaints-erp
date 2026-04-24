@@ -7,7 +7,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
@@ -74,16 +73,6 @@ final class AccountingPeriodCloseWorkflow {
       PeriodCloseRequestActionRequest request,
       AccountingComplianceAuditService accountingComplianceAuditService) {
     return requestWorkflow.rejectPeriodClose(periodId, request, accountingComplianceAuditService);
-  }
-
-  AccountingPeriodDto closePeriod(
-      Long periodId,
-      PeriodStatusChangeRequest request,
-      boolean fromApprovedRequest,
-      PeriodCloseRequest approvedRequest,
-      AccountingComplianceAuditService accountingComplianceAuditService) {
-    return statusWorkflow.closePeriod(
-        periodId, request, fromApprovedRequest, approvedRequest, accountingComplianceAuditService);
   }
 
   AccountingPeriodDto lockPeriod(

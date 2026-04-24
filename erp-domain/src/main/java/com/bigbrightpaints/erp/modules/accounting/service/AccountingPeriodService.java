@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
@@ -36,10 +35,8 @@ import jakarta.transaction.Transactional;
 @Service
 public class AccountingPeriodService {
 
-  private final AccountingPeriodLifecycleService lifecycleService;
-  private final AccountingPeriodCorrectionJournalClassifier correctionJournalClassifier;
+  private final AccountingPeriodMakerCheckerLifecycleOwner lifecycleOwner;
   private final AccountingPeriodChecklistService checklistService;
-  private final AccountingPeriodCloseWorkflow closeWorkflow;
 
   @Autowired(required = false)
   private AccountingComplianceAuditService accountingComplianceAuditService;
@@ -67,14 +64,15 @@ public class AccountingPeriodService {
       ObjectProvider<JournalEntryService> journalEntryServiceProvider,
       PeriodCloseHook periodCloseHook,
       AccountingPeriodSnapshotService snapshotService) {
-    this.lifecycleService =
+    AccountingPeriodLifecycleService lifecycleService =
         new AccountingPeriodLifecycleService(
             accountingPeriodRepository,
             companyContextService,
             accountingLookupService,
             companyClock,
             () -> accountingComplianceAuditService);
-    this.correctionJournalClassifier = new AccountingPeriodCorrectionJournalClassifier();
+    AccountingPeriodCorrectionJournalClassifier correctionJournalClassifier =
+        new AccountingPeriodCorrectionJournalClassifier();
     AccountingPeriodChecklistDiagnosticsService diagnosticsService =
         new AccountingPeriodChecklistDiagnosticsService(
             journalEntryRepository,
@@ -93,7 +91,7 @@ public class AccountingPeriodService {
             lifecycleService,
             journalEntryRepository,
             diagnosticsService);
-    this.closeWorkflow =
+    AccountingPeriodCloseWorkflow closeWorkflow =
         new AccountingPeriodCloseWorkflow(
             accountingPeriodRepository,
             companyContextService,
@@ -107,72 +105,74 @@ public class AccountingPeriodService {
             snapshotService,
             lifecycleService,
             checklistService);
+    this.lifecycleOwner =
+        new AccountingPeriodMakerCheckerLifecycleOwner(
+            lifecycleService, closeWorkflow, () -> closedPeriodPostingExceptionService);
   }
 
   public List<AccountingPeriodDto> listPeriods() {
-    return lifecycleService.listPeriods();
+    return lifecycleOwner.listPeriods();
   }
 
   public AccountingPeriodDto getPeriod(Long periodId) {
-    return lifecycleService.getPeriod(periodId);
+    return lifecycleOwner.getPeriod(periodId);
   }
 
   @Transactional
   public AccountingPeriodDto createOrUpdatePeriod(AccountingPeriodRequest request) {
-    return lifecycleService.createOrUpdatePeriod(request, accountingComplianceAuditService);
+    return lifecycleOwner.createOrUpdatePeriod(request, accountingComplianceAuditService);
   }
 
   @Transactional
   public AccountingPeriodDto updatePeriod(Long periodId, AccountingPeriodRequest request) {
-    return lifecycleService.updatePeriod(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.updatePeriod(periodId, request, accountingComplianceAuditService);
   }
 
   @Transactional
   public PeriodCloseRequestDto requestPeriodClose(
       Long periodId, PeriodCloseRequestActionRequest request) {
-    return closeWorkflow.requestPeriodClose(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.requestPeriodClose(periodId, request, accountingComplianceAuditService);
   }
 
   @Transactional
   public AccountingPeriodDto approvePeriodClose(
       Long periodId, PeriodCloseRequestActionRequest request) {
-    return closeWorkflow.approvePeriodClose(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.approvePeriodClose(periodId, request, accountingComplianceAuditService);
   }
 
   @Transactional
   public PeriodCloseRequestDto rejectPeriodClose(
       Long periodId, PeriodCloseRequestActionRequest request) {
-    return closeWorkflow.rejectPeriodClose(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.rejectPeriodClose(periodId, request, accountingComplianceAuditService);
   }
 
   @Transactional
   public AccountingPeriodDto closePeriod(Long periodId, PeriodStatusChangeRequest request) {
-    throw ValidationUtils.invalidState(
-        "Direct close is disabled; submit /request-close and approve via maker-checker workflow");
+    return lifecycleOwner.closePeriod(periodId, request);
   }
 
   @Transactional
   public AccountingPeriodDto confirmBankReconciliation(
       Long periodId, LocalDate referenceDate, String note) {
-    return lifecycleService.toDto(
+    return lifecycleOwner.toDto(
         checklistService.confirmBankReconciliation(periodId, referenceDate, note));
   }
 
   @Transactional
   public AccountingPeriodDto confirmInventoryCount(
       Long periodId, LocalDate referenceDate, String note) {
-    return lifecycleService.toDto(
+    return lifecycleOwner.toDto(
         checklistService.confirmInventoryCount(periodId, referenceDate, note));
   }
 
   @Transactional
   public AccountingPeriodDto lockPeriod(Long periodId, PeriodStatusChangeRequest request) {
-    return closeWorkflow.lockPeriod(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.lockPeriod(periodId, request, accountingComplianceAuditService);
   }
 
   @Transactional
   public AccountingPeriodDto reopenPeriod(Long periodId, AccountingPeriodReopenRequest request) {
-    return closeWorkflow.reopenPeriod(periodId, request, accountingComplianceAuditService);
+    return lifecycleOwner.reopenPeriod(periodId, request, accountingComplianceAuditService);
   }
 
   public MonthEndChecklistDto getMonthEndChecklist(Long periodId) {
@@ -186,7 +186,7 @@ public class AccountingPeriodService {
   }
 
   public AccountingPeriod requireOpenPeriod(Company company, LocalDate referenceDate) {
-    return lifecycleService.requireOpenPeriod(company, referenceDate);
+    return lifecycleOwner.requireOpenPeriod(company, referenceDate);
   }
 
   public AccountingPeriod requirePostablePeriod(
@@ -196,18 +196,12 @@ public class AccountingPeriodService {
       String documentReference,
       String reason,
       boolean overrideRequested) {
-    return lifecycleService.requirePostablePeriod(
-        company,
-        referenceDate,
-        documentType,
-        documentReference,
-        reason,
-        overrideRequested,
-        closedPeriodPostingExceptionService);
+    return lifecycleOwner.requirePostablePeriod(
+        company, referenceDate, documentType, documentReference, reason, overrideRequested);
   }
 
   @Transactional
   public AccountingPeriod ensurePeriod(Company company, LocalDate referenceDate) {
-    return lifecycleService.ensurePeriod(company, referenceDate);
+    return lifecycleOwner.ensurePeriod(company, referenceDate);
   }
 }
