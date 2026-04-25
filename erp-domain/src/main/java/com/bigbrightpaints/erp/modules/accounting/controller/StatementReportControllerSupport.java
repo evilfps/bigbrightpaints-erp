@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -87,7 +88,10 @@ public class StatementReportControllerSupport {
             supplierId,
             AccountingDateParameters.parseOptionalDate(from, "from"),
             AccountingDateParameters.parseOptionalDate(to, "to"));
-    logAccountingExport("ACCOUNTING_SUPPLIER_STATEMENT", supplierId, "pdf");
+    logAccountingExport(
+        SensitiveDisclosurePolicyOwner.ACCOUNTING_SUPPLIER_STATEMENT_EXPORT_TYPE,
+        supplierId,
+        "pdf");
     return pdf;
   }
 
@@ -95,7 +99,8 @@ public class StatementReportControllerSupport {
     byte[] pdf =
         statementService.supplierAgingPdf(
             supplierId, AccountingDateParameters.parseOptionalDate(asOf, "asOf"), buckets);
-    logAccountingExport("ACCOUNTING_SUPPLIER_AGING", supplierId, "pdf");
+    logAccountingExport(
+        SensitiveDisclosurePolicyOwner.ACCOUNTING_SUPPLIER_AGING_EXPORT_TYPE, supplierId, "pdf");
     return pdf;
   }
 
@@ -192,6 +197,9 @@ public class StatementReportControllerSupport {
     metadata.put("resourceId", resourceId != null ? resourceId.toString() : "");
     metadata.put("operation", "EXPORT");
     metadata.put("format", format);
+    if (SensitiveDisclosurePolicyOwner.isApprovalBypassExportType(resourceType)) {
+      metadata.put("approvalBypass", "true");
+    }
     auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
   }
 

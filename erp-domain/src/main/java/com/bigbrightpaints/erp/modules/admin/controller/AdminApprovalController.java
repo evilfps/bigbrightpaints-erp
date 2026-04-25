@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalDecisionRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalInboxResponse;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalItemDto;
@@ -22,7 +22,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/admin/approvals")
-@PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
+@PreAuthorize(SensitiveDisclosurePolicyOwner.TENANT_ADMIN_ONLY)
 public class AdminApprovalController {
 
   private final AdminApprovalService adminApprovalService;

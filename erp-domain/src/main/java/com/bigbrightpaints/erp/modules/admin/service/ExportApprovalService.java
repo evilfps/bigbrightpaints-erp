@@ -22,9 +22,9 @@ import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
-import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
@@ -44,24 +44,24 @@ public class ExportApprovalService {
   private final CompanyContextService companyContextService;
   private final UserAccountRepository userAccountRepository;
   private final ExportRequestRepository exportRequestRepository;
-  private final SystemSettingsService systemSettingsService;
+  private final SensitiveDisclosurePolicyOwner sensitiveDisclosurePolicyOwner;
   private final EnterpriseAuditTrailService enterpriseAuditTrailService;
 
   public ExportApprovalService(
       CompanyContextService companyContextService,
       UserAccountRepository userAccountRepository,
       ExportRequestRepository exportRequestRepository,
-      SystemSettingsService systemSettingsService,
+      SensitiveDisclosurePolicyOwner sensitiveDisclosurePolicyOwner,
       EnterpriseAuditTrailService enterpriseAuditTrailService) {
     this.companyContextService = companyContextService;
     this.userAccountRepository = userAccountRepository;
     this.exportRequestRepository = exportRequestRepository;
-    this.systemSettingsService = systemSettingsService;
+    this.sensitiveDisclosurePolicyOwner = sensitiveDisclosurePolicyOwner;
     this.enterpriseAuditTrailService = enterpriseAuditTrailService;
   }
 
   public boolean isApprovalRequired() {
-    return systemSettingsService.isExportApprovalRequired();
+    return sensitiveDisclosurePolicyOwner.exportApprovalRequired();
   }
 
   @Transactional
@@ -139,26 +139,8 @@ public class ExportApprovalService {
     Company company = companyContextService.requireCurrentCompany();
     ExportRequest request = requireRequest(company, requestId);
     UserAccount actor = resolveActor(company);
-
-    if (request.getUserId() == null || !request.getUserId().equals(actor.getId())) {
-      throw new ApplicationException(
-              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
-              "Export request does not belong to the authenticated actor")
-          .withDetail("requestId", requestId)
-          .withDetail("actor", actor.getEmail());
-    }
-
-    if (!isApprovalRequired()) {
-      return buildDownloadPayload(request, actor);
-    }
-
-    if (request.getStatus() != ExportApprovalStatus.APPROVED) {
-      throw new ApplicationException(
-              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
-              "Export request is not approved for download")
-          .withDetail("requestId", requestId)
-          .withDetail("status", request.getStatus().name());
-    }
+    sensitiveDisclosurePolicyOwner.enforceRequesterOwnedDownload(request, actor);
+    sensitiveDisclosurePolicyOwner.enforceApprovalGate(request);
 
     return buildDownloadPayload(request, actor);
   }

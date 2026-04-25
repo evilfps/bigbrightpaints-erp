@@ -29,6 +29,7 @@ import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequestRepository;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
@@ -48,17 +49,19 @@ class ExportApprovalServiceTest {
   @Mock private EnterpriseAuditTrailService enterpriseAuditTrailService;
 
   private ExportApprovalService service;
+  private SensitiveDisclosurePolicyOwner sensitiveDisclosurePolicyOwner;
   private Company company;
   private UserAccount actor;
 
   @BeforeEach
   void setUp() {
+    sensitiveDisclosurePolicyOwner = new SensitiveDisclosurePolicyOwner(systemSettingsService);
     service =
         new ExportApprovalService(
             companyContextService,
             userAccountRepository,
             exportRequestRepository,
-            systemSettingsService,
+            sensitiveDisclosurePolicyOwner,
             enterpriseAuditTrailService);
 
     company = new Company();

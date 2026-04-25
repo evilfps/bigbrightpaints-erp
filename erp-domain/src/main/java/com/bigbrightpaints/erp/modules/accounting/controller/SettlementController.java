@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
@@ -33,7 +34,7 @@ public class SettlementController {
   }
 
   @PostMapping("/receipts/dealer")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerReceipt(
       @Valid @RequestBody DealerReceiptRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -53,7 +54,7 @@ public class SettlementController {
   }
 
   @PostMapping("/receipts/dealer/hybrid")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerHybridReceipt(
       @Valid @RequestBody DealerReceiptSplitRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -73,7 +74,7 @@ public class SettlementController {
   }
 
   @PostMapping("/settlements/dealers")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleDealer(
       @Valid @RequestBody PartnerSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -93,7 +94,7 @@ public class SettlementController {
   }
 
   @PostMapping("/dealers/{dealerId}/auto-settle")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> autoSettleDealer(
       @PathVariable Long dealerId,
       @Valid @RequestBody AutoSettlementRequest request,
@@ -115,7 +116,7 @@ public class SettlementController {
   }
 
   @PostMapping("/settlements/suppliers")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleSupplier(
       @Valid @RequestBody PartnerSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -135,7 +136,7 @@ public class SettlementController {
   }
 
   @PostMapping("/suppliers/{supplierId}/auto-settle")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> autoSettleSupplier(
       @PathVariable Long supplierId,
       @Valid @RequestBody AutoSettlementRequest request,
