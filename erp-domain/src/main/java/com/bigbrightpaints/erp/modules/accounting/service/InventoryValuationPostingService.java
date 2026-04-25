@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -37,6 +38,7 @@ class InventoryValuationPostingService {
   private final AccountResolutionService accountResolutionService;
   private final JournalReferenceService journalReferenceService;
   private final JournalEntryService journalEntryService;
+  private final JournalEntryRepository journalEntryRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
@@ -49,6 +51,7 @@ class InventoryValuationPostingService {
       AccountResolutionService accountResolutionService,
       JournalReferenceService journalReferenceService,
       JournalEntryService journalEntryService,
+      JournalEntryRepository journalEntryRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       RawMaterialBatchRepository rawMaterialBatchRepository,
@@ -59,6 +62,7 @@ class InventoryValuationPostingService {
     this.accountResolutionService = accountResolutionService;
     this.journalReferenceService = journalReferenceService;
     this.journalEntryService = journalEntryService;
+    this.journalEntryRepository = journalEntryRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
     this.rawMaterialBatchRepository = rawMaterialBatchRepository;
@@ -77,6 +81,7 @@ class InventoryValuationPostingService {
             StringUtils.hasText(request.idempotencyKey())
                 ? request.idempotencyKey()
                 : request.referenceNumber());
+    boolean replay = journalAlreadyExists(company, reference);
     LocalDate entryDate =
         request.entryDate() != null
             ? request.entryDate()
@@ -99,7 +104,9 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, request.amount(), BigDecimal.ZERO),
                     new JournalEntryRequest.JournalLineRequest(
                         request.offsetAccountId(), memo, BigDecimal.ZERO, request.amount()))));
-    adjustLandedCostValuation(purchase, request.amount());
+    if (!replay) {
+      adjustLandedCostValuation(purchase, request.amount());
+    }
     return journalEntry;
   }
 
@@ -112,6 +119,7 @@ class InventoryValuationPostingService {
             StringUtils.hasText(request.idempotencyKey())
                 ? request.idempotencyKey()
                 : request.referenceNumber());
+    boolean replay = journalAlreadyExists(company, reference);
     LocalDate entryDate =
         request.entryDate() != null
             ? request.entryDate()
@@ -135,10 +143,12 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, debit, credit),
                     new JournalEntryRequest.JournalLineRequest(
                         request.revaluationAccountId(), memo, credit, debit))));
-    revalueFinishedBatches(
-        finishedGoodBatchRepository.findByCompanyAndValuationAccountId(
-            company, request.inventoryAccountId()),
-        delta);
+    if (!replay) {
+      revalueFinishedBatches(
+          finishedGoodBatchRepository.findByCompanyAndValuationAccountId(
+              company, request.inventoryAccountId()),
+          delta);
+    }
     return journalEntry;
   }
 
@@ -249,5 +259,12 @@ class InventoryValuationPostingService {
       batch.setUnitCost(batch.getUnitCost().add(deltaPerUnit));
       finishedGoodBatchRepository.save(batch);
     }
+  }
+
+  private boolean journalAlreadyExists(Company company, String reference) {
+    if (company == null || !StringUtils.hasText(reference)) {
+      return false;
+    }
+    return journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).isPresent();
   }
 }
