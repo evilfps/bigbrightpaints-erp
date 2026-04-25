@@ -323,12 +323,20 @@ class ReportServiceInventoryAndGstTest {
 
   @Test
   void balanceWarnings_flagsUnexpectedSignsAcrossAccountTypes() {
+    stubToday();
     Account asset = account(1L, "1000", "Inventory Asset", AccountType.ASSET, "-10");
     Account liability = account(2L, "2000", "GST Liability", AccountType.LIABILITY, "5");
     Account revenue = account(3L, "3000", "Sales Revenue", AccountType.REVENUE, "7");
     Account expense = account(4L, "4000", "Factory Expense", AccountType.EXPENSE, "-3");
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(asset, liability, revenue, expense));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(1L, "0.00", "10.00"),
+                accountSummaryRow(2L, "5.00", "0.00"),
+                accountSummaryRow(3L, "7.00", "0.00"),
+                accountSummaryRow(4L, "0.00", "3.00")));
 
     var warnings = reportService.balanceWarnings();
 
@@ -351,12 +359,33 @@ class ReportServiceInventoryAndGstTest {
   }
 
   @Test
+  void balanceWarnings_prefersLiveJournalSummaryOverStaleAccountCacheBalance() {
+    stubToday();
+    Account asset = account(99L, "AST-99", "Asset 99", AccountType.ASSET, "999.00");
+    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(asset));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(java.util.Collections.singletonList(accountSummaryRow(99L, "0.00", "25.00")));
+
+    var warnings = reportService.balanceWarnings();
+
+    assertThat(warnings).hasSize(1);
+    assertThat(warnings.getFirst().reason()).isEqualTo("Asset account has a credit balance");
+    assertThat(warnings.getFirst().balance()).isEqualByComparingTo("-25.00");
+  }
+
+  @Test
   void reconciliationDashboard_usesProvidedStatementBalanceAndInventoryFallbackLedgerBalance() {
+    stubToday();
     Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "1000");
     Account inventoryAccount = account(11L, "INV", "Inventory Control", AccountType.ASSET, "400");
     when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(inventoryAccount));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(10L, "1000.00", "0.00"),
+                accountSummaryRow(11L, "400.00", "0.00")));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
             new InventoryValuationQueryService.InventorySnapshot(
@@ -374,6 +403,33 @@ class ReportServiceInventoryAndGstTest {
     assertThat(dashboard.balanceWarnings()).isEmpty();
   }
 
+  @Test
+  void reconciliationDashboard_prefersLiveJournalSummaryOverStaleAccountCacheBalance() {
+    stubToday();
+    company.setDefaultInventoryAccountId(11L);
+    Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "700.00");
+    Account inventoryAccount =
+        account(11L, "INV", "Inventory Control", AccountType.ASSET, "300.00");
+    when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
+    when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventoryAccount);
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(10L, "1200.00", "100.00"),
+                accountSummaryRow(11L, "600.00", "0.00")));
+    when(inventoryValuationService.currentSnapshot(company))
+        .thenReturn(
+            new InventoryValuationQueryService.InventorySnapshot(
+                new BigDecimal("650"), 0L, "FIFO", List.of()));
+
+    ReconciliationDashboardDto dashboard = reportService.reconciliationDashboard(10L, null);
+
+    assertThat(dashboard.bank().ledgerBalance()).isEqualByComparingTo("1100.00");
+    assertThat(dashboard.bank().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().ledgerValue()).isEqualByComparingTo("600.00");
+    assertThat(dashboard.inventory().variance()).isEqualByComparingTo("50.00");
+  }
+
   private Account account(Long id, String code, String name, AccountType type, String balance) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);
@@ -382,6 +438,10 @@ class ReportServiceInventoryAndGstTest {
     account.setType(type);
     account.setBalance(new BigDecimal(balance));
     return account;
+  }
+
+  private Object[] accountSummaryRow(Long accountId, String debit, String credit) {
+    return new Object[] {accountId, new BigDecimal(debit), new BigDecimal(credit)};
   }
 
   @Test

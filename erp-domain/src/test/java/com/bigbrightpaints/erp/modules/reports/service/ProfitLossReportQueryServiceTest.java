@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportMetadata;
+import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 
 @ExtendWith(MockitoExtension.class)
 class ProfitLossReportQueryServiceTest {
@@ -114,6 +115,75 @@ class ProfitLossReportQueryServiceTest {
     assertThat(dto.comparative().grossProfit()).isEqualByComparingTo("450.00");
     assertThat(dto.comparative().operatingExpenses()).isEqualByComparingTo("170.00");
     assertThat(dto.comparative().netIncome()).isEqualByComparingTo("280.00");
+  }
+
+  @Test
+  void generate_closedPeriodRemainsLiveAndExcludesPeriodCloseSystemRows() {
+    ProfitLossReportQueryService service =
+        new ProfitLossReportQueryService(reportQuerySupport, journalLineRepository);
+
+    ReportQuerySupport.FinancialQueryWindow window =
+        new ReportQuerySupport.FinancialQueryWindow(
+            ReportFixtures.window(
+                    LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), LocalDate.of(2026, 2, 28))
+                .company(),
+            LocalDate.of(2026, 2, 1),
+            LocalDate.of(2026, 2, 28),
+            LocalDate.of(2026, 2, 28),
+            null,
+            null,
+            ReportSource.SNAPSHOT,
+            new ReportQuerySupport.ExportOptions(true, true, null));
+
+    FinancialReportQueryRequest request =
+        new FinancialReportQueryRequest(
+            44L,
+            LocalDate.of(2026, 2, 1),
+            LocalDate.of(2026, 2, 28),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    when(reportQuerySupport.resolveWindow(request)).thenReturn(window);
+    when(reportQuerySupport.resolveComparison(request)).thenReturn(null);
+    when(reportQuerySupport.metadata(window))
+        .thenReturn(
+            new ReportMetadata(
+                LocalDate.of(2026, 2, 28),
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28),
+                ReportSource.SNAPSHOT,
+                44L,
+                "CLOSED",
+                900L,
+                true,
+                true,
+                null));
+
+    when(journalLineRepository.summarizeByAccountType(
+            window.company(), window.startDate(), window.endDate()))
+        .thenReturn(
+            List.of(
+                row(AccountType.REVENUE, "100.00", "100.00"),
+                row(AccountType.EXPENSE, "40.00", "40.00")));
+    when(journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
+            window.company(), window.startDate(), window.endDate()))
+        .thenReturn(
+            List.of(
+                row(AccountType.REVENUE, "100.00", "0.00"),
+                row(AccountType.EXPENSE, "0.00", "40.00")));
+
+    ProfitLossDto dto = service.generate(request);
+
+    assertThat(dto.revenue()).isEqualByComparingTo("100.00");
+    assertThat(dto.operatingExpenses()).isEqualByComparingTo("40.00");
+    assertThat(dto.netIncome()).isEqualByComparingTo("60.00");
+    assertThat(dto.metadata()).isNotNull();
+    assertThat(dto.metadata().source()).isEqualTo(ReportSource.LIVE);
+    assertThat(dto.metadata().snapshotId()).isNull();
   }
 
   private Object[] row(AccountType type, String debit, String credit) {

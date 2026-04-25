@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ReportMetadata;
+import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 
 @Service
 @Transactional(readOnly = true)
@@ -30,6 +32,7 @@ public class ProfitLossReportQueryService {
     ReportQuerySupport.FinancialQueryWindow primaryWindow =
         reportQuerySupport.resolveWindow(request);
     ProfitLossSnapshot primary = summarize(primaryWindow);
+    ReportMetadata primaryMetadata = liveMetadata(primaryWindow);
 
     ProfitLossDto.Comparative comparative = null;
     ReportQuerySupport.FinancialComparisonWindow comparison =
@@ -45,7 +48,7 @@ public class ProfitLossReportQueryService {
               comparativeSnapshot.operatingExpenses(),
               comparativeSnapshot.expenseCategories(),
               comparativeSnapshot.netIncome(),
-              reportQuerySupport.metadata(comparativeWindow));
+              liveMetadata(comparativeWindow));
     }
 
     return new ProfitLossDto(
@@ -55,7 +58,7 @@ public class ProfitLossReportQueryService {
         primary.operatingExpenses(),
         primary.expenseCategories(),
         primary.netIncome(),
-        reportQuerySupport.metadata(primaryWindow),
+        primaryMetadata,
         comparative);
   }
 
@@ -63,18 +66,13 @@ public class ProfitLossReportQueryService {
     List<Object[]> summarized =
         journalLineRepository.summarizeByAccountType(
             window.company(), window.startDate(), window.endDate());
+    List<Object[]> periodCloseRows =
+        journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
+            window.company(), window.startDate(), window.endDate());
 
     Map<AccountType, BigDecimal> naturalBalances = new EnumMap<>(AccountType.class);
-    for (Object[] row : summarized) {
-      if (row == null || row.length < 3 || row[0] == null) {
-        continue;
-      }
-      AccountType type = (AccountType) row[0];
-      BigDecimal debit = row[1] == null ? BigDecimal.ZERO : (BigDecimal) row[1];
-      BigDecimal credit = row[2] == null ? BigDecimal.ZERO : (BigDecimal) row[2];
-      BigDecimal natural = toNatural(type, debit, credit);
-      naturalBalances.merge(type, natural, BigDecimal::add);
-    }
+    mergeNaturalBalances(naturalBalances, summarized, BigDecimal.ONE);
+    mergeNaturalBalances(naturalBalances, periodCloseRows, BigDecimal.valueOf(-1));
 
     BigDecimal revenue =
         safe(naturalBalances.get(AccountType.REVENUE))
@@ -96,6 +94,40 @@ public class ProfitLossReportQueryService {
     BigDecimal netIncome = grossProfit.subtract(operatingExpenses);
     return new ProfitLossSnapshot(
         revenue, cogs, grossProfit, operatingExpenses, expenseCategories, netIncome);
+  }
+
+  private void mergeNaturalBalances(
+      Map<AccountType, BigDecimal> naturalBalances, List<Object[]> rows, BigDecimal multiplier) {
+    if (rows == null || rows.isEmpty()) {
+      return;
+    }
+    for (Object[] row : rows) {
+      if (row == null || row.length < 3 || row[0] == null) {
+        continue;
+      }
+      AccountType type = (AccountType) row[0];
+      BigDecimal debit = safe((BigDecimal) row[1]).multiply(multiplier);
+      BigDecimal credit = safe((BigDecimal) row[2]).multiply(multiplier);
+      BigDecimal natural = toNatural(type, debit, credit);
+      naturalBalances.merge(type, natural, BigDecimal::add);
+    }
+  }
+
+  private ReportMetadata liveMetadata(ReportQuerySupport.FinancialQueryWindow window) {
+    ReportMetadata base = reportQuerySupport.metadata(window);
+    ReportSource source =
+        base.source() == ReportSource.AS_OF ? ReportSource.AS_OF : ReportSource.LIVE;
+    return new ReportMetadata(
+        base.asOfDate(),
+        base.startDate(),
+        base.endDate(),
+        source,
+        base.accountingPeriodId(),
+        base.accountingPeriodStatus(),
+        null,
+        base.pdfReady(),
+        base.csvReady(),
+        base.requestedExportFormat());
   }
 
   private BigDecimal toNatural(AccountType type, BigDecimal debit, BigDecimal credit) {

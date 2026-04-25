@@ -695,10 +695,12 @@ public class ReportService {
   @Transactional(readOnly = true)
   public List<BalanceWarningDto> balanceWarnings() {
     Company company = companyContextService.requireCurrentCompany();
+    LocalDate asOfDate = companyClock.today(company);
+    Map<Long, BigDecimal> liveBalances = summarizeBalances(company, asOfDate);
     List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
     List<BalanceWarningDto> warnings = new ArrayList<>();
     for (Account account : accounts) {
-      BigDecimal balance = safe(account.getBalance());
+      BigDecimal balance = liveBalanceForAccount(account, liveBalances);
       AccountType type = account.getType();
       String reason = null;
       String severity = "INFO";
@@ -743,13 +745,15 @@ public class ReportService {
       Long bankAccountId, BigDecimal statementBalance) {
     Company company = companyContextService.requireCurrentCompany();
     Account bankAccount = resolveBankAccountForDashboard(company, bankAccountId);
+    LocalDate asOfDate = companyClock.today(company);
+    Map<Long, BigDecimal> liveBalances = summarizeBalances(company, asOfDate);
     InventoryValuationQueryService.InventorySnapshot totals =
         inventoryValuationService.currentSnapshot(company);
-    BigDecimal ledgerInventoryValue = resolveInventoryLedgerBalance(company);
+    BigDecimal ledgerInventoryValue = resolveInventoryLedgerBalance(company, liveBalances);
     BigDecimal physicalInventoryValue = safe(totals.totalValue());
     BigDecimal inventoryVariance = physicalInventoryValue.subtract(ledgerInventoryValue);
 
-    BigDecimal bankLedgerBalance = safe(bankAccount.getBalance());
+    BigDecimal bankLedgerBalance = liveBalanceForAccount(bankAccount, liveBalances);
     BigDecimal bankStatementBalance =
         statementBalance != null ? statementBalance : bankLedgerBalance;
     BigDecimal bankVariance = bankLedgerBalance.subtract(bankStatementBalance);
@@ -1204,16 +1208,31 @@ public class ReportService {
   }
 
   private BigDecimal resolveInventoryLedgerBalance(Company company) {
+    LocalDate asOfDate = companyClock.today(company);
+    return resolveInventoryLedgerBalance(company, summarizeBalances(company, asOfDate));
+  }
+
+  private BigDecimal resolveInventoryLedgerBalance(
+      Company company, Map<Long, BigDecimal> liveBalances) {
     Long defaultInventoryAccountId = company.getDefaultInventoryAccountId();
     if (defaultInventoryAccountId != null) {
       Account account = accountingLookupService.requireAccount(company, defaultInventoryAccountId);
-      return safe(account.getBalance());
+      return liveBalanceForAccount(account, liveBalances);
     }
     return accountRepository.findByCompanyOrderByCodeAsc(company).stream()
         .filter(this::isInventoryAccount)
-        .map(Account::getBalance)
-        .map(this::safe)
+        .map(account -> liveBalanceForAccount(account, liveBalances))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private BigDecimal liveBalanceForAccount(Account account, Map<Long, BigDecimal> liveBalances) {
+    if (account == null) {
+      return BigDecimal.ZERO;
+    }
+    if (liveBalances != null && liveBalances.containsKey(account.getId())) {
+      return safe(liveBalances.get(account.getId()));
+    }
+    return safe(account.getBalance());
   }
 
   private BigDecimal safe(BigDecimal value) {
