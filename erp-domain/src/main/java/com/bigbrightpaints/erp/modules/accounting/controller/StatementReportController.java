@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -91,7 +92,7 @@ public class StatementReportController {
   }
 
   @GetMapping(value = "/statements/suppliers/{supplierId}/pdf", produces = "application/pdf")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.ADMIN_ONLY)
   public ResponseEntity<byte[]> supplierStatementPdf(
       @PathVariable Long supplierId,
       @RequestParam(required = false) String from,
@@ -102,7 +103,7 @@ public class StatementReportController {
   }
 
   @GetMapping(value = "/aging/suppliers/{supplierId}/pdf", produces = "application/pdf")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+  @PreAuthorize(SensitiveDisclosurePolicyOwner.ADMIN_ONLY)
   public ResponseEntity<byte[]> supplierAgingPdf(
       @PathVariable Long supplierId,
       @RequestParam(required = false) String asOf,

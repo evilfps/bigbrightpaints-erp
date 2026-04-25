@@ -20,11 +20,11 @@ class TS_AccountingExportAuditGovernanceContractTest {
         STATEMENT_REPORT_CONTROLLER,
         "@GetMapping(value = \"/statements/suppliers/{supplierId}/pdf\", produces ="
             + " \"application/pdf\")",
-        "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
+        "@PreAuthorize(SensitiveDisclosurePolicyOwner.ADMIN_ONLY)",
         "public ResponseEntity<byte[]> supplierStatementPdf(",
         "@GetMapping(value = \"/aging/suppliers/{supplierId}/pdf\", produces ="
             + " \"application/pdf\")",
-        "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
+        "@PreAuthorize(SensitiveDisclosurePolicyOwner.ADMIN_ONLY)",
         "public ResponseEntity<byte[]> supplierAgingPdf(");
   }
 

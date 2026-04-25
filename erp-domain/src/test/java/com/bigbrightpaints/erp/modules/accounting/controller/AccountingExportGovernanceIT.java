@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
 class AccountingExportGovernanceIT extends AbstractIntegrationTest {
@@ -111,7 +112,7 @@ class AccountingExportGovernanceIT extends AbstractIntegrationTest {
     Method method = StatementReportController.class.getMethod(methodName, parameterTypes);
     PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
     assertThat(preAuthorize).isNotNull();
-    assertThat(preAuthorize.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+    assertThat(preAuthorize.value()).isEqualTo(SensitiveDisclosurePolicyOwner.ADMIN_ONLY);
   }
 
   private HttpHeaders authHeaders(String email) {

@@ -18,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
@@ -35,10 +36,10 @@ class StatementReportControllerExportGovernanceContractTest {
 
     assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class)).isNotNull();
     assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class).value())
-        .isEqualTo("hasAuthority('ROLE_ADMIN')");
+        .isEqualTo(SensitiveDisclosurePolicyOwner.ADMIN_ONLY);
     assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class)).isNotNull();
     assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class).value())
-        .isEqualTo("hasAuthority('ROLE_ADMIN')");
+        .isEqualTo(SensitiveDisclosurePolicyOwner.ADMIN_ONLY);
   }
 
   @Test
