@@ -66,6 +66,7 @@ class SuperAdminTenantControlPlaneServiceTest {
   @Mock private TenantSupportWarningRepository tenantSupportWarningRepository;
   @Mock private TenantAdminEmailChangeRequestRepository tenantAdminEmailChangeRequestRepository;
   @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService;
   @Mock private CompanyService companyService;
 
   private SuperAdminTenantControlPlaneService service;
@@ -84,6 +85,7 @@ class SuperAdminTenantControlPlaneServiceTest {
             tenantSupportWarningRepository,
             tenantAdminEmailChangeRequestRepository,
             tenantRuntimeEnforcementService,
+            tenantReviewIntelligenceToggleService,
             companyService);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken("super-admin@bbp.com", "n/a"));
@@ -334,6 +336,40 @@ class SuperAdminTenantControlPlaneServiceTest {
 
     assertThat(response.supportNotes()).isEqualTo("keep existing notes");
     assertThat(response.supportTags()).containsExactly("URGENT");
+  }
+
+  @Test
+  void getReviewIntelligenceToggle_defaultsToSnapshotState() {
+    Company company = company(7L, "ACME");
+    when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
+    when(tenantReviewIntelligenceToggleService.snapshot(7L))
+        .thenReturn(new TenantReviewIntelligenceToggleService.ToggleSnapshot(7L, false, null));
+
+    var response = service.getReviewIntelligenceToggle(7L);
+
+    assertThat(response.companyId()).isEqualTo(7L);
+    assertThat(response.companyCode()).isEqualTo("ACME");
+    assertThat(response.reviewIntelligenceEnabled()).isFalse();
+    assertThat(response.updatedAt()).isNull();
+  }
+
+  @Test
+  void updateReviewIntelligenceToggle_updatesStateAndAuditsMutation() {
+    Company company = company(7L, "ACME");
+    Instant updatedAt = Instant.parse("2026-04-25T10:00:00Z");
+    when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
+    when(tenantReviewIntelligenceToggleService.update(7L, true))
+        .thenReturn(new TenantReviewIntelligenceToggleService.ToggleSnapshot(7L, true, updatedAt));
+
+    var response = service.updateReviewIntelligenceToggle(7L, true);
+
+    assertThat(response.companyId()).isEqualTo(7L);
+    assertThat(response.companyCode()).isEqualTo("ACME");
+    assertThat(response.reviewIntelligenceEnabled()).isTrue();
+    assertThat(response.updatedAt()).isEqualTo(updatedAt);
+    verify(auditService)
+        .logAuthSuccess(
+            eq(AuditEvent.CONFIGURATION_CHANGED), eq("super-admin@bbp.com"), eq("ACME"), any());
   }
 
   @Test

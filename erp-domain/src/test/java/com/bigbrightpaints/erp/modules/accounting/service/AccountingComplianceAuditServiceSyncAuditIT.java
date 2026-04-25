@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.core.audittrail.MlInteractionEventRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.TenantReviewIntelligenceToggleService;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingComplianceAuditServiceSyncAuditIT {
@@ -38,6 +39,7 @@ class AccountingComplianceAuditServiceSyncAuditIT {
   @Mock private AuditActionEventRetryRepository auditActionEventRetryRepository;
   @Mock private MlInteractionEventRepository mlInteractionEventRepository;
   @Mock private CompanyContextService companyContextService;
+  @Mock private TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService;
 
   @Test
   void recordPeriodTransition_syncAuditFailureDoesNotAbortCallerTransaction() {
@@ -71,7 +73,8 @@ class AccountingComplianceAuditServiceSyncAuditIT {
     ReflectionTestUtils.setField(target, "self", proxiedService);
 
     AccountingComplianceAuditService accountingComplianceAuditService =
-        new AccountingComplianceAuditService(proxiedService, new ObjectMapper());
+        new AccountingComplianceAuditService(
+            proxiedService, tenantReviewIntelligenceToggleService, new ObjectMapper());
 
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", 77L);

@@ -2,10 +2,12 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,18 +30,22 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.TenantReviewIntelligenceToggleService;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
 class AccountingComplianceAuditServiceTest {
 
   @Mock private EnterpriseAuditTrailService enterpriseAuditTrailService;
+  @Mock private TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService;
 
   private AccountingComplianceAuditService service;
 
   @BeforeEach
   void setUp() {
-    service = new AccountingComplianceAuditService(enterpriseAuditTrailService, new ObjectMapper());
+    service =
+        new AccountingComplianceAuditService(
+            enterpriseAuditTrailService, tenantReviewIntelligenceToggleService, new ObjectMapper());
   }
 
   @Test
@@ -125,6 +131,35 @@ class AccountingComplianceAuditServiceTest {
     assertThat(command.metadata()).containsEntry("adjustedAmount", "1200.02");
     assertThat(command.metadata())
         .containsEntry("adjustmentReason", "FX_ROUNDING_CREDIT_ADJUSTMENT");
+  }
+
+  @Test
+  void recordJournalCreation_manualHighValueWithToggleEnabled_emitsReviewWarningArtifact() {
+    Company company = company(87L, "BBP");
+    JournalEntry entry = journalEntry(109L, "MANJ-HIGH-2026-0001", JournalEntryType.MANUAL);
+    entry.getLines().get(0).setDebit(new BigDecimal("150000.00"));
+    entry.getLines().get(1).setCredit(new BigDecimal("150000.00"));
+    when(tenantReviewIntelligenceToggleService.isEnabledForCompany(87L)).thenReturn(true);
+
+    service.recordJournalCreation(company, entry);
+
+    ArgumentCaptor<AuditActionEventCommand> captor =
+        ArgumentCaptor.forClass(AuditActionEventCommand.class);
+    verify(enterpriseAuditTrailService, org.mockito.Mockito.times(2))
+        .recordBusinessEvent(captor.capture());
+    List<AuditActionEventCommand> commands = captor.getAllValues();
+
+    assertThat(commands).extracting(AuditActionEventCommand::action).containsExactlyInAnyOrder(
+        "MANUAL_JOURNAL_CREATED", "REVIEW_INTELLIGENCE_WARNING");
+    AuditActionEventCommand warningCommand =
+        commands.stream()
+            .filter(command -> "REVIEW_INTELLIGENCE_WARNING".equals(command.action()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(warningCommand.metadata())
+        .containsEntry("warnOnly", "true")
+        .containsEntry("reviewRule", "MANUAL_HIGH_VALUE_JOURNAL")
+        .containsEntry("reviewQueue", "ACCOUNTING_AUDIT_EVENTS");
   }
 
   @Test

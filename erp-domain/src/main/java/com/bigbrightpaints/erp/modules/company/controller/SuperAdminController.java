@@ -126,6 +126,26 @@ public class SuperAdminController {
                 tenantId, request.supportNotes(), request.supportTags())));
   }
 
+  @GetMapping("/tenants/{id}/review-intelligence")
+  public ResponseEntity<ApiResponse<SuperAdminTenantReviewIntelligenceToggleDto>>
+      getReviewIntelligenceToggle(@PathVariable("id") Long tenantId) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant review intelligence toggle fetched",
+            controlPlaneService.getReviewIntelligenceToggle(tenantId)));
+  }
+
+  @PutMapping("/tenants/{id}/review-intelligence")
+  public ResponseEntity<ApiResponse<SuperAdminTenantReviewIntelligenceToggleDto>>
+      updateReviewIntelligenceToggle(
+          @PathVariable("id") Long tenantId,
+          @Valid @RequestBody TenantReviewIntelligenceToggleRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant review intelligence toggle updated",
+            controlPlaneService.updateReviewIntelligenceToggle(tenantId, request.enabled())));
+  }
+
   @PostMapping("/tenants/{id}/force-logout")
   public ResponseEntity<ApiResponse<SuperAdminTenantForceLogoutDto>> forceLogout(
       @PathVariable("id") Long tenantId,
@@ -202,6 +222,8 @@ public class SuperAdminController {
       @Size(max = 4000, message = "supportNotes must be at most 4000 characters")
           String supportNotes,
       Set<@NotBlank @Size(max = 64) String> supportTags) {}
+
+  public record TenantReviewIntelligenceToggleRequest(@NotNull Boolean enabled) {}
 
   public record TenantForceLogoutRequest(
       @Size(max = 300, message = "reason must be at most 300 characters") String reason) {}

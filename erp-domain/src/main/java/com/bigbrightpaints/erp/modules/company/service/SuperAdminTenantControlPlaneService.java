@@ -55,6 +55,7 @@ public class SuperAdminTenantControlPlaneService {
   private final TenantSupportWarningRepository tenantSupportWarningRepository;
   private final TenantAdminEmailChangeRequestRepository tenantAdminEmailChangeRequestRepository;
   private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  private final TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService;
   private final CompanyService companyService;
 
   public SuperAdminTenantControlPlaneService(
@@ -68,6 +69,7 @@ public class SuperAdminTenantControlPlaneService {
       TenantSupportWarningRepository tenantSupportWarningRepository,
       TenantAdminEmailChangeRequestRepository tenantAdminEmailChangeRequestRepository,
       TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
+      TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService,
       CompanyService companyService) {
     this.companyRepository = companyRepository;
     this.userAccountRepository = userAccountRepository;
@@ -79,6 +81,7 @@ public class SuperAdminTenantControlPlaneService {
     this.tenantSupportWarningRepository = tenantSupportWarningRepository;
     this.tenantAdminEmailChangeRequestRepository = tenantAdminEmailChangeRequestRepository;
     this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+    this.tenantReviewIntelligenceToggleService = tenantReviewIntelligenceToggleService;
     this.companyService = companyService;
   }
 
@@ -239,6 +242,32 @@ public class SuperAdminTenantControlPlaneService {
     logAuditSuccess(company, "tenant-support-context-updated", Map.of());
     return new SuperAdminTenantSupportContextDto(
         company.getId(), company.getCode(), company.getSupportNotes(), company.getSupportTags());
+  }
+
+  @Transactional(readOnly = true)
+  public SuperAdminTenantReviewIntelligenceToggleDto getReviewIntelligenceToggle(Long companyId) {
+    Company company = requireCompany(companyId);
+    TenantReviewIntelligenceToggleService.ToggleSnapshot snapshot =
+        tenantReviewIntelligenceToggleService.snapshot(company.getId());
+    return new SuperAdminTenantReviewIntelligenceToggleDto(
+        company.getId(), company.getCode(), snapshot.enabled(), snapshot.updatedAt());
+  }
+
+  @Transactional
+  public SuperAdminTenantReviewIntelligenceToggleDto updateReviewIntelligenceToggle(
+      Long companyId, boolean enabled) {
+    Company company = requireCompany(companyId);
+    TenantReviewIntelligenceToggleService.ToggleSnapshot snapshot =
+        tenantReviewIntelligenceToggleService.update(company.getId(), enabled);
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("reviewIntelligenceEnabled", Boolean.toString(snapshot.enabled()));
+    if (snapshot.updatedAt() != null) {
+      metadata.put("reviewIntelligenceUpdatedAt", snapshot.updatedAt().toString());
+    }
+    logAuditSuccess(
+        company, "tenant-review-intelligence-toggle-updated", metadata);
+    return new SuperAdminTenantReviewIntelligenceToggleDto(
+        company.getId(), company.getCode(), snapshot.enabled(), snapshot.updatedAt());
   }
 
   @Transactional

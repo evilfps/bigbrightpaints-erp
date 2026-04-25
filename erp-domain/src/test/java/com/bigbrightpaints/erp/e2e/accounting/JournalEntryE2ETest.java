@@ -61,8 +61,11 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 public class JournalEntryE2ETest extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "ACC-E2E";
+  private static final String ROOT_COMPANY_CODE = "ROOT";
   private static final String ADMIN_EMAIL = "accounting@e2e.com";
+  private static final String SUPER_ADMIN_EMAIL = "review-superadmin@e2e.com";
   private static final String ADMIN_PASSWORD = "acc123";
+  private static final String REVIEW_WARNING_ACTION = "REVIEW_INTELLIGENCE_WARNING";
 
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
@@ -93,20 +96,28 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
   }
 
   private String login() {
+    return login(ADMIN_EMAIL, COMPANY_CODE);
+  }
+
+  private String login(String email, String companyCode) {
     Map<String, Object> req =
         Map.of(
-            "email", ADMIN_EMAIL,
+            "email", email,
             "password", ADMIN_PASSWORD,
-            "companyCode", COMPANY_CODE);
+            "companyCode", companyCode);
     ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", req, Map.class);
     return (String) response.getBody().get("accessToken");
   }
 
   private HttpHeaders createHeaders(String token) {
+    return createHeaders(token, COMPANY_CODE);
+  }
+
+  private HttpHeaders createHeaders(String token, String companyCode) {
     HttpHeaders h = new HttpHeaders();
     h.setBearerAuth(token);
     h.setContentType(MediaType.APPLICATION_JSON);
-    h.set("X-Company-Code", COMPANY_CODE);
+    h.set("X-Company-Code", companyCode);
     return h;
   }
 
@@ -288,6 +299,96 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     Map<?, ?> retryData = (Map<?, ?>) retryResp.getBody().get("data");
     assertThat(((Number) retryData.get("id")).longValue())
         .isEqualTo(((Number) data.get("id")).longValue());
+  }
+
+  @Test
+  @DisplayName(
+      "Review intelligence toggle is default-off and emits warn-only review artifacts when enabled")
+  void reviewIntelligenceToggle_DefaultOff_ThenWarnOnlyArtifactWhenEnabled() {
+    dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+        "Review Super Admin",
+        ROOT_COMPANY_CODE,
+        List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+    HttpHeaders superAdminHeaders = createHeaders(superAdminToken, ROOT_COMPANY_CODE);
+
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Account cashAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
+    Account revenueAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "REVENUE").orElseThrow();
+
+    String togglePath = "/api/v1/superadmin/tenants/" + company.getId() + "/review-intelligence";
+    ResponseEntity<Map> toggleBeforeResponse =
+        rest.exchange(togglePath, HttpMethod.GET, new HttpEntity<>(superAdminHeaders), Map.class);
+    assertThat(toggleBeforeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> toggleBeforeData = (Map<?, ?>) toggleBeforeResponse.getBody().get("data");
+    assertThat(toggleBeforeData.get("reviewIntelligenceEnabled")).isEqualTo(Boolean.FALSE);
+
+    String referenceOff = "MANUAL-REVIEW-OFF-" + System.nanoTime();
+    ResponseEntity<Map> suspiciousOffResponse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                highValueManualJournalRequest(
+                    cashAccount.getId(), revenueAccount.getId(), referenceOff),
+                headers),
+            Map.class);
+    assertThat(suspiciousOffResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Long offEntryId =
+        ((Number) ((Map<?, ?>) suspiciousOffResponse.getBody().get("data")).get("id")).longValue();
+    assertNoAccountingJournalActionEvent(company.getId(), offEntryId, REVIEW_WARNING_ACTION);
+
+    ResponseEntity<Map> toggleEnableResponse =
+        rest.exchange(
+            togglePath,
+            HttpMethod.PUT,
+            new HttpEntity<>(Map.of("enabled", true), superAdminHeaders),
+            Map.class);
+    assertThat(toggleEnableResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> toggleEnabledData = (Map<?, ?>) toggleEnableResponse.getBody().get("data");
+    assertThat(toggleEnabledData.get("reviewIntelligenceEnabled")).isEqualTo(Boolean.TRUE);
+
+    String referenceOn = "MANUAL-REVIEW-ON-" + System.nanoTime();
+    ResponseEntity<Map> suspiciousOnResponse =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                highValueManualJournalRequest(cashAccount.getId(), revenueAccount.getId(), referenceOn),
+                headers),
+            Map.class);
+    assertThat(suspiciousOnResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Long onEntryId =
+        ((Number) ((Map<?, ?>) suspiciousOnResponse.getBody().get("data")).get("id")).longValue();
+
+    AuditActionEvent reviewWarningEvent =
+        awaitAccountingJournalActionEvent(company.getId(), onEntryId, REVIEW_WARNING_ACTION);
+    Map<String, String> warningMetadata = loadAuditMetadata(reviewWarningEvent.getId());
+    assertThat(warningMetadata)
+        .containsEntry("warnOnly", "true")
+        .containsEntry("reviewRule", "MANUAL_HIGH_VALUE_JOURNAL")
+        .containsEntry("reviewQueue", "ACCOUNTING_AUDIT_EVENTS");
+
+    ResponseEntity<Map> reviewSurfaceResponse =
+        rest.exchange(
+            "/api/v1/accounting/audit/events?action=" + REVIEW_WARNING_ACTION + "&size=50",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(reviewSurfaceResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> reviewSurfaceData = (Map<?, ?>) reviewSurfaceResponse.getBody().get("data");
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> reviewItems = (List<Map<String, Object>>) reviewSurfaceData.get("content");
+    assertThat(reviewItems)
+        .anySatisfy(
+            item -> {
+              assertThat(item.get("action")).isEqualTo(REVIEW_WARNING_ACTION);
+              assertThat(item.get("entityId")).isEqualTo(String.valueOf(onEntryId));
+            });
   }
 
   @Test
@@ -1352,6 +1453,37 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     return ((Number) ((Map<?, ?>) response.getBody().get("data")).get("id")).longValue();
   }
 
+  private Map<String, Object> highValueManualJournalRequest(
+      Long cashAccountId, Long revenueAccountId, String referenceNumber) {
+    BigDecimal suspiciousAmount = new BigDecimal("150000.00");
+    Map<String, Object> debitLine =
+        Map.of(
+            "accountId",
+            cashAccountId,
+            "debit",
+            suspiciousAmount,
+            "credit",
+            BigDecimal.ZERO,
+            "description",
+            "High-value manual debit");
+    Map<String, Object> creditLine =
+        Map.of(
+            "accountId",
+            revenueAccountId,
+            "debit",
+            BigDecimal.ZERO,
+            "credit",
+            suspiciousAmount,
+            "description",
+            "High-value manual credit");
+    return Map.of(
+        "entryDate", LocalDate.now(),
+        "journalType", "MANUAL",
+        "referenceNumber", referenceNumber,
+        "memo", "High-value manual journal for review intelligence validation",
+        "lines", List.of(debitLine, creditLine));
+  }
+
   private AccountingPeriodStatus setJournalEntryPeriodStatus(
       Company company, Long journalEntryId, AccountingPeriodStatus status) {
     JournalEntry entry = journalEntryRepository.findById(journalEntryId).orElseThrow();
@@ -1415,6 +1547,31 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
             + entityId
             + ", companyId="
             + companyId);
+  }
+
+  private void assertNoAccountingJournalActionEvent(Long companyId, Long entityId, String action) {
+    Instant deadline = Instant.now().plus(Duration.ofSeconds(2));
+    while (Instant.now().isBefore(deadline)) {
+      Optional<AuditActionEvent> match =
+          auditActionEventRepository
+              .findTopByCompanyIdAndModuleIgnoreCaseAndActionIgnoreCaseAndEntityTypeIgnoreCaseAndEntityIdOrderByOccurredAtDesc(
+                  companyId, "ACCOUNTING", action, "JOURNAL_ENTRY", String.valueOf(entityId));
+      if (match.isPresent()) {
+        throw new AssertionError(
+            "Unexpected accounting action event found for action="
+                + action
+                + ", entityId="
+                + entityId
+                + ", companyId="
+                + companyId);
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+        throw new AssertionError("Interrupted while asserting action event absence", ex);
+      }
+    }
   }
 
   private Map<String, String> loadAuditMetadata(Long eventId) {
