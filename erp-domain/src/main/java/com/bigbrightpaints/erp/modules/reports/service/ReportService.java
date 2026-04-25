@@ -1226,13 +1226,10 @@ public class ReportService {
   }
 
   private BigDecimal liveBalanceForAccount(Account account, Map<Long, BigDecimal> liveBalances) {
-    if (account == null) {
+    if (account == null || liveBalances == null) {
       return BigDecimal.ZERO;
     }
-    if (liveBalances != null && liveBalances.containsKey(account.getId())) {
-      return safe(liveBalances.get(account.getId()));
-    }
-    return safe(account.getBalance());
+    return safe(liveBalances.get(account.getId()));
   }
 
   private BigDecimal safe(BigDecimal value) {

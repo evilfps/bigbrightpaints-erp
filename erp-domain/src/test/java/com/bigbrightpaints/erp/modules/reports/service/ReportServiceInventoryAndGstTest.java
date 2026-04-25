@@ -265,8 +265,9 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.systemQuantityTotal()).isEqualByComparingTo("10.00");
     assertThat(report.physicalQuantityTotal()).isEqualByComparingTo("8.00");
     assertThat(report.quantityVarianceTotal()).isEqualByComparingTo("-2.00");
+    assertThat(report.ledgerInventoryValue()).isEqualByComparingTo("0.00");
     assertThat(report.physicalInventoryValue()).isEqualByComparingTo("96.00");
-    assertThat(report.valueVariance()).isEqualByComparingTo("6.00");
+    assertThat(report.valueVariance()).isEqualByComparingTo("96.00");
     assertThat(report.items())
         .extracting(InventoryReconciliationItemDto::physicalQty)
         .containsExactly(new BigDecimal("8.00"));
@@ -302,6 +303,9 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.systemQuantityTotal()).isEqualByComparingTo("5.00");
     assertThat(report.physicalQuantityTotal()).isEqualByComparingTo("5.00");
     assertThat(report.quantityVarianceTotal()).isEqualByComparingTo("0.00");
+    assertThat(report.ledgerInventoryValue()).isEqualByComparingTo("0.00");
+    assertThat(report.physicalInventoryValue()).isEqualByComparingTo("35.00");
+    assertThat(report.valueVariance()).isEqualByComparingTo("35.00");
     assertThat(report.items())
         .extracting(InventoryReconciliationItemDto::variance)
         .containsExactly(new BigDecimal("0.00"));
@@ -374,6 +378,19 @@ class ReportServiceInventoryAndGstTest {
   }
 
   @Test
+  void balanceWarnings_usesZeroWhenLiveJournalSummaryRowIsMissing() {
+    stubToday();
+    Account asset = account(99L, "AST-99", "Asset 99", AccountType.ASSET, "-999.00");
+    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(asset));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(List.of());
+
+    var warnings = reportService.balanceWarnings();
+
+    assertThat(warnings).isEmpty();
+  }
+
+  @Test
   void reconciliationDashboard_usesProvidedStatementBalanceAndInventoryFallbackLedgerBalance() {
     stubToday();
     Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "1000");
@@ -428,6 +445,33 @@ class ReportServiceInventoryAndGstTest {
     assertThat(dashboard.bank().variance()).isEqualByComparingTo("0.00");
     assertThat(dashboard.inventory().ledgerValue()).isEqualByComparingTo("600.00");
     assertThat(dashboard.inventory().variance()).isEqualByComparingTo("50.00");
+  }
+
+  @Test
+  void reconciliationDashboard_usesZeroWhenLiveJournalSummaryRowsAreMissing() {
+    stubToday();
+    company.setDefaultInventoryAccountId(11L);
+    Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "700.00");
+    Account inventoryAccount =
+        account(11L, "INV", "Inventory Control", AccountType.ASSET, "300.00");
+    when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
+    when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventoryAccount);
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(List.of());
+    when(inventoryValuationService.currentSnapshot(company))
+        .thenReturn(
+            new InventoryValuationQueryService.InventorySnapshot(
+                BigDecimal.ZERO, 0L, "FIFO", List.of()));
+
+    ReconciliationDashboardDto dashboard = reportService.reconciliationDashboard(10L, null);
+
+    assertThat(dashboard.bank().ledgerBalance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().statementBalance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().ledgerValue()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().balanced()).isTrue();
+    assertThat(dashboard.inventory().balanced()).isTrue();
   }
 
   private Account account(Long id, String code, String name, AccountType type, String balance) {
