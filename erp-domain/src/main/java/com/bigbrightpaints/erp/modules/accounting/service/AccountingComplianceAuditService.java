@@ -41,10 +41,8 @@ public class AccountingComplianceAuditService {
   private static final String ENTITY_PERIOD = "ACCOUNTING_PERIOD";
   private static final String ENTITY_PERIOD_CLOSE_REQUEST = "PERIOD_CLOSE_REQUEST";
   private static final String ENTITY_ACCOUNT = "ACCOUNT";
-  private static final String ACTION_REVIEW_INTELLIGENCE_WARNING =
-      "REVIEW_INTELLIGENCE_WARNING";
-  private static final String REVIEW_RULE_MANUAL_HIGH_VALUE_JOURNAL =
-      "MANUAL_HIGH_VALUE_JOURNAL";
+  private static final String ACTION_REVIEW_INTELLIGENCE_WARNING = "REVIEW_INTELLIGENCE_WARNING";
+  private static final String REVIEW_RULE_MANUAL_HIGH_VALUE_JOURNAL = "MANUAL_HIGH_VALUE_JOURNAL";
   private static final String REVIEW_QUEUE_ACCOUNTING_AUDIT_EVENTS = "ACCOUNTING_AUDIT_EVENTS";
   private static final BigDecimal REVIEW_WARNING_THRESHOLD = new BigDecimal("100000.00");
   private static final String METADATA_BEFORE_STATE = "beforeState";

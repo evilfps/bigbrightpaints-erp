@@ -264,8 +264,7 @@ public class SuperAdminTenantControlPlaneService {
     if (snapshot.updatedAt() != null) {
       metadata.put("reviewIntelligenceUpdatedAt", snapshot.updatedAt().toString());
     }
-    logAuditSuccess(
-        company, "tenant-review-intelligence-toggle-updated", metadata);
+    logAuditSuccess(company, "tenant-review-intelligence-toggle-updated", metadata);
     return new SuperAdminTenantReviewIntelligenceToggleDto(
         company.getId(), company.getCode(), snapshot.enabled(), snapshot.updatedAt());
   }

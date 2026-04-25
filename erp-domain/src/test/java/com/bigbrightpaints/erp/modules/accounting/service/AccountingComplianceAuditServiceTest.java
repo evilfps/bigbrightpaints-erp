@@ -149,8 +149,9 @@ class AccountingComplianceAuditServiceTest {
         .recordBusinessEvent(captor.capture());
     List<AuditActionEventCommand> commands = captor.getAllValues();
 
-    assertThat(commands).extracting(AuditActionEventCommand::action).containsExactlyInAnyOrder(
-        "MANUAL_JOURNAL_CREATED", "REVIEW_INTELLIGENCE_WARNING");
+    assertThat(commands)
+        .extracting(AuditActionEventCommand::action)
+        .containsExactlyInAnyOrder("MANUAL_JOURNAL_CREATED", "REVIEW_INTELLIGENCE_WARNING");
     AuditActionEventCommand warningCommand =
         commands.stream()
             .filter(command -> "REVIEW_INTELLIGENCE_WARNING".equals(command.action()))

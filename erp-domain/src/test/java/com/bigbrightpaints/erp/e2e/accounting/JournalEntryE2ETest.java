@@ -358,7 +358,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
             "/api/v1/accounting/journal-entries",
             HttpMethod.POST,
             new HttpEntity<>(
-                highValueManualJournalRequest(cashAccount.getId(), revenueAccount.getId(), referenceOn),
+                highValueManualJournalRequest(
+                    cashAccount.getId(), revenueAccount.getId(), referenceOn),
                 headers),
             Map.class);
     assertThat(suspiciousOnResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -382,7 +383,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     assertThat(reviewSurfaceResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> reviewSurfaceData = (Map<?, ?>) reviewSurfaceResponse.getBody().get("data");
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> reviewItems = (List<Map<String, Object>>) reviewSurfaceData.get("content");
+    List<Map<String, Object>> reviewItems =
+        (List<Map<String, Object>>) reviewSurfaceData.get("content");
     assertThat(reviewItems)
         .anySatisfy(
             item -> {
@@ -1477,11 +1479,16 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
             "description",
             "High-value manual credit");
     return Map.of(
-        "entryDate", LocalDate.now(),
-        "journalType", "MANUAL",
-        "referenceNumber", referenceNumber,
-        "memo", "High-value manual journal for review intelligence validation",
-        "lines", List.of(debitLine, creditLine));
+        "entryDate",
+        LocalDate.now(),
+        "journalType",
+        "MANUAL",
+        "referenceNumber",
+        referenceNumber,
+        "memo",
+        "High-value manual journal for review intelligence validation",
+        "lines",
+        List.of(debitLine, creditLine));
   }
 
   private AccountingPeriodStatus setJournalEntryPeriodStatus(

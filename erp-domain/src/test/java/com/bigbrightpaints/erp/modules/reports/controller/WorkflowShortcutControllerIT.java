@@ -69,7 +69,10 @@ class WorkflowShortcutControllerIT extends AbstractIntegrationTest {
   void workflowShortcuts_exposeConnectedBusinessFlowsAndExplicitDraftCapability() {
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/reports/workflow-shortcuts", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            "/api/v1/reports/workflow-shortcuts",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
@@ -89,8 +92,7 @@ class WorkflowShortcutControllerIT extends AbstractIntegrationTest {
         .containsExactlyInAnyOrder(
             "ORDER_TO_INVOICE", "PROCURE_TO_PAY", "PERIOD_CLOSE_RECONCILIATION");
 
-    List<String> orderToInvoiceRoutes =
-        stepRoutes(workflowByKey.get("ORDER_TO_INVOICE"), "steps");
+    List<String> orderToInvoiceRoutes = stepRoutes(workflowByKey.get("ORDER_TO_INVOICE"), "steps");
     assertThat(orderToInvoiceRoutes)
         .containsExactly(
             "/api/v1/sales/orders",
@@ -127,7 +129,8 @@ class WorkflowShortcutControllerIT extends AbstractIntegrationTest {
 
   @Test
   void declaredDraftCapability_saveAndResumeRemainSideEffectFreeUntilPromotion() {
-    long journalCountBefore = journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).size();
+    long journalCountBefore =
+        journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).size();
     assertPeriodBankReconciled(period.getId(), false);
 
     Map<String, Object> saveDraftRequest = new LinkedHashMap<>();
@@ -173,7 +176,8 @@ class WorkflowShortcutControllerIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/accounting/reconciliation/bank/sessions/" + sessionId + "/complete",
             HttpMethod.POST,
-            new HttpEntity<>(Map.of("note", "promote draft", "accountingPeriodId", period.getId()), headers),
+            new HttpEntity<>(
+                Map.of("note", "promote draft", "accountingPeriodId", period.getId()), headers),
             Map.class);
 
     assertThat(promoteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);

@@ -31,8 +31,7 @@ public class SensitiveDisclosurePolicyOwner {
   public static final String ACCOUNTING_SUPPLIER_AGING_EXPORT_TYPE = "ACCOUNTING_SUPPLIER_AGING";
 
   private static final Set<String> APPROVAL_BYPASS_EXPORT_TYPES =
-      Set.of(
-          ACCOUNTING_SUPPLIER_STATEMENT_EXPORT_TYPE, ACCOUNTING_SUPPLIER_AGING_EXPORT_TYPE);
+      Set.of(ACCOUNTING_SUPPLIER_STATEMENT_EXPORT_TYPE, ACCOUNTING_SUPPLIER_AGING_EXPORT_TYPE);
 
   private final SystemSettingsService systemSettingsService;
 
