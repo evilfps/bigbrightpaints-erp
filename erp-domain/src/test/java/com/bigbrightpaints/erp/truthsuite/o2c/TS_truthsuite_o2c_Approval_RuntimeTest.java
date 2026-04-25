@@ -394,10 +394,17 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
             () ->
                 salesService.confirmDispatch(
                     new DispatchConfirmRequest(
-                        55L, null, List.of(), null, "admin", Boolean.TRUE, null, 901L)));
+                        55L,
+                        null,
+                        defaultDispatchLines(),
+                        null,
+                        "admin",
+                        Boolean.TRUE,
+                        null,
+                        901L)));
 
     assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
-    assertTrue(ex.getMessage().contains("adminOverrideCreditLimit"));
+    assertTrue(ex.getMessage().contains("overrideReason"));
   }
 
   @Test
@@ -418,7 +425,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
             new DispatchConfirmRequest(
                 55L,
                 null,
-                List.of(),
+                defaultDispatchLines(),
                 null,
                 "admin",
                 Boolean.TRUE,
@@ -543,7 +550,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     DispatchConfirmResponse response =
         salesService.confirmDispatch(
             new DispatchConfirmRequest(
-                55L, null, List.of(), null, "admin", Boolean.FALSE, null, null));
+                55L, null, defaultDispatchLines(), null, "admin", Boolean.FALSE, null, null));
 
     assertEquals(777L, response.finalInvoiceId());
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
@@ -682,6 +689,12 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     slipLine.setQuantity(BigDecimal.ONE);
     slipLine.setUnitCost(BigDecimal.ZERO);
     return slipLine;
+  }
+
+  private List<DispatchConfirmRequest.DispatchLine> defaultDispatchLines() {
+    return List.of(
+        new DispatchConfirmRequest.DispatchLine(
+            99L, null, BigDecimal.ONE, null, null, null, null, null));
   }
 
   private Dealer dealerWithCreditLimitAndReceivable(long id, BigDecimal limit) {

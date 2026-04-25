@@ -87,6 +87,7 @@ artifacts/release-matrix-local-keep/
 artifacts/reviews/predeploy-blockers-v1-*
 artifacts/gate-fast/
 artifacts/gate-core/
+artifacts/gate-quality/
 artifacts/gate-release/
 artifacts/gate-reconciliation/
 artifacts/gate-release/migration-matrix-v2.json

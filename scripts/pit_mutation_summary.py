@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import sys
+from typing import Optional
 import xml.etree.ElementTree as ET
 
 
@@ -24,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def latest_mutations_xml(report_root: pathlib.Path) -> pathlib.Path | None:
+def latest_mutations_xml(report_root: pathlib.Path) -> Optional[pathlib.Path]:
     if not report_root.exists():
         return None
     direct = report_root / "mutations.xml"
