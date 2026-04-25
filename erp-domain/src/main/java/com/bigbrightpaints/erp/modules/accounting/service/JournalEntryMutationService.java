@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -113,6 +114,15 @@ class JournalEntryMutationService {
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+    return createJournalEntryWithOutcome(request).journalEntry();
+  }
+
+  @Retryable(
+      value = DataIntegrityViolationException.class,
+      maxAttempts = 3,
+      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Transactional
+  JournalEntryMutationOutcome createJournalEntryWithOutcome(JournalEntryRequest request) {
     Map<String, String> auditMetadata = new HashMap<>();
     if (request != null && request.referenceNumber() != null) {
       auditMetadata.put("requestedReference", request.referenceNumber());
@@ -152,6 +162,7 @@ class JournalEntryMutationService {
           journalReferenceService.resolveJournalReference(company, request.referenceNumber()));
       entry.setAttachmentReferences(joinAttachmentReferences(request.attachmentReferences()));
       auditMetadata.put("referenceNumber", entry.getReferenceNumber());
+      acquireReferenceLock(company, entry.getReferenceNumber());
 
       Optional<JournalEntry> duplicate =
           journalEntryRepository.findByCompanyAndReferenceNumber(
@@ -314,7 +325,7 @@ class JournalEntryMutationService {
         auditMetadata.put("idempotent", "true");
         accountingAuditService.logAuditSuccessAfterCommit(
             AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
-        return dtoMapperService.toJournalEntryDto(existingEntry);
+        return JournalEntryMutationOutcome.replayed(dtoMapperService.toJournalEntryDto(existingEntry));
       }
 
       if (dealer != null
@@ -343,27 +354,7 @@ class JournalEntryMutationService {
       entry.setLastModifiedBy(username);
       entry.setPostedBy(username);
 
-      JournalEntry saved;
-      try {
-        saved = journalEntryRepository.save(entry);
-      } catch (DataIntegrityViolationException ex) {
-        Optional<JournalEntry> existing =
-            journalEntryRepository.findByCompanyAndReferenceNumber(
-                company, entry.getReferenceNumber());
-        if (existing.isPresent()) {
-          JournalEntry existingEntry = existing.get();
-          if (existingEntry.getId() != null) {
-            auditMetadata.put("journalEntryId", existingEntry.getId().toString());
-          }
-          journalDuplicateGuardService.ensureDuplicateMatchesExisting(
-              existingEntry, entry, postedLines);
-          auditMetadata.put("idempotent", "true");
-          accountingAuditService.logAuditSuccessAfterCommit(
-              AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
-          return dtoMapperService.toJournalEntryDto(existingEntry);
-        }
-        throw ex;
-      }
+      JournalEntry saved = journalEntryRepository.save(entry);
 
       boolean postedEventTrailRecorded = applyAccountDeltas(company, saved, accountDeltas);
       journalPartnerContextService.recordLedgerEntries(
@@ -390,7 +381,7 @@ class JournalEntryMutationService {
             journalReferenceService.resolvePostingDocumentReference(saved),
             saved);
       }
-      return dtoMapperService.toJournalEntryDto(saved);
+      return JournalEntryMutationOutcome.created(dtoMapperService.toJournalEntryDto(saved));
     } catch (Exception e) {
       if (e.getMessage() != null) {
         auditMetadata.put("error", e.getMessage());
@@ -568,5 +559,18 @@ class JournalEntryMutationService {
       return "0";
     }
     return amount.stripTrailingZeros().toPlainString();
+  }
+
+  private void acquireReferenceLock(Company company, String referenceNumber) {
+    if (company == null || company.getId() == null || !StringUtils.hasText(referenceNumber)) {
+      return;
+    }
+    int companyKey = Long.hashCode(company.getId());
+    int referenceKey = referenceNumber.trim().toUpperCase(Locale.ROOT).hashCode();
+    entityManager
+        .createNativeQuery("select pg_advisory_xact_lock(?1, ?2)")
+        .setParameter(1, companyKey)
+        .setParameter(2, referenceKey)
+        .getSingleResult();
   }
 }

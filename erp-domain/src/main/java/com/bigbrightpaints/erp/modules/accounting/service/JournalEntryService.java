@@ -63,6 +63,11 @@ public class JournalEntryService {
     return journalPostingService.createJournalEntry(request);
   }
 
+  @Transactional
+  JournalEntryMutationOutcome createJournalEntryWithOutcome(JournalEntryRequest request) {
+    return journalPostingService.createJournalEntryWithOutcome(request);
+  }
+
   public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
     return journalPostingService.createStandardJournal(request);
   }

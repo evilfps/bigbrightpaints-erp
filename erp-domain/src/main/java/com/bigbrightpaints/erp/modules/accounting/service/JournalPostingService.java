@@ -173,6 +173,11 @@ class JournalPostingService {
     return journalEntryMutationService.createJournalEntry(request);
   }
 
+  @Transactional
+  JournalEntryMutationOutcome createJournalEntryWithOutcome(JournalEntryRequest request) {
+    return journalEntryMutationService.createJournalEntryWithOutcome(request);
+  }
+
   JournalEntryDto createJournalEntryForReversal(
       JournalEntryRequest payload, boolean allowClosedPeriodOverride) {
     return allowClosedPeriodOverride

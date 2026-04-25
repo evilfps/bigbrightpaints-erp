@@ -3,9 +3,11 @@ package com.bigbrightpaints.erp.e2e.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -19,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
+import com.bigbrightpaints.erp.codered.support.CoderedRetry;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -310,6 +314,145 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     assertThat(
             finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost())
         .isEqualByComparingTo(secondBatchCostAfterFirst);
+  }
+
+  @Test
+  void landedCostConcurrentReplay_returnsSingleJournal_andAppliesValuationOnce() {
+    LandedCostFixture fixture = ensurePurchaseWithReceiptLine();
+    String replayKey = "LC-CONCURRENT-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "rawMaterialPurchaseId",
+            fixture.purchaseId(),
+            "amount",
+            new BigDecimal("100.00"),
+            "inventoryAccountId",
+            inventory.getId(),
+            "offsetAccountId",
+            offset.getId(),
+            "memo",
+            "Concurrent replay-safe landed cost",
+            "idempotencyKey",
+            replayKey);
+
+    RawMaterialPurchaseLine lineBefore = findPurchaseLine(fixture.lineId());
+    BigDecimal lineUnitCostBefore = lineBefore.getCostPerUnit();
+    BigDecimal lineTotalBefore = lineBefore.getLineTotal();
+    BigDecimal batchCostBefore =
+        rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit();
+    BigDecimal movementCostBefore =
+        rawMaterialMovementRepository.findById(fixture.movementId()).orElseThrow().getUnitCost();
+
+    List<ResponseEntity<Map>> responses =
+        runConcurrentPosts("/api/v1/accounting/inventory/landed-cost", request, 4);
+    assertThat(responses).allMatch(response -> response.getStatusCode() == HttpStatus.OK);
+
+    List<Long> journalIds =
+        responses.stream().map(this::data).map(data -> asLong(data.get("id"))).distinct().toList();
+    assertThat(journalIds).hasSize(1);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+
+    RawMaterialPurchaseLine lineAfter = findPurchaseLine(fixture.lineId());
+    BigDecimal expectedDeltaPerUnit = new BigDecimal("2.000000");
+    BigDecimal expectedAllocation = new BigDecimal("100.0000");
+    assertThat(lineAfter.getCostPerUnit())
+        .isEqualByComparingTo(lineUnitCostBefore.add(expectedDeltaPerUnit));
+    assertThat(lineAfter.getLineTotal()).isEqualByComparingTo(lineTotalBefore.add(expectedAllocation));
+    assertThat(
+            rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit())
+        .isEqualByComparingTo(batchCostBefore.add(expectedDeltaPerUnit));
+    assertThat(
+            rawMaterialMovementRepository
+                .findById(fixture.movementId())
+                .orElseThrow()
+                .getUnitCost())
+        .isEqualByComparingTo(movementCostBefore.add(expectedDeltaPerUnit));
+  }
+
+  @Test
+  void revaluationConcurrentReplay_returnsSingleJournal_andAppliesBatchDeltaOnce() {
+    Account scopedInventory =
+        ensureAccount("INV-CONC-" + UUID.randomUUID(), "Concurrent replay inventory", AccountType.ASSET);
+    FinishedGoodBatch firstBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-CONC-1-" + UUID.randomUUID(),
+            new BigDecimal("10"),
+            new BigDecimal("20.00"));
+    FinishedGoodBatch secondBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-CONC-2-" + UUID.randomUUID(),
+            new BigDecimal("15"),
+            new BigDecimal("30.00"));
+    String replayKey = "REVAL-CONCURRENT-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "inventoryAccountId",
+            scopedInventory.getId(),
+            "revaluationAccountId",
+            reval.getId(),
+            "deltaAmount",
+            new BigDecimal("12.00"),
+            "memo",
+            "Concurrent replay-safe revaluation",
+            "idempotencyKey",
+            replayKey);
+
+    BigDecimal firstBatchCostBefore =
+        finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost();
+    BigDecimal secondBatchCostBefore =
+        finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost();
+
+    List<ResponseEntity<Map>> responses =
+        runConcurrentPosts("/api/v1/accounting/inventory/revaluation", request, 4);
+    assertThat(responses).allMatch(response -> response.getStatusCode() == HttpStatus.OK);
+
+    List<Long> journalIds =
+        responses.stream().map(this::data).map(data -> asLong(data.get("id"))).distinct().toList();
+    assertThat(journalIds).hasSize(1);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+
+    BigDecimal expectedDeltaPerUnit = new BigDecimal("0.480000");
+    assertThat(finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(firstBatchCostBefore.add(expectedDeltaPerUnit));
+    assertThat(
+            finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(secondBatchCostBefore.add(expectedDeltaPerUnit));
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<ResponseEntity<Map>> runConcurrentPosts(
+      String path, Map<String, Object> request, int threads) {
+    CoderedConcurrencyHarness.RunResult<ResponseEntity<Map>> result =
+        CoderedConcurrencyHarness.run(
+            threads,
+            3,
+            Duration.ofSeconds(30),
+            idx ->
+                () -> {
+                  HttpHeaders requestHeaders = new HttpHeaders();
+                  requestHeaders.putAll(headers);
+                  return rest.postForEntity(
+                      path, new org.springframework.http.HttpEntity<>(request, requestHeaders), Map.class);
+                },
+            CoderedRetry::isRetryable);
+
+    assertThat(result.outcomes())
+        .allMatch(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>);
+    return result.outcomes().stream()
+        .map(
+            outcome ->
+                ((CoderedConcurrencyHarness.Outcome.Success<ResponseEntity<Map>>) outcome).value())
+        .toList();
   }
 
   private RawMaterialPurchase ensurePurchase() {

@@ -11,7 +11,6 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -38,7 +37,6 @@ class InventoryValuationPostingService {
   private final AccountResolutionService accountResolutionService;
   private final JournalReferenceService journalReferenceService;
   private final JournalEntryService journalEntryService;
-  private final JournalEntryRepository journalEntryRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
@@ -51,7 +49,6 @@ class InventoryValuationPostingService {
       AccountResolutionService accountResolutionService,
       JournalReferenceService journalReferenceService,
       JournalEntryService journalEntryService,
-      JournalEntryRepository journalEntryRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       RawMaterialBatchRepository rawMaterialBatchRepository,
@@ -62,7 +59,6 @@ class InventoryValuationPostingService {
     this.accountResolutionService = accountResolutionService;
     this.journalReferenceService = journalReferenceService;
     this.journalEntryService = journalEntryService;
-    this.journalEntryRepository = journalEntryRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
     this.rawMaterialBatchRepository = rawMaterialBatchRepository;
@@ -81,7 +77,6 @@ class InventoryValuationPostingService {
             StringUtils.hasText(request.idempotencyKey())
                 ? request.idempotencyKey()
                 : request.referenceNumber());
-    boolean replay = journalAlreadyExists(company, reference);
     LocalDate entryDate =
         request.entryDate() != null
             ? request.entryDate()
@@ -90,8 +85,8 @@ class InventoryValuationPostingService {
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Landed cost for purchase " + purchase.getInvoiceNumber();
-    JournalEntryDto journalEntry =
-        journalEntryService.createJournalEntry(
+    JournalEntryMutationOutcome outcome =
+        journalEntryService.createJournalEntryWithOutcome(
             new JournalEntryRequest(
                 reference,
                 entryDate,
@@ -104,10 +99,10 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, request.amount(), BigDecimal.ZERO),
                     new JournalEntryRequest.JournalLineRequest(
                         request.offsetAccountId(), memo, BigDecimal.ZERO, request.amount()))));
-    if (!replay) {
+    if (!outcome.replayed()) {
       adjustLandedCostValuation(purchase, request.amount());
     }
-    return journalEntry;
+    return outcome.journalEntry();
   }
 
   @Transactional
@@ -119,7 +114,6 @@ class InventoryValuationPostingService {
             StringUtils.hasText(request.idempotencyKey())
                 ? request.idempotencyKey()
                 : request.referenceNumber());
-    boolean replay = journalAlreadyExists(company, reference);
     LocalDate entryDate =
         request.entryDate() != null
             ? request.entryDate()
@@ -129,8 +123,8 @@ class InventoryValuationPostingService {
     BigDecimal delta = request.deltaAmount();
     BigDecimal debit = delta.compareTo(BigDecimal.ZERO) >= 0 ? delta : BigDecimal.ZERO;
     BigDecimal credit = delta.compareTo(BigDecimal.ZERO) < 0 ? delta.abs() : BigDecimal.ZERO;
-    JournalEntryDto journalEntry =
-        journalEntryService.createJournalEntry(
+    JournalEntryMutationOutcome outcome =
+        journalEntryService.createJournalEntryWithOutcome(
             new JournalEntryRequest(
                 reference,
                 entryDate,
@@ -143,13 +137,13 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, debit, credit),
                     new JournalEntryRequest.JournalLineRequest(
                         request.revaluationAccountId(), memo, credit, debit))));
-    if (!replay) {
+    if (!outcome.replayed()) {
       revalueFinishedBatches(
           finishedGoodBatchRepository.findByCompanyAndValuationAccountId(
               company, request.inventoryAccountId()),
           delta);
     }
-    return journalEntry;
+    return outcome.journalEntry();
   }
 
   @Transactional
@@ -261,10 +255,4 @@ class InventoryValuationPostingService {
     }
   }
 
-  private boolean journalAlreadyExists(Company company, String reference) {
-    if (company == null || !StringUtils.hasText(reference)) {
-      return false;
-    }
-    return journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).isPresent();
-  }
 }
