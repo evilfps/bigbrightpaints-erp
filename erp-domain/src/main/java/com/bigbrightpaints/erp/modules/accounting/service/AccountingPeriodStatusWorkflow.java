@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
 
@@ -148,8 +149,9 @@ final class AccountingPeriodStatusWorkflow {
           note,
           false);
     }
-    lifecycleService.ensurePeriod(
-        company, period.getEndDate().plusDays(1), accountingComplianceAuditService);
+    java.time.LocalDate nextPeriodStart =
+        YearMonth.of(period.getYear(), period.getMonth()).plusMonths(1).atDay(1);
+    lifecycleService.ensurePeriod(company, nextPeriodStart, accountingComplianceAuditService);
     return lifecycleService.toDto(saved);
   }
 

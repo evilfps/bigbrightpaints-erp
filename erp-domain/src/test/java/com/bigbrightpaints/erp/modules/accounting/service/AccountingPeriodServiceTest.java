@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -419,6 +420,52 @@ class AccountingPeriodServiceTest {
             eq(null),
             eq("OPEN"),
             contains("Period opened"));
+  }
+
+  @Test
+  void approvePeriodClose_usesNextCalendarMonthWhenClosedPeriodEndsBeforeMonthEnd() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod period = openPeriod(company, 2024, 3);
+    period.setEndDate(LocalDate.of(2024, 3, 28));
+    ReflectionFieldAccess.setField(period, "id", 312L);
+    PeriodCloseRequest pending = pendingCloseRequest(company, period, 512L, "maker.user");
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndId(company, 312L))
+        .thenReturn(Optional.of(period), Optional.of(period));
+    when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+            company, period, PeriodCloseRequestStatus.PENDING))
+        .thenReturn(Optional.of(pending));
+    when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+            company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
+        .thenReturn(0L);
+    when(journalLineRepository.summarizeByAccountType(
+            company, period.getStartDate(), period.getEndDate()))
+        .thenReturn(List.of());
+    when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2024, 4))
+        .thenReturn(Optional.empty());
+    authenticate("checker.user", "ROLE_ADMIN");
+
+    assertThat(
+            service
+                .approvePeriodClose(
+                    312L, new PeriodCloseRequestActionRequest("close truncated month", true))
+                .status())
+        .isEqualTo("CLOSED");
+    verify(accountingPeriodRepository).findByCompanyAndYearAndMonth(company, 2024, 4);
+    verify(accountingPeriodRepository, never()).findByCompanyAndYearAndMonth(company, 2024, 3);
+    ArgumentCaptor<AccountingPeriod> savedPeriods = ArgumentCaptor.forClass(AccountingPeriod.class);
+    verify(accountingPeriodRepository, org.mockito.Mockito.atLeast(2)).save(savedPeriods.capture());
+    AccountingPeriod nextPeriod =
+        savedPeriods.getAllValues().stream()
+            .filter(saved -> saved.getYear() == 2024 && saved.getMonth() == 4)
+            .findFirst()
+            .orElseThrow();
+    assertThat(nextPeriod.getStartDate()).isEqualTo(LocalDate.of(2024, 4, 1));
+    assertThat(nextPeriod.getEndDate()).isEqualTo(LocalDate.of(2024, 4, 30));
+    assertThat(nextPeriod.getStatus()).isEqualTo(AccountingPeriodStatus.OPEN);
   }
 
   @Test
