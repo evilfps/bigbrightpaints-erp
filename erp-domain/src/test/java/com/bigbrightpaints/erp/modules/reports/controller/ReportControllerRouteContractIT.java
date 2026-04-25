@@ -20,6 +20,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -36,6 +37,7 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "REPORT-ROUTE-SEC";
   private static final String ACCOUNTING_EMAIL = "report-accounting@bbp.com";
+  private static final String SALES_EMAIL = "report-sales@bbp.com";
   private static final String PASSWORD = "changeme";
 
   @Autowired private TestRestTemplate rest;
@@ -59,6 +61,7 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
             List.of("ROLE_DEALER"));
     dataSeeder.ensureUser(
         ACCOUNTING_EMAIL, PASSWORD, "Report Accounting", COMPANY_CODE, List.of("ROLE_ACCOUNTING"));
+    dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Report Sales", COMPANY_CODE, List.of("ROLE_SALES"));
 
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     dealer =
@@ -123,6 +126,39 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
     }
   }
 
+  @Test
+  void settlementReceiptMutations_forbidSalesBeforeBodyValidation() {
+    HttpHeaders salesHeaders = authHeaders(SALES_EMAIL);
+    List<String> sensitiveAccountingWritePaths =
+        List.of(
+            "/api/v1/accounting/receipts/dealer",
+            "/api/v1/accounting/settlements/dealers",
+            "/api/v1/accounting/settlements/suppliers");
+
+    for (String path : sensitiveAccountingWritePaths) {
+      ResponseEntity<Map> denied =
+          rest.exchange(path, HttpMethod.POST, new HttpEntity<>(Map.of(), salesHeaders), Map.class);
+      assertThat(denied.getStatusCode()).as(path).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+  }
+
+  @Test
+  void settlementReceiptMutations_accountingStillReachesRequestValidation() {
+    HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL);
+    List<String> sensitiveAccountingWritePaths =
+        List.of(
+            "/api/v1/accounting/receipts/dealer",
+            "/api/v1/accounting/settlements/dealers",
+            "/api/v1/accounting/settlements/suppliers");
+
+    for (String path : sensitiveAccountingWritePaths) {
+      ResponseEntity<Map> validationFailure =
+          rest.exchange(
+              path, HttpMethod.POST, new HttpEntity<>(Map.of(), accountingHeaders), Map.class);
+      assertThat(validationFailure.getStatusCode()).as(path).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+  }
+
   private Set<String> extractPatterns(RequestMappingInfo mapping) {
     if (mapping.getPathPatternsCondition() != null) {
       return mapping.getPathPatternsCondition().getPatternValues();
@@ -134,9 +170,13 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
   }
 
   private HttpHeaders authHeaders() {
+    return authHeaders(ACCOUNTING_EMAIL);
+  }
+
+  private HttpHeaders authHeaders(String email) {
     Map<String, Object> payload =
         Map.of(
-            "email", ACCOUNTING_EMAIL,
+            "email", email,
             "password", PASSWORD,
             "companyCode", COMPANY_CODE);
     ResponseEntity<Map> login = rest.postForEntity("/api/v1/auth/login", payload, Map.class);
@@ -144,6 +184,7 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
 
     HttpHeaders headers = new HttpHeaders();
     headers.setBearerAuth((String) login.getBody().get("accessToken"));
+    headers.setContentType(MediaType.APPLICATION_JSON);
     headers.set("X-Company-Code", COMPANY_CODE);
     return headers;
   }
