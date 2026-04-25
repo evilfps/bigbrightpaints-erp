@@ -160,7 +160,8 @@ public class OpeningStockImportService {
             .findByCompanyAndIdempotencyKey(company, normalizedKey)
             .orElse(null);
     if (existing != null) {
-      assertReplayMatch(existing, normalizedKey, normalizedBatchKey);
+      String contentFingerprint = fingerprintFile(file);
+      assertReplayMatch(company, existing, normalizedKey, normalizedBatchKey, contentFingerprint);
       return toResponse(existing);
     }
 
@@ -229,7 +230,7 @@ public class OpeningStockImportService {
         }
         throw ex;
       }
-      assertReplayMatch(concurrent, normalizedKey, normalizedBatchKey);
+      assertReplayMatch(company, concurrent, normalizedKey, normalizedBatchKey, contentFingerprint);
       return toResponse(concurrent);
     }
   }
@@ -311,7 +312,9 @@ public class OpeningStockImportService {
                 .build()
                 .parse(reader)) {
 
+      List<ParsedOpeningRow> parsedRows = new ArrayList<>();
       Map<String, Long> seenSkuRows = new HashMap<>();
+      boolean duplicateSkuDetected = false;
       for (CSVRecord record : parser) {
         OpeningRow row;
         try {
@@ -323,24 +326,28 @@ public class OpeningStockImportService {
         if (row == null) {
           continue;
         }
+        parsedRows.add(new ParsedOpeningRow(record.getRecordNumber(), row));
         String normalizedSku = normalizeSku(row.sku);
         if (normalizedSku != null) {
           Long firstSeenRow = seenSkuRows.putIfAbsent(normalizedSku, record.getRecordNumber());
           if (firstSeenRow != null) {
+            duplicateSkuDetected = true;
             errors.add(
-                new ImportError(
-                    record.getRecordNumber(),
-                    "Duplicate SKU in import file: "
-                        + row.sku
-                        + " (first seen at row "
-                        + firstSeenRow
-                        + ")",
-                    normalizedSku,
-                    row.type.name(),
-                    readinessFor(company, normalizedSku, row.type)));
-            continue;
+                duplicateSkuError(
+                    company, record.getRecordNumber(), row, normalizedSku, firstSeenRow));
           }
         }
+      }
+
+      if (duplicateSkuDetected) {
+        OpeningStockImportResponse response =
+            new OpeningStockImportResponse(
+                openingStockBatchKey, 0, 0, 0, List.of(), List.copyOf(errors));
+        return new ImportResult(response, null);
+      }
+
+      for (ParsedOpeningRow parsedRow : parsedRows) {
+        OpeningRow row = parsedRow.row();
         try {
           OpeningMovementResult movementResult;
           if (row.type == StockType.RAW_MATERIAL || row.type == StockType.PACKAGING_RAW_MATERIAL) {
@@ -360,7 +367,7 @@ public class OpeningStockImportService {
           }
           results.add(
               new ImportRowResult(
-                  record.getRecordNumber(),
+                  parsedRow.rowNumber(),
                   movementResult.sku(),
                   row.type.name(),
                   movementResult.readiness()));
@@ -369,7 +376,7 @@ public class OpeningStockImportService {
           String normalizedSkuForError = normalizeSku(row.sku);
           errors.add(
               new ImportError(
-                  record.getRecordNumber(),
+                  parsedRow.rowNumber(),
                   ex.getMessage(),
                   normalizedSkuForError,
                   row.type.name(),
@@ -378,7 +385,7 @@ public class OpeningStockImportService {
           String normalizedSkuForError = normalizeSku(row.sku);
           errors.add(
               new ImportError(
-                  record.getRecordNumber(),
+                  parsedRow.rowNumber(),
                   "Unexpected error: " + ex.getMessage(),
                   normalizedSkuForError,
                   row.type.name(),
@@ -410,6 +417,16 @@ public class OpeningStockImportService {
     } catch (IOException ex) {
       throw ValidationUtils.invalidState("Failed to read CSV file", ex);
     }
+  }
+
+  private ImportError duplicateSkuError(
+      Company company, long rowNumber, OpeningRow row, String normalizedSku, long firstSeenRow) {
+    return new ImportError(
+        rowNumber,
+        "Duplicate SKU in import file: " + row.sku + " (first seen at row " + firstSeenRow + ")",
+        normalizedSku,
+        row.type.name(),
+        readinessFor(company, normalizedSku, row.type));
   }
 
   private void assertImportAllowed() {
@@ -702,7 +719,11 @@ public class OpeningStockImportService {
   }
 
   private void assertReplayMatch(
-      OpeningStockImport record, String idempotencyKey, String openingStockBatchKey) {
+      Company company,
+      OpeningStockImport record,
+      String idempotencyKey,
+      String openingStockBatchKey,
+      String attemptedContentFingerprint) {
     String storedBatchKey =
         StringUtils.hasText(record.getOpeningStockBatchKey())
             ? record.getOpeningStockBatchKey()
@@ -715,6 +736,34 @@ public class OpeningStockImportService {
           .withDetail("openingStockBatchKey", openingStockBatchKey)
           .withDetail("existingOpeningStockBatchKey", storedBatchKey);
     }
+    String storedContentFingerprint = resolveReplayContentFingerprint(company, record);
+    if (!StringUtils.hasText(storedContentFingerprint)
+        || !storedContentFingerprint.equals(attemptedContentFingerprint)) {
+      throw openingStockIdempotencyReplayConflict(
+          record,
+          idempotencyKey,
+          openingStockBatchKey,
+          storedContentFingerprint,
+          attemptedContentFingerprint);
+    }
+  }
+
+  private String resolveReplayContentFingerprint(Company company, OpeningStockImport record) {
+    if (record == null || !StringUtils.hasText(record.getContentFingerprint())) {
+      return null;
+    }
+    if (!isLegacyContentFingerprint(record)) {
+      return record.getContentFingerprint();
+    }
+    String rebuiltFingerprint = rebuildLegacyContentFingerprint(company, record);
+    if (!StringUtils.hasText(rebuiltFingerprint)) {
+      return null;
+    }
+    if (!rebuiltFingerprint.equals(record.getContentFingerprint())) {
+      record.setContentFingerprint(rebuiltFingerprint);
+      openingStockImportRepository.save(record);
+    }
+    return rebuiltFingerprint;
   }
 
   private OpeningStockImportResponse toResponse(OpeningStockImport record) {
@@ -823,6 +872,32 @@ public class OpeningStockImportService {
             "operatorAction",
             "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock"
                 + " before importing a distinct batch.");
+  }
+
+  private ApplicationException openingStockIdempotencyReplayConflict(
+      OpeningStockImport existing,
+      String attemptedIdempotencyKey,
+      String attemptedBatchKey,
+      String existingContentFingerprint,
+      String attemptedContentFingerprint) {
+    return new ApplicationException(
+            ErrorCode.CONCURRENCY_CONFLICT,
+            "Idempotency key already used with materially different opening stock file content")
+        .withDetail("outcome", "replay-conflict")
+        .withDetail("idempotencyKey", attemptedIdempotencyKey)
+        .withDetail("openingStockBatchKey", attemptedBatchKey)
+        .withDetail("existingOpeningStockBatchKey", existing.getOpeningStockBatchKey())
+        .withDetail("referenceNumber", existing.getReferenceNumber())
+        .withDetail(
+            "existingContentFingerprint",
+            StringUtils.hasText(existingContentFingerprint)
+                ? existingContentFingerprint
+                : "UNAVAILABLE")
+        .withDetail("attemptedContentFingerprint", attemptedContentFingerprint)
+        .withDetail(
+            "operatorAction",
+            "Replay with the original file content for this Idempotency-Key, or use a new"
+                + " Idempotency-Key and openingStockBatchKey for materially distinct content.");
   }
 
   private ApplicationException openingStockContentReplayConflict(
@@ -1167,6 +1242,8 @@ public class OpeningStockImportService {
       SkuReadinessDto readiness,
       RawMaterialMovement rawMovement,
       InventoryMovement inventoryMovement) {}
+
+  private record ParsedOpeningRow(long rowNumber, OpeningRow row) {}
 
   private record ImportResult(OpeningStockImportResponse response, Long journalEntryId) {}
 

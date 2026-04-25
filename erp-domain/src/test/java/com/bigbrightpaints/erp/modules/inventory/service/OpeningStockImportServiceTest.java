@@ -149,7 +149,7 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void importOpeningStock_duplicateSkuInCsvAddsRowErrorAndSkipsDuplicateMutation() {
+  void importOpeningStock_duplicateSkuInCsvRejectsWholeFileBeforeMutations() {
     String csv =
         String.join(
             "\n",
@@ -160,92 +160,27 @@ class OpeningStockImportServiceTest {
 
     stubDefaultImportState(file);
 
-    Account inventoryAccount = account(11L, "INV", "Inventory", AccountType.ASSET);
-    Account openingBalance = account(22L, "OPEN-BAL", "Opening Balance", AccountType.EQUITY);
-    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "OPEN-BAL"))
-        .thenReturn(Optional.of(openingBalance));
-
-    RawMaterial createdMaterial = new RawMaterial();
-    ReflectionTestUtils.setField(createdMaterial, "id", 101L);
-    createdMaterial.setCompany(company);
-    createdMaterial.setSku("RM-1");
-    createdMaterial.setName("Resin");
-    createdMaterial.setUnitType("KG");
-    createdMaterial.setInventoryAccountId(inventoryAccount.getId());
-    createdMaterial.setCurrentStock(BigDecimal.ZERO);
-    when(rawMaterialRepository.findByCompanyAndSku(company, "RM-1"))
-        .thenReturn(Optional.of(createdMaterial));
-
-    when(rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(eq(createdMaterial), any()))
-        .thenReturn(false);
-    when(rawMaterialBatchRepository.save(any(RawMaterialBatch.class)))
-        .thenAnswer(invocation -> invocation.getArgument(0));
-    when(rawMaterialRepository.save(any(RawMaterial.class)))
-        .thenAnswer(invocation -> invocation.getArgument(0));
-    when(rawMaterialMovementRepository.save(any()))
-        .thenAnswer(invocation -> invocation.getArgument(0));
-    when(rawMaterialMovementRepository.saveAll(any()))
-        .thenAnswer(invocation -> invocation.getArgument(0));
-
-    when(accountingFacade.postInventoryAdjustment(
-            eq("OPENING_STOCK"),
-            any(String.class),
-            eq(openingBalance.getId()),
-            any(Map.class),
-            eq(true),
-            eq(false),
-            eq("Opening stock import"),
-            eq(LocalDate.of(2026, 2, 3))))
-        .thenReturn(
-            new JournalEntryDto(
-                501L,
-                null,
-                "OPEN-STOCK-ACME-ABC",
-                LocalDate.of(2026, 2, 3),
-                null,
-                "POSTED",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null));
-
     OpeningStockImportResponse response = importOpeningStock(file, "dup-sku-key");
 
-    assertThat(response.rowsProcessed()).isEqualTo(1);
-    assertThat(response.rawMaterialBatchesCreated()).isEqualTo(1);
+    assertThat(response.rowsProcessed()).isZero();
+    assertThat(response.rawMaterialBatchesCreated()).isZero();
     assertThat(response.finishedGoodBatchesCreated()).isZero();
-    assertThat(response.results()).hasSize(1);
+    assertThat(response.results()).isEmpty();
     assertThat(response.errors()).hasSize(1);
     assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
     assertThat(response.errors().getFirst().message())
         .isEqualTo("Duplicate SKU in import file: RM-1 (first seen at row 1)");
 
+    verify(rawMaterialBatchRepository, never()).save(any(RawMaterialBatch.class));
+    verify(rawMaterialRepository, never()).save(any(RawMaterial.class));
+    verify(rawMaterialMovementRepository, never()).save(any(RawMaterialMovement.class));
+    verify(rawMaterialMovementRepository, never()).saveAll(any());
+    verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
+    verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
+    verify(inventoryMovementRepository, never()).save(any(InventoryMovement.class));
+    verify(inventoryMovementRepository, never()).saveAll(any());
     verifyNoInteractions(rawMaterialService, finishedGoodsService);
-    verify(accountingFacade)
-        .postInventoryAdjustment(
-            eq("OPENING_STOCK"),
-            any(String.class),
-            eq(openingBalance.getId()),
-            any(Map.class),
-            eq(true),
-            eq(false),
-            eq("Opening stock import"),
-            eq(LocalDate.of(2026, 2, 3)));
+    verifyNoInteractions(accountingFacade);
   }
 
   @Test
@@ -364,22 +299,26 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void importOpeningStock_idempotentReplayReturnsBeforeReadingFileFingerprint() {
+  void importOpeningStock_idempotentReplayRequiresReadableFileForFingerprintValidation() {
     MultipartFile unreadableFile = unreadableCsvFile("opening-stock.csv");
 
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint("stored-fingerprint");
     existing.setRowsProcessed(2);
 
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "same-key"))
         .thenReturn(Optional.of(existing));
 
-    OpeningStockImportResponse replay =
-        importOpeningStock(unreadableFile, "same-key", batchKey("same-key"));
-
-    assertThat(replay.rowsProcessed()).isEqualTo(2);
+    assertThatThrownBy(() -> importOpeningStock(unreadableFile, "same-key", batchKey("same-key")))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
+              assertThat(ex.getMessage()).isEqualTo("Failed to read CSV file");
+            });
     verify(openingStockImportRepository, never())
         .findByCompanyAndOpeningStockBatchKey(any(), anyString());
     verify(openingStockImportRepository, never())
@@ -465,12 +404,12 @@ class OpeningStockImportServiceTest {
   @Test
   void importOpeningStock_returnsConcurrentIdempotentRecordWhenUniqueConstraintRaceFindsSameKey()
       throws Exception {
-    MockMultipartFile file =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"));
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
     String openingStockBatchKey = batchKey("fresh-key");
 
     OpeningStockImport concurrent = new OpeningStockImport();
@@ -478,6 +417,7 @@ class OpeningStockImportServiceTest {
     concurrent.setIdempotencyKey("fresh-key");
     concurrent.setReferenceNumber("OPEN-STOCK-ACME-CONCURRENT");
     concurrent.setOpeningStockBatchKey(openingStockBatchKey);
+    concurrent.setContentFingerprint(fingerprint(csv));
     concurrent.setRowsProcessed(1);
 
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
@@ -1042,16 +982,17 @@ class OpeningStockImportServiceTest {
             environment,
             new ResourcelessTransactionManager(),
             false);
-    MockMultipartFile file =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"));
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint(fingerprint(csv));
     existing.setRowsProcessed(2);
     existing.setRawMaterialBatchesCreated(1);
     existing.setResultsJson(
@@ -1336,17 +1277,18 @@ class OpeningStockImportServiceTest {
 
   @Test
   void importOpeningStock_replaysPersistedImportForSameIdempotencyKey() {
-    MockMultipartFile file =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"));
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
 
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint(fingerprint(csv));
     existing.setRowsProcessed(4);
     existing.setRawMaterialsCreated(1);
     existing.setRawMaterialBatchesCreated(1);
@@ -1381,18 +1323,25 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void importOpeningStock_replaysPersistedImportWithoutComparingPayload() {
-    MockMultipartFile changedFile =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,99,8.00,PRODUCTION"));
+  void importOpeningStock_rejectsReplayWhenPayloadDiffersForSameIdempotencyKey() {
+    String originalCsv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    String changedCsv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,99,8.00,PRODUCTION");
+    MockMultipartFile changedFile = csvFile(changedCsv);
 
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
+    existing.setContentFingerprint(fingerprint(originalCsv));
     existing.setRowsProcessed(2);
     existing.setResultsJson(
         """
@@ -1402,12 +1351,24 @@ class OpeningStockImportServiceTest {
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "same-key"))
         .thenReturn(Optional.of(existing));
 
-    OpeningStockImportResponse replay = importOpeningStock(changedFile, "same-key");
-
-    assertThat(replay.openingStockBatchKey()).isEqualTo(batchKey("same-key"));
-    assertThat(replay.rowsProcessed()).isEqualTo(2);
-    assertThat(replay.results()).hasSize(1);
-    assertThat(replay.results().getFirst().sku()).isEqualTo("RM-1");
+    assertThatThrownBy(() -> importOpeningStock(changedFile, "same-key"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+              assertThat(ex.getMessage())
+                  .isEqualTo(
+                      "Idempotency key already used with materially different opening stock file"
+                          + " content");
+              assertThat(ex.getDetails())
+                  .containsEntry("outcome", "replay-conflict")
+                  .containsEntry("idempotencyKey", "same-key")
+                  .containsEntry("openingStockBatchKey", batchKey("same-key"))
+                  .containsEntry("existingOpeningStockBatchKey", batchKey("same-key"))
+                  .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
+                  .containsEntry("existingContentFingerprint", fingerprint(originalCsv))
+                  .containsEntry("attemptedContentFingerprint", fingerprint(changedCsv));
+            });
     verify(journalEntryRepository, never()).findByCompanyAndReferenceNumber(any(), any());
     verify(accountingFacade, never())
         .postInventoryAdjustment(
@@ -1423,17 +1384,18 @@ class OpeningStockImportServiceTest {
 
   @Test
   void importOpeningStock_idempotencyReplaySkipsBatchAndContentReplayLookups() {
-    MockMultipartFile changedFile =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B2,99,8.00,PRODUCTION"));
+    String replayCsv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B2,99,8.00,PRODUCTION");
+    MockMultipartFile changedFile = csvFile(replayCsv);
 
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint(fingerprint(replayCsv));
     existing.setRowsProcessed(2);
     existing.setResultsJson(
         """
@@ -1455,16 +1417,17 @@ class OpeningStockImportServiceTest {
 
   @Test
   void importOpeningStock_replaysPersistedResultsAndErrors() throws Exception {
-    MockMultipartFile file =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"));
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint(fingerprint(csv));
     existing.setRowsProcessed(1);
     existing.setRawMaterialsCreated(0);
     existing.setRawMaterialBatchesCreated(1);
@@ -1761,17 +1724,18 @@ class OpeningStockImportServiceTest {
 
   @Test
   void importOpeningStock_replaysInvalidResultsJsonAsEmptyList() throws Exception {
-    MockMultipartFile file =
-        csvFile(
-            String.join(
-                "\n",
-                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"));
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
 
     OpeningStockImport existing = new OpeningStockImport();
     existing.setCompany(company);
     existing.setIdempotencyKey("same-key");
     existing.setOpeningStockBatchKey(batchKey("same-key"));
+    existing.setContentFingerprint(fingerprint(csv));
     existing.setRowsProcessed(1);
     existing.setResultsJson("{not-json}");
     existing.setErrorsJson(null);
@@ -1820,7 +1784,7 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void importOpeningStock_replaysIdempotencyReplayWhenPayloadDiffersButBatchKeyMatches() {
+  void importOpeningStock_rejectsReplayWhenStoredContentFingerprintIsUnavailable() {
     MockMultipartFile file =
         csvFile(
             String.join(
@@ -1841,21 +1805,21 @@ class OpeningStockImportServiceTest {
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "same-key"))
         .thenReturn(Optional.of(existing));
 
-    OpeningStockImportResponse replay = importOpeningStock(file, "same-key");
-
-    assertThat(replay.openingStockBatchKey()).isEqualTo(batchKey("same-key"));
-    assertThat(replay.rowsProcessed()).isEqualTo(3);
-    assertThat(replay.results()).hasSize(1);
-    verify(accountingFacade, never())
-        .postInventoryAdjustment(
-            any(String.class),
-            any(String.class),
-            any(Long.class),
-            any(Map.class),
-            any(Boolean.class),
-            any(Boolean.class),
-            any(String.class),
-            any(LocalDate.class));
+    assertThatThrownBy(() -> importOpeningStock(file, "same-key"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+              assertThat(ex.getMessage())
+                  .isEqualTo(
+                      "Idempotency key already used with materially different opening stock file"
+                          + " content");
+              assertThat(ex.getDetails())
+                  .containsEntry("outcome", "replay-conflict")
+                  .containsEntry("idempotencyKey", "same-key")
+                  .containsEntry("openingStockBatchKey", batchKey("same-key"))
+                  .containsEntry("existingContentFingerprint", "UNAVAILABLE");
+            });
   }
 
   @Test
