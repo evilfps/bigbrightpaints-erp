@@ -361,7 +361,8 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     BigDecimal expectedAllocation = new BigDecimal("100.0000");
     assertThat(lineAfter.getCostPerUnit())
         .isEqualByComparingTo(lineUnitCostBefore.add(expectedDeltaPerUnit));
-    assertThat(lineAfter.getLineTotal()).isEqualByComparingTo(lineTotalBefore.add(expectedAllocation));
+    assertThat(lineAfter.getLineTotal())
+        .isEqualByComparingTo(lineTotalBefore.add(expectedAllocation));
     assertThat(
             rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit())
         .isEqualByComparingTo(batchCostBefore.add(expectedDeltaPerUnit));
@@ -376,7 +377,8 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
   @Test
   void revaluationConcurrentReplay_returnsSingleJournal_andAppliesBatchDeltaOnce() {
     Account scopedInventory =
-        ensureAccount("INV-CONC-" + UUID.randomUUID(), "Concurrent replay inventory", AccountType.ASSET);
+        ensureAccount(
+            "INV-CONC-" + UUID.randomUUID(), "Concurrent replay inventory", AccountType.ASSET);
     FinishedGoodBatch firstBatch =
         ensureFinishedGoodBatch(
             scopedInventory,
@@ -442,7 +444,9 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
                   HttpHeaders requestHeaders = new HttpHeaders();
                   requestHeaders.putAll(headers);
                   return rest.postForEntity(
-                      path, new org.springframework.http.HttpEntity<>(request, requestHeaders), Map.class);
+                      path,
+                      new org.springframework.http.HttpEntity<>(request, requestHeaders),
+                      Map.class);
                 },
             CoderedRetry::isRetryable);
 

@@ -254,5 +254,4 @@ class InventoryValuationPostingService {
       finishedGoodBatchRepository.save(batch);
     }
   }
-
 }

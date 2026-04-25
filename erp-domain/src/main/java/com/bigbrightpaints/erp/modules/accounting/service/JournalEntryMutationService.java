@@ -325,7 +325,8 @@ class JournalEntryMutationService {
         auditMetadata.put("idempotent", "true");
         accountingAuditService.logAuditSuccessAfterCommit(
             AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
-        return JournalEntryMutationOutcome.replayed(dtoMapperService.toJournalEntryDto(existingEntry));
+        return JournalEntryMutationOutcome.replayed(
+            dtoMapperService.toJournalEntryDto(existingEntry));
       }
 
       if (dealer != null
