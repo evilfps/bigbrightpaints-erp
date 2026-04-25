@@ -168,7 +168,11 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
         .thenReturn(List.of());
     when(invoiceRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.empty());
+    when(invoiceRepository.findByCompanyAndJournalEntry_ReversalOf(company, entry))
+        .thenReturn(Optional.empty());
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry))
+        .thenReturn(Optional.empty());
+    when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_ReversalOf(company, entry))
         .thenReturn(Optional.empty());
     when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(99L))
         .thenReturn(List.of());

@@ -2,7 +2,7 @@
 
 Role target: `ROLE_ADMIN` (tenant-admin product surface).
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-19
 
 ## Auth requirements
 
@@ -28,9 +28,10 @@ Last reviewed: 2026-04-15
 | User delete | `DELETE /api/v1/admin/users/{id}` | — | `204 No Content` | `ROLE_ADMIN` |
 | Force password reset | `POST /api/v1/admin/users/{userId}/force-reset-password` | — | `ApiResponse<String>` | `ROLE_ADMIN` |
 | Tenant audit feed | `GET /api/v1/admin/audit/events` | — | `ApiResponse<PageResponse<AuditFeedItemDto>>` | `ROLE_ADMIN` |
-| Internal support list | `GET /api/v1/admin/support/tickets` | — | `ApiResponse<SupportTicketListResponse>` | `ROLE_ADMIN` |
-| Internal support create | `POST /api/v1/admin/support/tickets` | `SupportTicketCreateRequest` | `ApiResponse<SupportTicketResponse>` | `ROLE_ADMIN` |
-| Internal support detail | `GET /api/v1/admin/support/tickets/{ticketId}` | — | `ApiResponse<SupportTicketResponse>` | `ROLE_ADMIN` |
+| Report a problem | `POST /api/v1/incidents/report` | `IncidentReportCreateRequest` | `ApiResponse<IncidentReportResponse>` | authenticated |
+| Changelog list | `GET /api/v1/changelog` | — | `ApiResponse<PageResponse<AppReleaseResponse>>` | authenticated |
+| Latest release | `GET /api/v1/changelog/latest` | — | `ApiResponse<AppReleaseResponse>` | authenticated |
+| Runtime version policy | `GET /api/v1/runtime/version?installedVersion=` | — | `ApiResponse<RuntimeVersionResponse>` | authenticated |
 | Self settings | `GET /api/v1/admin/self/settings` | — | `ApiResponse<AdminSelfSettingsDto>` | `ROLE_ADMIN` |
 
 ## DTOs used by tenant-admin UI
@@ -38,7 +39,8 @@ Last reviewed: 2026-04-15
 - `AdminDashboardDto`
 - `AdminApprovalInboxResponse`, `AdminApprovalItemDto`, `AdminApprovalDecisionRequest`
 - `CreateUserRequest`, `UpdateUserRequest`, `UpdateUserStatusRequest`, `UserDto`
-- `SupportTicketCreateRequest`, `SupportTicketListResponse`, `SupportTicketResponse`
+- `IncidentReportCreateRequest`, `IncidentReportResponse`
+- `AppReleaseResponse`, `RuntimeVersionResponse`
 - `AdminSelfSettingsDto`
 - `AuditFeedItemDto`, `PageResponse<AuditFeedItemDto>`
 
@@ -48,3 +50,4 @@ Last reviewed: 2026-04-15
 - `/api/v1/superadmin/settings` (governance/system settings host)
 - `/api/v1/superadmin/notify` (control-plane utility host)
 - `/api/v1/superadmin/**` (control-plane ownership)
+- any legacy support-ticket endpoint family (`/api/v1/admin/support/tickets/**`, `/api/v1/portal/support/tickets/**`, `/api/v1/dealer-portal/support/tickets/**`)

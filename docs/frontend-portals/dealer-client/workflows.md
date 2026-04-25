@@ -3,8 +3,7 @@
 ## 1. Dealer Dashboard
 
 1. Log in as a dealer.
-2. Load open orders, open invoices, current balance, overdue aging, and support
-   shortcuts.
+2. Load open orders, open invoices, current balance, and overdue aging.
 3. Ensure all data is scoped to the authenticated dealer only.
 
 ## 2. Order Tracking
@@ -28,11 +27,12 @@
 2. Open aging view for current and overdue buckets.
 3. Keep these screens read-only and dealer-safe.
 
-## 5. Support Request
+## 5. Report a problem
 
-1. Open support screen.
-2. Create a new support request tied to an order, invoice, or general issue.
-3. Track request status and response history where backend supports it.
+1. Open report screen.
+2. Capture issue category and summary with optional diagnostics.
+3. Submit to `POST /api/v1/incidents/report`.
+4. Show recorded report reference for follow-up.
 
 ## 6. Self-Service Credit Request
 
@@ -45,5 +45,5 @@
 
 - Unauthorized scope: hard-stop and redirect to dealer-safe error handling.
 - Missing invoice: show dispatch and order context first.
-- Support submission failure: preserve the draft and show retry guidance.
+- Report submission failure: preserve draft and show retry guidance.
 - Credit request rejection: show decision reason if backend provides it.

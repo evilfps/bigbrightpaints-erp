@@ -4,7 +4,7 @@
 
 - order `SUBMITTED`, `CONFIRMED`, `PENDING_DISPATCH`, `PARTIALLY_DISPATCHED`, `DISPATCHED`, `INVOICED`, `SETTLED`, `CANCELLED`
 - invoice `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERDUE`
-- support request `OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`
+- incident report `RECORDED`, `TRIAGED`, `ESCALATED`, `FAILED`, `CLOSED`
 - credit request `PENDING`, `APPROVED`, `REJECTED`
 
 ## Common Errors
@@ -13,7 +13,7 @@
 - order unavailable because tenant or dealer status blocks access
 - invoice not ready because dispatch is incomplete
 - ledger or aging temporarily unavailable
-- support submission failure
+- incident report submission failure
 - credit request submission rejected by validation rules
 
 ## UI Rules

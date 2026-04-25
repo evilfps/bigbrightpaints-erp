@@ -104,6 +104,10 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
       Company company, JournalEntry journalEntry);
 
   @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
+  Optional<RawMaterialPurchase> findByCompanyAndJournalEntry_ReversalOf(
+      Company company, JournalEntry reversalOf);
+
+  @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
   List<RawMaterialPurchase> findByCompanyAndJournalEntry_IdIn(
       Company company, List<Long> journalEntryIds);
 

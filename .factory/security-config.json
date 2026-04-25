@@ -1,0 +1,185 @@
+{
+  "threat_model_version": "1.0.0",
+  "last_updated": "2026-04-09T00:00:00Z",
+  "security_team_contacts": [],
+  "compliance_requirements": [
+    "SOC2"
+  ],
+  "scan_frequency": "on_commit",
+  "severity_thresholds": {
+    "block_merge": ["CRITICAL"],
+    "require_review": ["HIGH", "CRITICAL"],
+    "notify_security_team": ["CRITICAL"]
+  },
+  "vulnerability_patterns": {
+    "enabled": [
+      "sql_injection",
+      "xss",
+      "command_injection",
+      "xxe_injection",
+      "path_traversal",
+      "auth_bypass",
+      "idor",
+      "mass_assignment",
+      "csrf",
+      "csv_injection",
+      "jwt_misconfiguration",
+      "information_disclosure"
+    ],
+    "custom_patterns_path": null
+  },
+  "tech_stack": {
+    "language": "Java",
+    "version": "21",
+    "framework": "Spring Boot 3.x",
+    "database": "PostgreSQL 16",
+    "build_tool": "Maven",
+    "containerization": "Docker",
+    "ci_cd": "GitHub Actions"
+  },
+  "high_risk_paths": [
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/",
+    "erp-domain/src/main/resources/db/migration_v2/"
+  ],
+  "security_tools": {
+    "secret_detection": {
+      "tool": "gitleaks",
+      "config": ".gitleaks.toml",
+      "hooks": ["pre-commit"]
+    },
+    "static_analysis": {
+      "tool": "checkstyle",
+      "config": "erp-domain/pom.xml",
+      "hooks": ["pre-commit", "ci"]
+    },
+    "dependency_scanning": {
+      "tool": "dependabot",
+      "config": ".github/dependabot.yml",
+      "hooks": ["automated"]
+    },
+    "code_formatting": {
+      "tool": "spotless",
+      "config": "erp-domain/pom.xml",
+      "hooks": ["pre-commit", "ci"]
+    }
+  },
+  "key_findings": [
+    {
+      "id": "S-1",
+      "category": "spoofing",
+      "severity": "HIGH",
+      "title": "JWT Token Theft and Replay",
+      "status": "mitigated_with_gaps"
+    },
+    {
+      "id": "S-2",
+      "category": "spoofing",
+      "severity": "CRITICAL",
+      "title": "Super-Admin Account Compromise",
+      "status": "mitigated_with_gaps"
+    },
+    {
+      "id": "T-2",
+      "category": "tampering",
+      "severity": "CRITICAL",
+      "title": "Cross-Tenant Data Tampering",
+      "status": "mitigated"
+    },
+    {
+      "id": "I-4",
+      "category": "information_disclosure",
+      "severity": "HIGH",
+      "title": "Insecure Direct Object Reference (IDOR)",
+      "status": "mitigated_with_gaps"
+    },
+    {
+      "id": "E-1",
+      "category": "elevation_of_privilege",
+      "severity": "HIGH",
+      "title": "Role Hierarchy Exploitation",
+      "status": "mitigated"
+    },
+    {
+      "id": "D-1",
+      "category": "denial_of_service",
+      "severity": "MEDIUM",
+      "title": "Brute Force Login Attacks",
+      "status": "mitigated_with_gaps"
+    },
+    {
+      "id": "I-3",
+      "category": "information_disclosure",
+      "severity": "LOW",
+      "title": "Actuator Health Endpoint Data Exposure",
+      "status": "open"
+    },
+    {
+      "id": "R-1",
+      "category": "repudiation",
+      "severity": "MEDIUM",
+      "title": "Insufficient Audit Logging Coverage Verification",
+      "status": "needs_verification"
+    }
+  ],
+  "soc2_controls": {
+    "cc6_1_logical_access": {
+      "status": "implemented",
+      "evidence": [
+        "JWT authentication via JwtAuthenticationFilter",
+        "Role hierarchy: ROLE_SUPER_ADMIN > ROLE_ADMIN",
+        "@PreAuthorize on all controllers",
+        "CompanyContextFilter for tenant isolation"
+      ]
+    },
+    "cc6_2_authentication": {
+      "status": "implemented",
+      "evidence": [
+        "BCrypt password hashing",
+        "MFA support via MfaController",
+        "Token blacklisting and user-level revocation",
+        "Must-change-password corridor enforcement"
+      ]
+    },
+    "cc6_3_authorization": {
+      "status": "implemented",
+      "evidence": [
+        "RBAC via Spring Security",
+        "PortalRoleActionMatrix for portal boundaries",
+        "Module gating interceptor",
+        "Tenant lifecycle state enforcement"
+      ]
+    },
+    "cc7_1_detection": {
+      "status": "implemented",
+      "evidence": [
+        "SecurityMonitoringService for brute-force detection",
+        "Sentry error monitoring",
+        "Datadog APM",
+        "Spring Actuator health checks"
+      ]
+    },
+    "cc7_2_monitoring": {
+      "status": "implemented",
+      "evidence": [
+        "AuditService for platform events",
+        "EnterpriseAuditTrailService for enterprise actions",
+        "Accounting event store",
+        "Gitleaks pre-commit hooks"
+      ]
+    },
+    "cc8_1_change_management": {
+      "status": "implemented",
+      "evidence": [
+        "R2 checkpoint workflow for high-risk changes",
+        "GitHub Actions CI/CD pipeline",
+        "Pre-commit hooks (Spotless, Checkstyle, Gitleaks)",
+        "Enterprise policy checking in CI"
+      ]
+    }
+  }
+}

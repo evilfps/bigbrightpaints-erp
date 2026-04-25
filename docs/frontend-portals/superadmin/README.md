@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This portal is the platform-owner control plane. It is the only frontend shell that may create tenants, seed their chart of accounts, mutate tenant lifecycle, change limits and modules, recover tenant admin access, and publish the global changelog.
+This portal is the platform-owner control plane. It is the only frontend shell that may create tenants, seed their chart of accounts, mutate tenant lifecycle, change limits and modules, and recover tenant admin access.
 
 ## Users
 
@@ -17,7 +17,6 @@ This portal is the platform-owner control plane. It is the only frontend shell t
 - Lifecycle mutation
 - Quota and module mutation
 - Warning issuance, forced logout, admin password reset, main-admin replacement, admin email change
-- Superadmin changelog authoring
 
 ## What does not belong here
 
@@ -25,6 +24,7 @@ This portal is the platform-owner control plane. It is the only frontend shell t
 - Tenant user CRUD
 - Any accounting, sales, factory, or dealer workflow
 - Any route under `/api/v1/admin/**`, `/api/v1/accounting/**`, `/api/v1/factory/**`, or `/api/v1/dealer-portal/**`
+- Any manual changelog authoring flow
 
 ## Information architecture
 
@@ -32,7 +32,6 @@ Recommended navigation:
 
 - `Dashboard`
 - `Tenants`
-- `Changelog`
 
 Recommended tenant-detail tabs:
 

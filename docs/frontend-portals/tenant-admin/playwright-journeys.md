@@ -43,9 +43,9 @@
 4. Assert `POST /api/v1/admin/approvals/EXPORT_REQUEST/{requestId}/decisions` with `{"decision":"REJECT","reason":"..."}` succeeds.
 5. Refresh inbox and assert the row is removed from pending state.
 
-## Journey 6: Create and inspect a support ticket
+## Journey 6: Report a problem
 
-1. Visit `/tenant/support/tickets/new`.
-2. Submit category, subject, and description.
-3. Assert success redirect to `/tenant/support/tickets/:ticketId`.
-4. Assert ticket detail shows `status`, `githubIssueUrl` when available, and timestamps.
+1. Visit `/tenant/report-problem`.
+2. Submit `source`, `category`, and `summary` plus optional diagnostics.
+3. Assert `POST /api/v1/incidents/report` returns `publicId` and `escalationState`.
+4. Assert UI shows a success confirmation referencing the recorded report.

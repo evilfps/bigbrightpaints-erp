@@ -47,16 +47,14 @@ Rules:
   accounting internals such as journal identifiers unless backend explicitly
   provides a dealer-safe reference.
 
-## Support And Credit Request
+## Problem reporting and credit request
 
-- `GET /api/v1/dealer-portal/support/tickets`
-- `POST /api/v1/dealer-portal/support/tickets`
-- `GET /api/v1/dealer-portal/support/tickets/{ticketId}`
+- `POST /api/v1/incidents/report`
 - `POST /api/v1/dealer-portal/credit-limit-requests`
 
 Rules:
 
-- Support requests are dealer-originated but resolved outside this portal.
+- Product-facing reporting is one flow only and must use `POST /api/v1/incidents/report`.
 - Credit requests are self-service submissions only.
 - Dealer identity is always resolved from the authenticated dealer principal on
   `/api/v1/dealer-portal/**`; dealer-client must not send a `dealerId` in
@@ -69,3 +67,4 @@ Rules:
 - any `/api/v1/accounting/**` write action
 - `POST /api/v1/dispatch/confirm`
 - any factory production or packing write action
+- any legacy support-ticket endpoint family

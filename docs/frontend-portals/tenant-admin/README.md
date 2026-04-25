@@ -1,6 +1,6 @@
 # Tenant Admin Portal
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-19
 
 ## Purpose
 
@@ -12,9 +12,10 @@ It owns:
 - user lifecycle (`/api/v1/admin/users/**`)
 - approval inbox + decisions (`/api/v1/admin/approvals`, `POST /api/v1/admin/approvals/{originType}/{id}/decisions`)
 - tenant audit feed (`/api/v1/admin/audit/events`)
-- internal support (`/api/v1/admin/support/tickets/**`)
+- problem reporting (`POST /api/v1/incidents/report`)
 - self settings (`/api/v1/admin/self/settings` + auth self-service)
-- read-only changelog (`/api/v1/changelog`)
+- release feed (`GET /api/v1/changelog`, `GET /api/v1/changelog/latest`)
+- updater policy reads (`GET /api/v1/runtime/version`)
 
 Still-live legacy admin insight reads:
 
@@ -34,6 +35,7 @@ Still-live legacy admin insight reads:
 - No accounting journal/reconciliation workflows.
 - No factory execution workflows.
 - No dealer self-service workflows.
+- No support-ticket CRUD flows.
 
 ## Critical frontend rules
 

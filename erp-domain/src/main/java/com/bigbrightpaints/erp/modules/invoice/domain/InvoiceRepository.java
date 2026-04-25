@@ -104,6 +104,9 @@ where i.company = :company
   @EntityGraph(attributePaths = {"lines", "dealer", "salesOrder"})
   Optional<Invoice> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
 
+  @EntityGraph(attributePaths = {"lines", "dealer", "salesOrder"})
+  Optional<Invoice> findByCompanyAndJournalEntry_ReversalOf(Company company, JournalEntry reversalOf);
+
   @EntityGraph(attributePaths = {"dealer", "salesOrder"})
   List<Invoice> findByCompanyAndJournalEntry_IdIn(Company company, List<Long> journalEntryIds);
 

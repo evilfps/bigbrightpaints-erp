@@ -47,12 +47,11 @@ Important approval notes:
   - `PAYROLL_RUN`: reject is unsupported
 - Sensitive requester fields may be absent. Render null-safe detail panels.
 
-## Support ticket states
+## Incident report states
 
-- `list-loading`
-- `create-ready`
-- `create-submitting`
-- `detail-ready`
-- `github-sync-warning`
+- `form-ready`
+- `form-submitting`
+- `report-recorded`
+- `report-failed`
 
-Use `github-sync-warning` when `githubLastError` is present or `githubIssueState` is unexpected.
+Use `report-failed` when backend validation or persistence blocks `POST /api/v1/incidents/report`.

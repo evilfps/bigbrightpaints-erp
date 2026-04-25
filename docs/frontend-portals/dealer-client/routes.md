@@ -10,8 +10,7 @@ Every route below belongs to the external dealer shell only.
 | `/dealer/invoices/:invoiceId` | Invoice PDF or download view for a selected invoice. | `GET /api/v1/dealer-portal/invoices/{invoiceId}/pdf` |
 | `/dealer/ledger` | Dealer ledger read with running balance. | `GET /api/v1/dealer-portal/ledger` |
 | `/dealer/aging` | Aging buckets and overdue insight. | `GET /api/v1/dealer-portal/aging` |
-| `/dealer/support` | Support ticket list and new support request flow. | `GET, POST /api/v1/dealer-portal/support/tickets` |
-| `/dealer/support/:ticketId` | Support ticket detail and thread history. | `GET /api/v1/dealer-portal/support/tickets/{ticketId}` |
+| `/dealer/report-problem` | Single product issue report flow. | `POST /api/v1/incidents/report` |
 | `/dealer/credit-requests/new` | Self-service credit-limit increase request. | `POST /api/v1/dealer-portal/credit-limit-requests` |
 
 Route rules:

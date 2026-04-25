@@ -238,6 +238,8 @@ class AccountingAuditTrailServiceTest {
         .thenReturn(List.of());
     when(invoiceRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.empty());
+    when(invoiceRepository.findByCompanyAndJournalEntry_ReversalOf(company, entry))
+        .thenReturn(Optional.empty());
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.empty());
     when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(42L))
@@ -304,6 +306,8 @@ class AccountingAuditTrailServiceTest {
             company, entry))
         .thenReturn(List.of());
     when(invoiceRepository.findByCompanyAndJournalEntry(company, entry))
+        .thenReturn(Optional.empty());
+    when(invoiceRepository.findByCompanyAndJournalEntry_ReversalOf(company, entry))
         .thenReturn(Optional.empty());
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.empty());
@@ -548,6 +552,8 @@ class AccountingAuditTrailServiceTest {
             company, entry))
         .thenReturn(List.of());
     when(invoiceRepository.findByCompanyAndJournalEntry(company, entry))
+        .thenReturn(Optional.empty());
+    when(invoiceRepository.findByCompanyAndJournalEntry_ReversalOf(company, entry))
         .thenReturn(Optional.empty());
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.of(purchase));

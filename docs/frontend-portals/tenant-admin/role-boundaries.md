@@ -1,6 +1,6 @@
 # Role Boundaries
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-19
 
 ## Primary access
 
@@ -35,11 +35,11 @@ Tenant-admin user-management scope also excludes acting on users that currently 
 - `ROLE_ADMIN`
 - `ROLE_SUPER_ADMIN`
 
-## Support ownership boundaries
+## Reporting boundaries
 
-- Tenant-admin internal support host: `/api/v1/admin/support/tickets/**`.
-- `/api/v1/portal/support/tickets/**` is accounting-hosted and must not back tenant-admin screens.
-- Dealer support remains under `/api/v1/dealer-portal/support/tickets/**`.
+- Product-facing reporting uses exactly one endpoint: `POST /api/v1/incidents/report`.
+- Tenant-admin must not expose any support-ticket CRUD route family.
+- Incident escalation state belongs to backend workflow and should be shown read-only in tenant-admin UX.
 
 ## UI implications
 

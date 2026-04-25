@@ -73,7 +73,7 @@ final class AccountingAuditTrailTransactionDetailService {
     List<PartnerSettlementAllocation> allocations =
         settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
             company, entry);
-    Optional<Invoice> invoice = invoiceRepository.findByCompanyAndJournalEntry(company, entry);
+    Optional<Invoice> invoice = findInvoiceByJournalEntry(company, entry);
     Optional<RawMaterialPurchase> purchase = findPurchaseByJournalEntry(company, entry);
     List<AccountingEvent> events =
         accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(entry.getId());
@@ -261,8 +261,22 @@ final class AccountingAuditTrailTransactionDetailService {
         entry.getLastModifiedBy());
   }
 
+  private Optional<Invoice> findInvoiceByJournalEntry(Company company, JournalEntry journalEntry) {
+    Optional<Invoice> direct = invoiceRepository.findByCompanyAndJournalEntry(company, journalEntry);
+    if (direct.isPresent()) {
+      return direct;
+    }
+    return invoiceRepository.findByCompanyAndJournalEntry_ReversalOf(company, journalEntry);
+  }
+
   private Optional<RawMaterialPurchase> findPurchaseByJournalEntry(
       Company company, JournalEntry journalEntry) {
-    return rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, journalEntry);
+    Optional<RawMaterialPurchase> direct =
+        rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, journalEntry);
+    if (direct.isPresent()) {
+      return direct;
+    }
+    return rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_ReversalOf(
+        company, journalEntry);
   }
 }

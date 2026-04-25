@@ -1,6 +1,6 @@
 # Workflows
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-19
 
 ## Session bootstrap
 
@@ -12,7 +12,7 @@ Last reviewed: 2026-04-15
 ## Dashboard
 
 1. Load `GET /api/v1/admin/dashboard`.
-2. Render activity + approval + user + support + runtime + security summaries.
+2. Render activity + approval + user + runtime + security summaries.
 
 ## User lifecycle
 
@@ -29,18 +29,20 @@ Last reviewed: 2026-04-15
 3. Submit approve/reject via `POST /api/v1/admin/approvals/{originType}/{id}/decisions`.
 4. Refresh inbox after each decision.
 
-## Support
+## Report a problem
 
-1. List tickets from `GET /api/v1/admin/support/tickets`.
-2. Create ticket via `POST /api/v1/admin/support/tickets`.
-3. Open detail via `GET /api/v1/admin/support/tickets/{ticketId}`.
+1. Open `/tenant/report-problem`.
+2. Collect source/category/summary plus optional diagnostics fields.
+3. Submit via `POST /api/v1/incidents/report`.
+4. Show confirmation with returned `publicId` for operator follow-up.
 
 ## Self settings
 
 1. Load `GET /api/v1/admin/self/settings`.
 2. Route password and MFA mutations through auth APIs.
 
-## Changelog
+## Release and updater awareness
 
-1. Show optional highlight via `GET /api/v1/changelog/latest-highlighted`.
-2. Show list view via `GET /api/v1/changelog?page=&size=`.
+1. Show latest release from `GET /api/v1/changelog/latest`.
+2. Show history from `GET /api/v1/changelog?page=&size=`.
+3. Evaluate update UX from `GET /api/v1/runtime/version?installedVersion=`.

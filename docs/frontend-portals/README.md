@@ -5,7 +5,7 @@ Older tracker-style notes under `docs/frontend-update-v2/` are delta/history
 references only. They are not a second source of truth for routing, API
 ownership, or portal placement.
 
-Last reviewed: 2026-04-08
+Last reviewed: 2026-04-19
 
 Exact portal folders:
 - `superadmin`
@@ -99,7 +99,7 @@ Use this map to navigate every active portal contract surface from this README.
 - Do not wire retired surfaces such as `/api/v1/auth/profile`.
 - Superadmin UX is platform control-plane only and must stay on `/api/v1/superadmin/**`.
 - Tenant-admin UX owns `/api/v1/admin/users/**` and `GET /api/v1/admin/approvals`.
-- Export approvals belong to tenant-admin, not accounting.
+- Product-facing reporting is single-flow through `POST /api/v1/incidents/report`.
 - Numeric tenant ids are allowed only as superadmin route params inside
   `/platform/tenants/:tenantId`. They are not tenant-shell auth identifiers.
 
@@ -107,12 +107,12 @@ Use this map to navigate every active portal contract surface from this README.
 
 | Folder | Owns | Must not own |
 |---|---|---|
-| `superadmin` | tenant onboarding, COA template selection, lifecycle, limits, modules, support recovery, platform changelog | tenant user CRUD, accounting execution, factory execution, dealer self-service |
-| `tenant-admin` | session bootstrap, user lifecycle, export approvals, support tickets, tenant changelog | superadmin control plane, accounting journals/reconciliation, factory dispatch execution |
+| `superadmin` | tenant onboarding, lifecycle, limits, modules, support recovery | tenant user CRUD, accounting execution, factory execution, dealer self-service |
+| `tenant-admin` | session bootstrap, user lifecycle, export approvals, report problem, release feed, updater policy | superadmin control plane, accounting journals/reconciliation, factory dispatch execution |
 | `accounting` | COA, default accounts, GST or tax setup, product-account readiness, journals, reversals, reconciliation, period close, opening stock, AR/AP settlement, reports | tenant onboarding, tenant user CRUD, dispatch confirm |
 | `sales` | dealer master, sales orders, reservation visibility, credit escalation, commercial dashboards | dispatch confirm, production or packing, accounting correction |
 | `factory` | production, packing, packaging mappings, batch lineage, dispatch preparation, dispatch confirm | COA/default accounts/tax setup, settlements, tenant administration |
-| `dealer-client` | dealer dashboard, orders, invoices, ledger, aging, support, credit requests | internal sales editing, factory execution, accounting correction, admin approvals |
+| `dealer-client` | dealer dashboard, orders, invoices, ledger, aging, report problem, credit requests | internal sales editing, factory execution, accounting correction, admin approvals |
 
 ## How frontend engineers should use this tree
 

@@ -17,7 +17,7 @@ product.
 
 - chart of accounts, default accounts, tax setup, journals, reversals
 - tenant onboarding, tenant-user management, or export approval
-- dealer self-service and customer support ticket ownership
+- dealer self-service and customer support ownership
 
 ## Canonical Operational Rule
 

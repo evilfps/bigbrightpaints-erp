@@ -1,6 +1,6 @@
 # API Contracts
 
-Last reviewed: 2026-04-15
+Last reviewed: 2026-04-19
 
 ## Shared transport rules
 
@@ -34,7 +34,6 @@ Top-level fields:
 - `recentActivity[]`
 - `approvalSummary`
 - `userSummary`
-- `supportSummary`
 - `tenantRuntime`
 - `securitySummary`
 
@@ -182,7 +181,7 @@ Request body (`AdminApprovalDecisionRequest`):
 {
   "decision": "APPROVE",
   "reason": "context-dependent",
-  "expiresAt": "2026-04-15T10:30:00Z"
+  "expiresAt": "2026-04-19T10:30:00Z"
 }
 ```
 
@@ -204,34 +203,22 @@ Response: `ApiResponse<AdminApprovalItemDto>` for the decided row.
 
 Returns `ApiResponse<PageResponse<AuditFeedItemDto>>` with standard query filters (`from`, `to`, `module`, `action`, `status`, `actor`, `entityType`, `reference`, `page`, `size`).
 
-## Internal support tickets
+## Incident reporting (single product flow)
 
-### `GET /api/v1/admin/support/tickets`
+### `POST /api/v1/incidents/report`
 
-Response:
+Request (`IncidentReportCreateRequest`):
 
-```json
-{
-  "tickets": [SupportTicketResponse]
-}
-```
+- `source` required (`SENTRY_FEEDBACK`, `SENTRY_CRASH`, `SYSTEM_SYNTHETIC`)
+- `category` required (`BUG`, `CRASH`, `PERFORMANCE`, `DATA_ISSUE`, `OTHER`)
+- `summary` required, max 255
+- optional diagnostic context: `description`, `releaseVersion`, `backendRelease`, `environment`, `route`, `requestId`, `traceId`, `sentryEventId`, `sentryFeedbackId`, `sentryIssueId`, `sentryReplayId`, `sentryUrl`, `hasScreenshot`
 
-### `POST /api/v1/admin/support/tickets`
+Response (`IncidentReportResponse`):
 
-Request (`SupportTicketCreateRequest`):
-
-- `category` required, max 32
-- `subject` required, max 255
-- `description` required, max 4000
-
-### `GET /api/v1/admin/support/tickets/{ticketId}`
-
-Returns `SupportTicketResponse` detail.
-
-Important:
-
-- Tenant-admin support UX uses `/api/v1/admin/support/tickets/**`.
-- `/api/v1/portal/support/tickets/**` is accounting-hosted and out of tenant-admin portal ownership.
+- `id`, `publicId`
+- canonical incident fields
+- escalation state and optional GitHub escalation metadata
 
 ## Self settings
 
@@ -248,9 +235,10 @@ Response (`AdminSelfSettingsDto`):
 - `tenantRuntime`
 - `activeSessionEstimate`
 
-## Tenant changelog (read-only)
+## Release feed and updater contract
 
 - `GET /api/v1/changelog?page=&size=`
-- `GET /api/v1/changelog/latest-highlighted`
+- `GET /api/v1/changelog/latest`
+- `GET /api/v1/runtime/version?installedVersion=`
 
-Publishing stays superadmin-only.
+Release notes are sourced from canonical `app_releases` mirrored from GitHub Releases. There is no superadmin release-authoring endpoint.
