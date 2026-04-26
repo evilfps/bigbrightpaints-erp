@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.sales.domain;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,4 +22,7 @@ public interface SalesOrderStatusHistoryRepository
       """)
   List<SalesOrderStatusHistory> findTimeline(
       @Param("company") Company company, @Param("salesOrder") SalesOrder salesOrder);
+
+  boolean existsByCompanyAndSalesOrderAndReasonCodeIn(
+      Company company, SalesOrder salesOrder, Collection<String> reasonCodes);
 }
