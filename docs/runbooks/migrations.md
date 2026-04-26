@@ -9,8 +9,8 @@ Last reviewed: 2026-04-16
 - **Forward plan:** apply `V183__credit_pending_status_norm_indexes.sql` with the tenant-admin hard-cut packet and keep repository predicates on `upper(trim(status))='PENDING'` for both `credit_requests` and `credit_limit_override_requests`.
 - **Dry-run commands:**
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
-  - `bash ci/check-codex-review-guidelines.sh`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
+  - `python3 scripts/pr_ci_parity.py --base origin/main --head HEAD`
 - **Rollback strategy:** prefer snapshot/PITR restore if the deployment must be abandoned after migration execution. If only the index migration must be reversed while keeping application behavior unchanged, drop the indexes in a coordinated maintenance window and keep normalized predicate semantics intact in runtime code.
 
 ## 2026-04-06 — `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
@@ -21,7 +21,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `find erp-domain/src/main/resources -name '*backfill_packaging_slip_invoice_links.sql'`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TS_PackagingSlipInvoiceLinkV2MigrationContractTest,CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
   - `bash scripts/gate_fast.sh`
 - **Rollback strategy:** treat `V177` as a forward-only upgrade-path backfill. If rollout must be abandoned after the migration is applied, keep the hard-cut-compatible backend live or restore the database from a pre-`V177` snapshot/PITR before reverting application code. Do not null out `packaging_slips.invoice_id` by hand after the backfill has converged on canonical invoice ownership.
 
@@ -33,7 +33,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
-  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+  - `HIGH_RISK_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V176` as a coordinated app-and-schema cut. If rollout must be abandoned after the migration is applied, keep the ERP-39-compatible backend live or restore the database from a pre-`V176` snapshot/PITR before reverting application code. Do not drop or null out `content_fingerprint` under mixed runtime behavior.
 
 ## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V175__canonicalize_company_gst_accounts.sql`
@@ -44,7 +44,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=GstConfigurationRegressionIT,ConfigurationHealthServiceTest test`
   - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V175` as forward-only normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V175` snapshot/PITR before reverting application code. Do not selectively repopulate GST account columns by hand.
 
 ## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V174__backfill_default_discount_accounts.sql`
@@ -55,7 +55,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
   - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V174` as forward-only data normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V174` snapshot/PITR before reverting application code. Do not null out `default_discount_account_id` by hand after the packet is deployed.
 
 ## 2026-03-28 — `erp-domain/src/main/resources/db/migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
@@ -92,7 +92,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=TS_AuthV2ScopedAccountsMigrationContractTest test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=AuthPlatformScopeCodeIT,AuthTenantAuthorityIT,AuthPasswordResetPublicContractIT,AdminUserServiceTest,CompanyControllerIT,CompanyContextFilterControlPlaneBindingTest,SuperAdminControllerTest,SuperAdminTenantControlPlaneServiceTest,CompanyServiceTest,TenantAdminProvisioningServiceTest,TenantOnboardingServiceTest,PasswordResetServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimePasswordResetServiceExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeCompanyControllerExecutableCoverageTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_AuthV2ScopedAccountsMigrationContractTest test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V168` and `V169` as a coordinated app-and-schema cut. Once applied, do not redeploy the pre-auth-v2 backend against that database. If rollout must be abandoned after execution, keep the auth-v2-compatible backend live or restore the tenant/database from a pre-`V168` snapshot/PITR before attempting any broader rollback.
 
 ## 2026-03-26 — `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`
@@ -103,7 +103,7 @@ Last reviewed: 2026-04-16
 - **Dry-run commands:**
   - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
   - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Dtest=CompanyControllerIT,SuperAdminControllerIT,TenantOnboardingControllerTest,ChangelogControllerSecurityIT,AuthPasswordResetPublicContractIT,AdminUserSecurityIT,TenantRuntimeEnforcementServiceTest,TenantRuntimeEnforcementAuthIT,SuperAdminTenantWorkflowIsolationIT,PortalInsightsControllerIT,ReportControllerSecurityIT,AuthTenantAuthorityIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantAdminProvisioningServiceTest test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V167` as a coordinated app-and-schema cut. Once applied, do not redeploy a pre-ERP-37 backend against that database. If rollout must be abandoned after execution, keep the ERP-37-compatible backend live or restore the tenant/database from a pre-`V167` snapshot/PITR before attempting any broader rollback.
 
 ## 2026-03-24 — `erp-domain/src/main/resources/db/migration_v2/V166__opening_stock_batch_key_contract_alignment.sql`
@@ -112,7 +112,7 @@ Last reviewed: 2026-04-16
 - **Forward plan:** apply `V166__opening_stock_batch_key_contract_alignment.sql` after the existing `V46`/`V47` opening-stock migrations, make sure the migration drops the legacy partial batch-key/replay indexes before rewriting `opening_stock_batch_key = idempotency_key`, verify every `opening_stock_imports` row now has a non-null batch key, confirm any collision cleanup preferred newer `replay_protection_key IS NULL` rows over legacy rows, then keep the ERP-36 hard-cut backend build live because it already serves the non-null batch-key contract.
 - **Dry-run commands:**
   - `mvn -f "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/pom.xml" -s "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/.mvn/settings.xml" -Djacoco.skip=true -Dtest=com.bigbrightpaints.erp.truthsuite.inventory.TS_OpeningStockBatchKeyV2MigrationContractTest test`
-  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup" && bash ci/check-enterprise-policy.sh`
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup" && bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** treat `V166` as forward-only once executed against a tenant database because it rewrites historical batch keys and drops replay-protection data. If rollout must be abandoned after execution, keep a hard-cut-compatible backend deployed and restore the tenant from a pre-`V166` snapshot/PITR before attempting any broader ERP-36 rollback.
 
 ## 2026-03-24 — `erp-domain/src/main/resources/db/migration_v2/V165__pause_hr_payroll_module.sql`
@@ -121,7 +121,7 @@ Last reviewed: 2026-04-16
 - **Forward plan:** apply `V165__pause_hr_payroll_module.sql` on both migration tracks, deploy the ERP-33 backend packet that gates `/api/v1/payroll/**`, `/api/v1/accounting/payroll/**`, admin approvals, portal workforce/dashboard HR metrics, orchestrator HR snapshots, and accounting-period payroll diagnostics, then verify the super-admin re-enable path before declaring the cut complete. This migration was renumbered to `V165` during the latest `main` merge because `V164` is now occupied by the ERP-32 credit-request requester-identity packet.
 - **Dry-run commands:**
   - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix/erp-domain" && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn clean -Dtest=AccountingPeriodServiceTest,IntegrationCoordinatorTest,ModuleGatingInterceptorTest,ModuleGatingServiceTest,AdminSettingsControllerApprovalsContractTest,AdminSettingsControllerTenantRuntimeContractTest,AdminApprovalRbacIT,HrPayrollModulePauseIT test`
-  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix" && bash ci/check-enterprise-policy.sh`
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix" && bash ci/check-high-risk-changes.sh`
 - **Rollback strategy:** if this packet must be reverted before merge, redeploy the previous backend build first, then execute `UPDATE companies SET enabled_modules = CASE WHEN enabled_modules ? 'HR_PAYROLL' THEN enabled_modules ELSE enabled_modules || '\"HR_PAYROLL\"'::jsonb END; ALTER TABLE companies ALTER COLUMN enabled_modules SET DEFAULT '[\"MANUFACTURING\",\"PURCHASING\",\"PORTAL\",\"REPORTS_ADVANCED\",\"HR_PAYROLL\"]'::jsonb;` in the same maintenance window after confirming the reverted build is live.
 
 ## 2026-03-23 — `erp-domain/src/main/resources/db/migration_v2/V164__credit_request_requester_identity.sql`

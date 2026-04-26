@@ -33,13 +33,13 @@ commit_policy:
   rules:
     - review-only agents do not commit code
     - Implementation workers commit only within their assigned feature scope.
-    - Docs-only governance packets may skip Codex review after lint-knowledgebase passes.
+    - Docs-only governance packets may skip manual governance review after lint-knowledgebase passes.
     - High-risk packets must update docs/approvals/R2-CHECKPOINT.md before merge.
   minimum_review_agents_per_slice: 1
   require_orchestrator_premerge_review: true
   block_on_cross_slice_overlaps: true
   block_on_scope_violations: true
-  require_codex_review_guidelines_check: true
+  require_high_risk_change_control: true
 
 completion_contract:
   - All assigned feature tests pass.
@@ -48,9 +48,9 @@ completion_contract:
   - Handoff includes exact files edited, evidence sources, and validator transcripts.
 
 validators:
-  - "bash ci/check-orchestrator-layer.sh"
   - "bash ci/lint-knowledgebase.sh"
-  - "bash ci/check-enterprise-policy.sh"
+  - "bash ci/check-architecture.sh"
+  - "bash ci/check-high-risk-changes.sh"
 
 cross_references:
   - "docs/agents/ORCHESTRATION_LAYER.md"

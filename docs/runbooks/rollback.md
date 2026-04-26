@@ -12,7 +12,7 @@ Last reviewed: 2026-04-16
   after confirming the deployment no longer requires the extra index coverage.
 - **Verification:** rerun:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
 
 ## 2026-04-06 — `m3.packaging-slip-invoice-link-backfill-v2`
 
@@ -23,7 +23,7 @@ Last reviewed: 2026-04-16
 - **Verification:** after restore or coordinated packet revert, rerun:
   - `find erp-domain/src/main/resources -name '*backfill_packaging_slip_invoice_links.sql'`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TS_PackagingSlipInvoiceLinkV2MigrationContractTest,CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-high-risk-changes.sh`
   - `bash scripts/gate_fast.sh`
 
 ## 2026-03-29 — `erp-39.opening-stock-fingerprint-and-replay-hard-cut`
@@ -35,7 +35,7 @@ Last reviewed: 2026-04-16
 - **Verification:** after restore or coordinated packet revert, rerun:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
-  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+  - `HIGH_RISK_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-high-risk-changes.sh`
 
 ## 2026-03-29 — `erp-48.gst-account-canonicalization-hard-cut`
 
@@ -90,7 +90,7 @@ Last reviewed: 2026-04-16
 - **Application rollback:** do not redeploy a pre-auth-v2 backend against a database that has already applied `V168` or `V169`. Keep the auth-v2-compatible backend live unless the database is first restored to a pre-`V168` state.
 - **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V168`. Ad hoc reverse SQL is intentionally unsupported because the packet normalizes emails, rewrites scoped identity ownership, reattributes refresh tokens, and removes the old shared multi-company auth shape.
 - **Guard note:** the auth-v2 migration contract now fails fast on platform-code collisions, post-normalization email collisions, and ambiguous refresh-token mappings. If any of those guards already ran on a live tenant, treat the database as forward-only until a snapshot/PITR restore is available.
-- **Verification:** after restore, rerun `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=TS_AuthV2ScopedAccountsMigrationContractTest test` and `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=AuthPlatformScopeCodeIT,AuthTenantAuthorityIT,AuthPasswordResetPublicContractIT,AdminUserServiceTest,CompanyControllerIT,CompanyContextFilterControlPlaneBindingTest,SuperAdminControllerTest,SuperAdminTenantControlPlaneServiceTest,CompanyServiceTest,TenantAdminProvisioningServiceTest,TenantOnboardingServiceTest,PasswordResetServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimePasswordResetServiceExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeCompanyControllerExecutableCoverageTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_AuthV2ScopedAccountsMigrationContractTest test` against the reverted packet before reopening traffic. If rollback is aborted and the tenant stays on auth-v2, rerun `bash ci/check-enterprise-policy.sh` plus the same focused auth/superadmin pack to confirm the forward contract still holds.
+- **Verification:** after restore, rerun `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=TS_AuthV2ScopedAccountsMigrationContractTest test` and `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=AuthPlatformScopeCodeIT,AuthTenantAuthorityIT,AuthPasswordResetPublicContractIT,AdminUserServiceTest,CompanyControllerIT,CompanyContextFilterControlPlaneBindingTest,SuperAdminControllerTest,SuperAdminTenantControlPlaneServiceTest,CompanyServiceTest,TenantAdminProvisioningServiceTest,TenantOnboardingServiceTest,PasswordResetServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimePasswordResetServiceExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeCompanyControllerExecutableCoverageTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_AuthV2ScopedAccountsMigrationContractTest test` against the reverted packet before reopening traffic. If rollback is aborted and the tenant stays on auth-v2, rerun `bash ci/check-high-risk-changes.sh` plus the same focused auth/superadmin pack to confirm the forward contract still holds.
 
 ## 2026-03-26 — `erp-37.superadmin-control-plane-hard-cut`
 

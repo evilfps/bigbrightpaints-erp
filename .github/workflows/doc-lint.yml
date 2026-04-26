@@ -1,9 +1,6 @@
-name: Knowledge Base Lint
+name: Docs Lint (Manual)
 
 on:
-  pull_request:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:

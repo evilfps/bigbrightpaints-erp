@@ -30,17 +30,17 @@ Changes under any of the following paths are classified as high-risk and subject
 ### Migration Guards
 
 - Every `migration_v2` change must update `docs/runbooks/migrations.md` and `docs/runbooks/rollback.md`.
-- `bash ci/check-enterprise-policy.sh` enforces this requirement at CI time.
+- `bash ci/check-high-risk-changes.sh` enforces this requirement at CI time.
 
 ### Test Requirements
 
 - High-risk logic changes must include test modifications or an explicit test waiver in the R2 checkpoint.
-- `bash ci/check-enterprise-policy.sh` validates test presence for high-risk changes.
+- `bash ci/check-high-risk-changes.sh` validates test presence for high-risk changes.
 
 ### Review Requirements
 
-- High-risk packets must pass `bash ci/check-codex-review-guidelines.sh` before review.
-- Enterprise-risk packets must also pass `bash ci/check-enterprise-policy.sh`.
+- High-risk packets must pass the PR ship-safety lane before review.
+- High-risk packets must also pass `bash ci/check-high-risk-changes.sh`.
 
 ## Approval Modes
 

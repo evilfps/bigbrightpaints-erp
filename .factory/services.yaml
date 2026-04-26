@@ -36,7 +36,7 @@ commands:
   strict-runtime-smoke-check: >-
     health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && readiness=$(curl -s -o /tmp/factory-strict-readiness.out -w '%{http_code}' http://localhost:9090/actuator/health/readiness || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && [ "$readiness" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
   contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh
   targeted-dispatch-proof: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,OrderFulfillmentE2ETest' test
   targeted-orchestrator-dispatch-proof: >-
@@ -70,7 +70,7 @@ commands:
   erp38-targeted-dispatch: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,ErpInvariantsSuiteIT,OrderFulfillmentE2ETest' test
   erp38-contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-codex-review-guidelines.sh && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_accounting_portal_scope_contract.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-high-risk-changes.sh && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_accounting_portal_scope_contract.sh
   openapi-refresh: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test
   final-validation-reset: >-
@@ -80,19 +80,19 @@ commands:
   build: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 package -DskipTests
   lint: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-high-risk-changes.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh
   docs-lint: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh
+  ci-config-check: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-ci-config.sh
   audit-trail-ownership-guard: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_audit_trail_ownership_contract.sh
   accounting-frontend-doc-contract-proof: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SettlementControllerIdempotencyHeaderParityTest,AccountingEndpointContractTest,AccountingApplicationExceptionAdviceTest,AccountingApplicationExceptionResponsesTest,OpeningStockImportControllerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,AdminUserValidationEnvelopeIT,OpenApiSnapshotIT' test
-  codex-review-policy: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/enforce_codex_review_policy.sh
   docs-governance: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-high-risk-changes.sh && bash ci/check-architecture.sh
   docs-contract-guards: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh && bash scripts/guard_openapi_contract_drift.sh
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-high-risk-changes.sh && bash ci/check-architecture.sh && bash scripts/guard_openapi_contract_drift.sh
   pr-ci-parity: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && python3 scripts/pr_ci_parity.py --base "${PR_CI_BASE:?set PR_CI_BASE}" --head "${PR_CI_HEAD:-HEAD}"
   milestone-shareout: >-

@@ -279,10 +279,12 @@ Follow the existing conventional style seen in repository history:
 
 ### CI gates
 Primary workflow is `.github/workflows/ci.yml` with these core gates:
-- PR: `knowledgebase-lint`, `architecture-check`, `enterprise-policy-check`, `orchestrator-layer-check`, `gate-fast`
-- Main branch: `gate-core`
-- Release/tag/manual release validation: `gate-release`, `gate-reconciliation`
-- Scheduled/manual deep quality: `gate-quality`
+- PR: `CI Config Check`, `Docs Lint`, `Module Boundary Check`, `High-Risk Change Control`, `Secrets Scan`, routed parallel shard tests, `Changed-Code Coverage`, and `PR Ship Gate`
+- Main branch: `Gate Core`
+- Release/tag/manual release validation: `Gate Release`, `Gate Reconciliation`
+- Scheduled/manual deep quality: `Gate Quality`
+
+See [`docs/ci-cd-contract.md`](docs/ci-cd-contract.md) for what each lane proves and what it intentionally does not prove.
 
 ### Before opening a PR
 ```bash

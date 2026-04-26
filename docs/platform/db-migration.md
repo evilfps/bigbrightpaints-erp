@@ -301,7 +301,7 @@ The rollback runbook ([docs/runbooks/rollback.md](../runbooks/rollback.md)) docu
 
 ### 8.2 CI safety gates
 
-- `ci/check-enterprise-policy.sh` — detects high-risk migration paths and requires R2 checkpoint evidence.
+- `ci/check-high-risk-changes.sh` — detects high-risk migration paths and requires R2 checkpoint evidence.
 - `scripts/guard_legacy_migration_freeze.sh` — prevents new migrations from being added to the legacy track.
 - `scripts/schema_drift_scan.sh` — detects drift between expected and actual schema state.
 - `scripts/verify_local.sh` — validates the full local build against the active migration set.

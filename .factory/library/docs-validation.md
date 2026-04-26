@@ -9,9 +9,8 @@ Docs-only validation guidance for the backend truth-library mission.
 ## Primary Commands
 
 - `bash ci/lint-knowledgebase.sh`
-- `bash ci/check-enterprise-policy.sh`
+- `bash ci/check-high-risk-changes.sh`
 - `bash ci/check-architecture.sh`
-- `bash ci/check-orchestrator-layer.sh`
 - `bash scripts/guard_openapi_contract_drift.sh`
 
 ## Docs-Only Validation Rules

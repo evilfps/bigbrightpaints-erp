@@ -3,7 +3,6 @@ name: Security Review
 on:
   push:
     branches: [ main ]
-  pull_request:
   schedule:
     # Run weekly on Sundays at 03:00 UTC
     - cron: "0 3 * * 0"

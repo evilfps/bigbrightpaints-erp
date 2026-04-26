@@ -45,15 +45,20 @@
       "decision_point": "safe to merge",
       "goal": "Keep routed PR CI as the authoritative merge-confidence lane without regressing the pre-existing bar.",
       "prove": [
-        "The routed PR CI path passes with changed-files traceability, catalog/quarantine guards, and critical truthsuite proof.",
-        "Broken-test classification and quarantine policy ran before merge confidence was claimed.",
+        "The routed PR CI path passes with changed-files traceability, high-risk control, secret scanning, critical truthsuite proof, and changed-code coverage.",
+        "The PR ship gate reports upstream blockers by class instead of becoming a second opaque test layer.",
         "Fast local shortcuts did not weaken the remote PR merge baseline."
       ],
       "primary_commands": [
-        "test-pr-ci"
+        "python3 scripts/pr_ci_parity.py --base origin/main --head HEAD"
       ],
       "required_scripts": [
-        "scripts/gate_fast.sh"
+        "scripts/ci_risk_router.py",
+        "scripts/run_test_manifest.sh",
+        "scripts/changed_files_coverage.py",
+        "scripts/pr_ci_parity.py",
+        "ci/check-ci-config.sh",
+        "ci/check-high-risk-changes.sh"
       ],
       "disallowed_proof": [
         "manual reruns replacing CI evidence",

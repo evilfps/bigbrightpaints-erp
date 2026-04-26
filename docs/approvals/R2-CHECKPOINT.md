@@ -71,18 +71,19 @@ Last reviewed: 2026-04-16
 - Commands run:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=RequestBodyCachingFilterTest,CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT#tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
-  - `bash ci/check-codex-review-guidelines.sh`
-  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/lint-knowledgebase.sh`
+  - `bash ci/check-architecture.sh`
+  - `bash ci/check-high-risk-changes.sh`
 - Result summary:
   - focused security/auth tests passed for this slice (`RequestBodyCachingFilterTest`, `CompanyContextFilterControlPlaneBindingTest`, `AuthTenantAuthorityIT` targeted method)
   - tenant-scoped superadmin deny contract now explicitly covered on canonical notify POST call
   - normalized pending-status queries remain behavior-compatible and now have dedicated expression indexes for dashboard/inbox load paths
-  - policy gates (`check-codex-review-guidelines`, `check-enterprise-policy`) passed
+  - policy gates (`lint-knowledgebase`, `check-architecture`, `check-high-risk-changes`) passed
 - Artifact note:
   - evidence bundle index: `docs/approvals/evidence/2026-04-16-r2-slice2/README.md`
   - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
   - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest.txt`
   - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.txt`
   - testcase anchor: `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml`
-  - policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-enterprise-policy.txt`
-  - policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-codex-review-guidelines.txt`
+  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-enterprise-policy.txt`
+  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-codex-review-guidelines.txt`

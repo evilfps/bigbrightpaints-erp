@@ -33,7 +33,39 @@ env:
   TESTCONTAINERS_RYUK_DISABLED: "true"
 
 jobs:
+  ci-config-check:
+    name: CI Config Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+
+      - name: Install CI config tools
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Check CI config
+        env:
+          CI_CONFIG_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          bash ci/check-ci-config.sh
+
   knowledgebase-lint:
+    name: Docs Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -49,6 +81,7 @@ jobs:
           bash ci/lint-knowledgebase.sh
 
   architecture-check:
+    name: Module Boundary Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -66,7 +99,8 @@ jobs:
           fi
           bash ci/check-architecture.sh
 
-  enterprise-policy-check:
+  high-risk-change-control:
+    name: High-Risk Change Control
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -76,17 +110,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enterprise Policy Check
+      - name: High-Risk Change Control
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            export ENTERPRISE_DIFF_BASE="${{ github.event.pull_request.base.sha }}"
+            export HIGH_RISK_DIFF_BASE="${{ github.event.pull_request.base.sha }}"
           fi
-          bash ci/check-enterprise-policy.sh
+          bash ci/check-high-risk-changes.sh
 
-  orchestrator-layer-check:
+  secrets-scan:
+    name: Secrets Scan
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      GITLEAKS_VERSION: "8.30.1"
 
     steps:
       - name: Checkout
@@ -94,12 +132,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Orchestrator Layer Check
+      - name: Install Gitleaks
         run: |
           set -euo pipefail
-          bash ci/check-orchestrator-layer.sh
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLo "/tmp/${archive}" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          curl -fsSLo /tmp/gitleaks_checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          awk -v archive="${archive}" '$2 == archive { print }' /tmp/gitleaks_checksums.txt > /tmp/gitleaks_checksum_line.txt
+          if [ "$(wc -l < /tmp/gitleaks_checksum_line.txt)" -ne 1 ]; then
+            echo "Unexpected number of checksum lines for ${archive}" >&2
+            exit 1
+          fi
+          (cd /tmp && sha256sum -c gitleaks_checksum_line.txt)
+          tar -xzf "/tmp/${archive}" -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+
+      - name: Run secret scan
+        run: |
+          set -euo pipefail
+          gitleaks git . \
+            --config .gitleaks.toml \
+            --redact \
+            --report-format json \
+            --report-path gitleaks-report.json \
+            --log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - name: Upload secret scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-scan-report
+          path: gitleaks-report.json
+          if-no-files-found: ignore
 
   pr-risk-router:
+    name: Change Impact Router
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -132,6 +199,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
   pr-build:
+    name: Compile Check
     if: github.event_name == 'pull_request'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -157,6 +225,7 @@ jobs:
           mvn -B -ntp -Ppr-fast -DskipTests package
 
   pr-auth-tenant:
+    name: Access And Tenant Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_auth_tenant == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -212,6 +281,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-accounting:
+    name: Finance And Accounting Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_accounting == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -268,6 +338,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-idempotency-outbox:
+    name: Idempotency And Outbox Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_idempotency_outbox == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -322,6 +393,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-business-slice:
+    name: Workflow Integration Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_business_slice == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -377,6 +449,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-persistence-smoke:
+    name: Persistence Smoke
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_persistence_smoke == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -432,6 +505,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-codered-access:
+    name: CODE-RED Access Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_codered_access == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -486,6 +560,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-codered-finance:
+    name: CODE-RED Finance Tests
     if: github.event_name == 'pull_request' && needs.pr-risk-router.outputs.run_codered_finance == 'true'
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
@@ -540,6 +615,7 @@ jobs:
           if-no-files-found: ignore
 
   pr-changed-coverage:
+    name: Changed-Code Coverage
     if: always() && github.event_name == 'pull_request'
     needs:
       - pr-risk-router
@@ -610,12 +686,14 @@ jobs:
           if-no-files-found: ignore
 
   pr-merge-gate:
+    name: PR Ship Gate
     if: always() && github.event_name == 'pull_request'
     needs:
+      - ci-config-check
       - knowledgebase-lint
       - architecture-check
-      - enterprise-policy-check
-      - orchestrator-layer-check
+      - high-risk-change-control
+      - secrets-scan
       - pr-risk-router
       - pr-build
       - pr-auth-tenant
@@ -647,17 +725,37 @@ jobs:
               if data["result"] not in {"success", "skipped"}
           }
 
+          labels = {
+              "ci-config-check": ("ci-config", "CI Config Check"),
+              "knowledgebase-lint": ("docs", "Docs Lint"),
+              "architecture-check": ("module-boundary", "Module Boundary Check"),
+              "high-risk-change-control": ("high-risk-control", "High-Risk Change Control"),
+              "secrets-scan": ("secrets", "Secrets Scan"),
+              "pr-risk-router": ("ci-routing", "Change Impact Router"),
+              "pr-build": ("compile", "Compile Check"),
+              "pr-auth-tenant": ("product-tests", "Access And Tenant Tests"),
+              "pr-accounting": ("product-tests", "Finance And Accounting Tests"),
+              "pr-idempotency-outbox": ("product-tests", "Idempotency And Outbox Tests"),
+              "pr-business-slice": ("product-tests", "Workflow Integration Tests"),
+              "pr-persistence-smoke": ("product-tests", "Persistence Smoke"),
+              "pr-codered-access": ("security-tests", "CODE-RED Access Tests"),
+              "pr-codered-finance": ("finance-tests", "CODE-RED Finance Tests"),
+              "pr-changed-coverage": ("changed-code-coverage", "Changed-Code Coverage"),
+          }
+
           if blocking:
-              print("[pr-merge-gate] FAIL: blocking jobs detected")
+              print("[pr-ship-gate] FAIL: blocking jobs detected")
               for name, result in sorted(blocking.items()):
-                  print(f"  - {name}: {result}")
+                  blocker_type, label = labels.get(name, ("unknown", name))
+                  print(f"  - {label}: {result} [{blocker_type}]")
               sys.exit(1)
 
-          print("[pr-merge-gate] OK: all required jobs succeeded or were skipped")
+          print("[pr-ship-gate] OK: all required jobs succeeded or were skipped")
           PY
 
   gate-fast:
-    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
+    name: Gate Fast
+    needs: [ci-config-check, knowledgebase-lint, architecture-check, high-risk-change-control]
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.diff_base != ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -716,7 +814,8 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-core:
-    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
+    name: Gate Core
+    needs: [ci-config-check, knowledgebase-lint, architecture-check, high-risk-change-control]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 70
@@ -761,7 +860,8 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-release:
-    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
+    name: Gate Release
+    needs: [ci-config-check, knowledgebase-lint, architecture-check, high-risk-change-control]
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -827,7 +927,8 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-reconciliation:
-    needs: [knowledgebase-lint, architecture-check, enterprise-policy-check, orchestrator-layer-check]
+    name: Gate Reconciliation
+    needs: [ci-config-check, knowledgebase-lint, architecture-check, high-risk-change-control]
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_release_gates != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -871,7 +972,8 @@ jobs:
             erp-domain/target/surefire-reports/**
 
   gate-quality:
-    needs: [knowledgebase-lint, architecture-check]
+    name: Gate Quality
+    needs: [ci-config-check, knowledgebase-lint, architecture-check]
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_quality_gate == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 180

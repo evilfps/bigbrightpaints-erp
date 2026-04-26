@@ -21,5 +21,5 @@ Last reviewed: 2026-03-29
 ## Review Validation Surface
 
 - Docs-only review-policy packets validate with `bash ci/lint-knowledgebase.sh`.
-- Runtime/config/schema/test-impacting packets validate with `bash ci/check-codex-review-guidelines.sh`.
-- Enterprise-risk packets must also satisfy `bash ci/check-enterprise-policy.sh` and keep rollback notes current.
+- Runtime/config/schema/test-impacting packets validate through the PR ship-safety lane in `.github/workflows/ci.yml`.
+- High-risk packets must also satisfy `High-Risk Change Control` / `bash ci/check-high-risk-changes.sh` and keep rollback notes current.
