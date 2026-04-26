@@ -455,18 +455,18 @@ public class ValidationSeedDataInitializer {
   }
 
   private void ensureValidationDefaultAccounts(
-      CompanyRepository companyRepository,
-      AccountRepository accountRepository,
-      Company company) {
+      CompanyRepository companyRepository, AccountRepository accountRepository, Company company) {
     Account inventory =
         ensureAccount(accountRepository, company, "INV", "Inventory", AccountType.ASSET);
     Account cogs =
         ensureAccount(accountRepository, company, "COGS", "Cost of Goods Sold", AccountType.COGS);
-    Account revenue = ensureAccount(accountRepository, company, "REV", "Revenue", AccountType.REVENUE);
+    Account revenue =
+        ensureAccount(accountRepository, company, "REV", "Revenue", AccountType.REVENUE);
     Account discount =
         ensureAccount(accountRepository, company, "DISC", "Discounts", AccountType.EXPENSE);
     Account taxOutput =
-        ensureAccount(accountRepository, company, "GST-OUT", "GST Output Tax", AccountType.LIABILITY);
+        ensureAccount(
+            accountRepository, company, "GST-OUT", "GST Output Tax", AccountType.LIABILITY);
     Account taxInput =
         ensureAccount(accountRepository, company, "GST-IN", "GST Input Tax", AccountType.ASSET);
     Account taxPayable =

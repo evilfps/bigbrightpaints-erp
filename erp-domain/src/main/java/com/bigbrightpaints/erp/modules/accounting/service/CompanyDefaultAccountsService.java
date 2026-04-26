@@ -242,25 +242,17 @@ public class CompanyDefaultAccountsService {
   }
 
   private DefaultAccountSlot resolveClearSlot(String field) {
-    String normalized =
-        field.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+    String normalized = field.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
     return switch (normalized) {
-      case "inventory",
-              "inventoryaccountid",
-              "defaultinventoryaccountid",
-              "fgvaluationaccountid" ->
+      case "inventory", "inventoryaccountid", "defaultinventoryaccountid", "fgvaluationaccountid" ->
           DefaultAccountSlot.INVENTORY;
       case "cogs", "cogsaccountid", "defaultcogsaccountid", "fgcogsaccountid" ->
           DefaultAccountSlot.COGS;
       case "revenue", "revenueaccountid", "defaultrevenueaccountid", "fgrevenueaccountid" ->
           DefaultAccountSlot.REVENUE;
-      case "discount",
-              "discountaccountid",
-              "fgdiscountaccountid",
-              "defaultdiscountaccountid" ->
+      case "discount", "discountaccountid", "fgdiscountaccountid", "defaultdiscountaccountid" ->
           DefaultAccountSlot.DISCOUNT;
-      case "tax", "taxaccountid", "defaulttaxaccountid", "fgtaxaccountid" ->
-          DefaultAccountSlot.TAX;
+      case "tax", "taxaccountid", "defaulttaxaccountid", "fgtaxaccountid" -> DefaultAccountSlot.TAX;
       default ->
           throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
               "Unsupported default account clear field: " + field);
@@ -322,7 +314,10 @@ public class CompanyDefaultAccountsService {
   }
 
   private void recordDefaultAccountsAudit(
-      Company company, DefaultAccounts before, DefaultAccounts after, Set<DefaultAccountSlot> slots) {
+      Company company,
+      DefaultAccounts before,
+      DefaultAccounts after,
+      Set<DefaultAccountSlot> slots) {
     if (accountingComplianceAuditService == null || before.equals(after)) {
       return;
     }
