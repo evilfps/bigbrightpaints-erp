@@ -61,7 +61,8 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
             List.of("ROLE_DEALER"));
     dataSeeder.ensureUser(
         ACCOUNTING_EMAIL, PASSWORD, "Report Accounting", COMPANY_CODE, List.of("ROLE_ACCOUNTING"));
-    dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Report Sales", COMPANY_CODE, List.of("ROLE_SALES"));
+    dataSeeder.ensureUser(
+        SALES_EMAIL, PASSWORD, "Report Sales", COMPANY_CODE, List.of("ROLE_SALES"));
 
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     dealer =

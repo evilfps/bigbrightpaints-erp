@@ -112,6 +112,8 @@ All catalog/setup endpoints live under a single host prefix:
 | `brandId` | Long | Owning brand |
 | `brandName` | String | Brand name |
 | `brandCode` | String | Brand code |
+| `variantGroupId` | UUID | Stable group identifier shared by variants in the same tenant-local brand/family |
+| `productFamilyName` | String | Parent product/family name used to group variants without parsing names or SKUs |
 | `name` | String | Product display name |
 | `code` | String | Auto-generated SKU code |
 | `itemClass` | String | `FINISHED_GOOD`, `RAW_MATERIAL`, or `PACKAGING_RAW_MATERIAL` |
@@ -393,7 +395,7 @@ This section makes explicit the prerequisites that downstream flows depend on bu
 
 When a catalog item is created or updated, `ProductionCatalogService.syncInventoryTruth()` creates or updates the corresponding `FinishedGood` or `RawMaterial` mirror in the inventory module. This is a **synchronous cross-module side effect** within the same transaction.
 
-For FG items, the system ensures finished-good mirror accounts are populated from product metadata or company defaults via `ensureFinishedGoodAccounts()`.
+For FG items, the system populates finished-good mirror accounts from product metadata or company defaults when available. Catalog setup can still persist the brand/family/variant and zero-stock mirror before accounting defaults are complete; readiness reports account blockers and accounting-owned downstream actions remain fail-closed until the same SKU is wired.
 
 For RM/PKG items, the system seeds a raw-material mirror with the inventory account ID derived from metadata or company defaults.
 

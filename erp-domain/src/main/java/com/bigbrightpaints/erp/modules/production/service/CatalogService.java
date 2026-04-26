@@ -578,6 +578,8 @@ public class CatalogService {
         product.getBrand().getId(),
         product.getBrand().getName(),
         product.getBrand().getCode(),
+        product.getVariantGroupId(),
+        product.getProductFamilyName(),
         product.getProductName(),
         product.getSkuCode(),
         itemClass,

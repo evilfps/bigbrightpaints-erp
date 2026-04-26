@@ -513,9 +513,12 @@ public class ProductionCatalogService {
     product.setUnitOfMeasure(cleanValue(request.unitOfMeasure()));
     product.setHsnCode(cleanValue(request.hsnCode()));
     product.setSkuCode(sku);
-    product.setVariantGroupId(variantGroupId);
-    product.setProductFamilyName(
-        cleanValue(productFamilyName != null ? productFamilyName : baseName));
+    String familyName = cleanValue(productFamilyName != null ? productFamilyName : baseName);
+    product.setVariantGroupId(
+        variantGroupId != null
+            ? variantGroupId
+            : deterministicVariantGroupId(company, brand, familyName));
+    product.setProductFamilyName(familyName);
     product.setActive(request.active() == null || request.active());
     product.setBasePrice(money(request.basePrice()));
     product.setGstRate(percent(request.gstRate()));
@@ -523,7 +526,7 @@ public class ProductionCatalogService {
     product.setMinSellingPrice(money(request.minSellingPrice()));
     Map<String, Object> metadata = normalizeMetadata(request.metadata());
     if (!isRawMaterialCategory(normalizedCategory)) {
-      metadata = ensureFinishedGoodAccounts(company, sku, metadata);
+      metadata = ensureFinishedGoodAccounts(company, sku, metadata, null, false);
     }
     product.setMetadata(metadata);
     ProductionProduct saved = productRepository.save(product);
@@ -830,7 +833,7 @@ public class ProductionCatalogService {
     if (request.metadata() != null) {
       Map<String, Object> metadata = normalizeMetadata(request.metadata());
       if (!isRawMaterialCategory(effectiveCategory)) {
-        metadata = ensureFinishedGoodAccounts(company, product.getSkuCode(), metadata);
+        metadata = ensureFinishedGoodAccounts(company, product.getSkuCode(), metadata, null, false);
       }
       product.setMetadata(metadata);
     } else if (!isRawMaterialCategory(effectiveCategory)) {
@@ -838,7 +841,9 @@ public class ProductionCatalogService {
           ensureFinishedGoodAccounts(
               company,
               product.getSkuCode(),
-              new HashMap<>(Optional.ofNullable(product.getMetadata()).orElseGet(HashMap::new))));
+              new HashMap<>(Optional.ofNullable(product.getMetadata()).orElseGet(HashMap::new)),
+              null,
+              false));
     }
     if (request.active() != null) {
       product.setActive(request.active());
@@ -1104,6 +1109,13 @@ public class ProductionCatalogService {
     }
     product.setProductName(productName);
     product.setCategory(category);
+    if (!StringUtils.hasText(product.getProductFamilyName())) {
+      product.setProductFamilyName(productName);
+    }
+    if (product.getVariantGroupId() == null) {
+      product.setVariantGroupId(
+          deterministicVariantGroupId(company, brand, product.getProductFamilyName()));
+    }
     product.setDefaultColour(cleanValue(row.defaultColour()));
     product.setSizeLabel(cleanValue(sizeLabel));
     product.setUnitOfMeasure(cleanValue(row.unitOfMeasure()));
@@ -1131,7 +1143,7 @@ public class ProductionCatalogService {
     if (!isRawMaterialCategory(category)) {
       metadata =
           ensureFinishedGoodAccounts(
-              company, product.getSkuCode(), metadata, validatedFinishedGoodAccounts);
+              company, product.getSkuCode(), metadata, validatedFinishedGoodAccounts, false);
     }
     product.setMetadata(metadata);
   }
@@ -1506,10 +1518,10 @@ public class ProductionCatalogService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Production product SKU is required to map finished goods");
     }
-    Long valuationAccountId = requiredMetadataLong(product, "fgValuationAccountId");
-    Long cogsAccountId = requiredMetadataLong(product, "fgCogsAccountId");
-    Long revenueAccountId = requiredMetadataLong(product, "fgRevenueAccountId");
-    Long taxAccountId = requiredMetadataLong(product, "fgTaxAccountId");
+    Long valuationAccountId = metadataLong(product, "fgValuationAccountId");
+    Long cogsAccountId = metadataLong(product, "fgCogsAccountId");
+    Long revenueAccountId = metadataLong(product, "fgRevenueAccountId");
+    Long taxAccountId = metadataLong(product, "fgTaxAccountId");
     Long discountAccountId = metadataLong(product, "fgDiscountAccountId");
 
     FinishedGood finishedGood =
@@ -1957,6 +1969,22 @@ public class ProductionCatalogService {
       return null;
     }
     return value.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private UUID deterministicVariantGroupId(
+      Company company, ProductionBrand brand, String productFamilyName) {
+    String tenantKey =
+        company != null && company.getId() != null
+            ? "company:" + company.getId()
+            : "company:" + (company != null ? normalizeKey(company.getCode()) : "unknown");
+    String brandKey =
+        brand != null && brand.getId() != null
+            ? "brand:" + brand.getId()
+            : "brand:" + (brand != null ? normalizeKey(brand.getCode()) : "unknown");
+    String familyKey = normalizeKey(productFamilyName);
+    String fingerprint =
+        String.join("|", tenantKey, brandKey, "family:" + (familyKey != null ? familyKey : ""));
+    return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
   }
 
   private static String normalizeSkuKey(String value) {

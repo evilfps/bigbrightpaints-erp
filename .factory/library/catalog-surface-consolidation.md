@@ -39,7 +39,7 @@ Mission-specific notes for the narrow catalog/product/SKU consolidation packet.
 
 ## Downstream Readiness Requirements
 
-- Finished-good create must seed finished-good truth with valuation/COGS/revenue/discount/tax readiness in the same write path.
+- Finished-good create must seed finished-good truth and valuation/COGS/revenue/discount/tax readiness in the same write path; missing accounting defaults should surface as readiness blockers rather than preventing catalog setup.
 - Raw-material create must seed raw-material truth with the inventory/account linkage needed for downstream material usage.
 - Newly created items must be discoverable via the canonical `/api/v1/catalog/items` read surface, with readiness visible when setup or factory-adjacent users need it.
 - Sales order resolution must succeed without `Unknown SKU` / missing finished-good style failures.

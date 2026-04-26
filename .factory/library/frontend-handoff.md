@@ -1625,7 +1625,7 @@ Catalog contract rules:
 
 - create a new brand on `POST /api/v1/catalog/brands`, then pass the returned active `brandId` into single-item create/update on `/api/v1/catalog/items`
 - use `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true` when setup or factory-adjacent users need readiness visibility before execution
-- UI may label related sellable sizes as a `Product Family`, but the public setup contract does not ask operators for raw family/group identifiers
+- UI may label related sellable sizes as a `Product Family`; the setup request does not ask operators for raw family/group identifiers, but item reads now return `variantGroupId` and `productFamilyName` for grouping related stock-carrying variants without name parsing
 - frontend item entry and browse flows should call only the catalog endpoints listed in this section
 
 #### Endpoint Map — Inventory (stock, batches, movement history, adjustments, dispatch)
@@ -1841,12 +1841,12 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `CatalogBrandRequest`: `name*`, `logoUrl`, `description`, `active`.
 - `CatalogBrandDto`: `id`, `publicId`, `name`, `code`, `logoUrl`, `description`, `active`.
 - `CatalogItemRequest`: `brandId*`, `name*`, `itemClass*`, optional `color`, optional `size`, `unitOfMeasure*`, `hsnCode*`, `gstRate* (0..100)`, optional `basePrice`, optional `minDiscountPercent`, optional `minSellingPrice`, optional `metadata`, optional `active`.
-- `CatalogItemDto`: browse/search and maintenance DTO with `id`, `publicId`, optional `rawMaterialId`, `brandId`, `brandName`, `brandCode`, `name`, `code`, `itemClass`, optional `color`, optional `size`, `unitOfMeasure`, `hsnCode`, `basePrice`, `gstRate`, `minDiscountPercent`, `minSellingPrice`, `metadata`, `active`, optional `stock`, optional `readiness`.
+- `CatalogItemDto`: browse/search and maintenance DTO with `id`, `publicId`, optional `rawMaterialId`, `brandId`, `brandName`, `brandCode`, `variantGroupId`, `productFamilyName`, `name`, `code`, `itemClass`, optional `color`, optional `size`, `unitOfMeasure`, `hsnCode`, `basePrice`, `gstRate`, `minDiscountPercent`, `minSellingPrice`, `metadata`, `active`, optional `stock`, optional `readiness`.
 - `CatalogItemStockDto`: `onHandQuantity`, `reservedQuantity`, `availableQuantity`, `unitOfMeasure`.
 - `SkuReadinessDto`: `sku`, `masterReady`, `inventoryReady`, `productionReady`, `packingReady`, `salesReady`, `accountingReady`.
 - `SkuReadinessDto.Stage`: `ready`, `blockers[]`.
 - `PageResponse<CatalogItemDto>`: `content`, `totalElements`, `totalPages`, `page`, `size`.
-- Product Family is explanatory vocabulary only; no public `familyId`, `groupId`, or `variantGroupId` field is required for setup screens.
+- Product Family is still not an editable setup input; use read-only `variantGroupId` plus `productFamilyName` from `CatalogItemDto` to group related variants.
 
 ##### Inventory + dispatch DTOs
 
