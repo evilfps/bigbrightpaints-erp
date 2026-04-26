@@ -274,7 +274,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-auth-tenant
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -331,7 +331,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-accounting
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -386,7 +386,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-idempotency-outbox
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -442,7 +442,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-business-slice
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -498,7 +498,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-persistence-smoke
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -553,7 +553,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-codered-access
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -608,7 +608,7 @@ jobs:
 
       - name: Upload shard coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-jacoco-codered-finance
           path: erp-domain/target/site/jacoco/jacoco.xml
@@ -679,7 +679,7 @@ jobs:
 
       - name: Upload changed coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pr-changed-coverage
           path: artifacts/pr-jacoco/changed-coverage.json
@@ -805,7 +805,7 @@ jobs:
 
       - name: Upload gate-fast artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-fast-artifacts
           path: |
@@ -851,7 +851,7 @@ jobs:
 
       - name: Upload gate-core artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-core-artifacts
           path: |
@@ -918,7 +918,7 @@ jobs:
 
       - name: Upload gate-release artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-release-artifacts
           path: |
@@ -964,7 +964,7 @@ jobs:
 
       - name: Upload gate-reconciliation artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-reconciliation-artifacts
           path: |
@@ -1011,7 +1011,7 @@ jobs:
 
       - name: Upload gate-quality artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-quality-artifacts
           path: |
