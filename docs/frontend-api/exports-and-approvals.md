@@ -4,7 +4,9 @@ Last reviewed: 2026-04-26
 
 ## Ownership split
 
-- Export request and approval submission UX belongs to `tenant-admin`.
+- Export request creation belongs to accountant-facing report screens
+  (`ROLE_ADMIN` or `ROLE_ACCOUNTING`).
+- Export approval decisions belong to `tenant-admin`.
 - Report viewing, drill-down, and export intent begins in `accounting`.
 - Download eligibility is resolved through the canonical download contract, not
   through a separate pending-export alias.
@@ -32,6 +34,7 @@ Last reviewed: 2026-04-26
 ```json
 {
   "reportType": "TRIAL_BALANCE",
+  "format": "CSV",
   "parameters": "periodId=3&startDate=2026-03-01&endDate=2026-03-31&exportFormat=CSV"
 }
 ```
@@ -39,6 +42,7 @@ Last reviewed: 2026-04-26
 Notes:
 
 - `reportType` is required.
+- `format` is optional.
 - `parameters` is a serialized filter string. Frontend should generate it from
   the exact active report filters, not from hidden client-only state.
 - There is no separate export-history list endpoint in the current backend.
@@ -65,7 +69,8 @@ Example approval row:
 
 ```json
 {
-  "id": "exp-901",
+  "id": 901,
+  "publicId": "0b410db6-2cbf-41a5-9077-6f6a479f0d36",
   "originType": "EXPORT_REQUEST",
   "ownerType": "REPORTS",
   "status": "PENDING",

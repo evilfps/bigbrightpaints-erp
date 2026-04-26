@@ -1,6 +1,6 @@
 # Reports Module
 
-Last reviewed: 2026-04-02
+Last reviewed: 2026-04-26
 
 ## Overview
 
@@ -48,11 +48,11 @@ The `reports` module provides financial and operational reporting surfaces for t
 **Source-of-truth behavior:**
 - **Always reads live journal summaries** — there is no snapshot branch for P&L today
 - Aggregates revenue and expense accounts within the requested date/period window
+- Period/range requests return `ReportMetadata.source=LIVE`; explicit as-of
+  requests return `AS_OF`.
 
 **Current limitations:**
 - No closed-period snapshot path — P&L data can change even for "closed" periods if journals are posted late
-- The `ReportMetadata` may incorrectly indicate `SNAPSHOT` source while data actually comes from live journals
-- This is a known correctness gap: users may assume they're seeing frozen period data when it's actually live
 
 ---
 
@@ -204,11 +204,14 @@ Provides a real-time view of:
 ### Account Statement
 
 - **Endpoint:** `GET /api/v1/reports/account-statement`
-- **Current behavior:** Dealer-only balance rollup (not the fuller `StatementService` engine)
+- **Parameters:** required `accountId`, optional `from`, `to`
+- **Current behavior:** Account-level activity statement backed by journal
+  lines for the requested account and date range
 
-**Current limitations:**
-- Only covers dealer accounts — no supplier statement path
-- Naming suggests fuller statement capability than what's actually returned
+**Response shape:** `AccountStatementReportDto` includes `accountId`,
+`accountCode`, `accountName`, `from`, `to`, `openingBalance`,
+chronological `entries[]` with debit/credit/running balance fields, and
+`closingBalance`.
 
 ---
 
@@ -218,16 +221,20 @@ The reporting module includes an optional export-approval gate:
 
 - **Request export:** `POST /api/v1/exports/request`
 - **Download export:** `GET /api/v1/exports/{requestId}/download`
+- **Approval inbox:** `GET /api/v1/admin/approvals`
+- **Approval decision:** `POST /api/v1/admin/approvals/{originType}/{id}/decisions`
 
 **Approval behavior:**
 - If `exportApprovalRequired` system setting is enabled: blocks unapproved downloads
-- If disabled: returns download even for REJECTED requests (with informational message)
-- Admin-only approval/rejection workflow via `ExportApprovalService`
+- If disabled: the backend policy may allow file download without an approved
+  decision; the download response is still file bytes, not a status DTO
+- Tenant-admin approval/rejection uses the generic approval decision route with
+  `originType=EXPORT_REQUEST`; there are no direct export approve/reject routes
 
 **Separate admin exports** bypass this workflow:
-- Dealer/supplier statement PDFs
-- Dealer/supplier aging PDFs
-- Deprecated audit digest CSV
+- Supplier statement PDFs
+- Supplier aging PDFs
+- Dealer invoice PDFs from dealer self-service
 
 These are still audit-logged but don't consult `ExportApprovalService`.
 
@@ -249,11 +256,11 @@ These are still audit-logged but don't consult `ExportApprovalService`.
 
 The following areas have known correctness or consistency concerns:
 
-1. **Profit & Loss metadata** — `ReportMetadata` may claim `SNAPSHOT` source while data comes from live journals
+1. **Profit & Loss snapshot absence** — P&L intentionally reads live/as-of journal summaries and does not provide a closed-period snapshot branch
 2. **Cash flow heuristic classification** — relies on pattern matching rather than explicit cash flow tagging
 3. **Balance sheet / trial balance date behavior** — after period rows are seeded, `?date=` calls risk behaving like period activity instead of cumulative as-of balances
 4. **Aging split ownership** — two different services (`AgedDebtorsReportQueryService` vs `AgingReportService`) may return inconsistent data
-5. **Account statement naming drift** — returns dealer-only rollup but name suggests fuller statement capability
+5. **Cash flow route shape** — current route has no request filters and returns a live statement
 
 ---
 
@@ -261,9 +268,9 @@ The following areas have known correctness or consistency concerns:
 
 ### Deprecated: Audit Digest CSV Export
 
-The audit digest CSV export functionality is **deprecated**. While still available:
+The audit digest CSV export functionality is **deprecated** and is not part of
+the current frontend export contract:
 
-- **Endpoint**: May still be accessible via legacy export paths
 - **Replacement**: Use the standard export workflow (`POST /api/v1/exports/request` → `GET /api/v1/exports/{requestId}/download`) with appropriate report types
 - **No replacement**: The audit digest CSV specifically is not being actively maintained; use alternative audit trails for compliance needs
 
@@ -276,15 +283,6 @@ The cash flow report (`GET /api/v1/reports/cash-flow`) is the **most non-canonic
 - **Heuristic classification**: Relies on pattern matching to categorize transactions rather than explicit cash flow tagging in journal lines
 
 **Recommendation**: Be aware that cash flow data may include transactions outside the intended period and may miscategorize transactions. For accurate cash flow reporting, explicit cash flow tagging in journal lines would be needed.
-
-### Non-Canonical: Account Statement
-
-The account statement endpoint (`GET /api/v1/reports/account-statement`) has **naming drift**:
-
-- **Current behavior**: Only returns dealer-only balance rollup
-- **Name suggests**: Fuller statement capability (like the full `StatementService` engine)
-- **No dedicated replacement endpoint**: Portal finance exposes `/api/v1/portal/finance/ledger` (dealer ledger entries) and `/api/v1/portal/finance/invoices` (invoice list) but does not have a dedicated statement endpoint
-- **No internal replacement**: The account-statement endpoint itself is not being enhanced to full statement capability
 
 ### Non-Canonical: Aging Report Split
 
@@ -318,5 +316,4 @@ Aging reports split across **two different ownership paths**:
 
 - P&L lacks snapshot branch — data can change for closed periods
 - Cash flow has no date filtering — returns all-time data
-- Hierarchical P&L exists (`GET /api/v1/reports/income-statement/hierarchy`) but is not documented in the P&L section above — coverage to be expanded
 - Reconciliation dashboard tied to active sessions only — no historical view

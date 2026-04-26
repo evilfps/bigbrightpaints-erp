@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-03-30
 
-This packet documents the **invoice module** and the **finance host ownership** between internal finance views and dealer self-service. It covers invoice lifecycle, settlement behavior, host ownership boundaries, self-service isolation, and the ledger/aging/statement surfaces that both internal and dealer-facing consumers interact with.
+This packet documents the **invoice module** and the **finance host ownership** between internal finance views and dealer self-service. It covers invoice lifecycle, settlement behavior, host ownership boundaries, self-service isolation, and the ledger, invoice-list, aging, and invoice-PDF surfaces that internal and dealer-facing consumers interact with.
 
 ---
 
@@ -134,9 +134,12 @@ Settlement in the invoice module operates on the following model:
 
 ---
 
-## Ledger, Aging, and Statement Surfaces
+## Ledger, Invoice List, Aging, and Invoice-PDF Surfaces
 
-Both internal finance and dealer self-service expose ledger and aging views. The data model is shared, but the access patterns differ.
+Both internal finance and dealer self-service expose ledger, invoice-list, and
+aging views. Dealer self-service also exposes invoice PDF download for the
+authenticated dealer's own invoices. Dealer statement/aging PDF routes are not
+current backend surfaces.
 
 ### Ledger
 
