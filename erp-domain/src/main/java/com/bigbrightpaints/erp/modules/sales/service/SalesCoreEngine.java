@@ -2059,12 +2059,7 @@ public class SalesCoreEngine {
       }
       resolved.add(
           new PricedOrderLine(
-              product,
-              request.hasFinishedGoodId() ? request.finishedGoodId() : null,
-              description,
-              quantity,
-              unitPrice,
-              normalizedRate));
+              product, finishedGood.getId(), description, quantity, unitPrice, normalizedRate));
     }
     return resolved;
   }
