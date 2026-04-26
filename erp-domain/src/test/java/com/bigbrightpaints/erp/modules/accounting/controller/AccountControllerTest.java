@@ -63,10 +63,12 @@ class AccountControllerTest {
     AccountResolutionOwnerService accountResolutionOwnerService =
         mock(AccountResolutionOwnerService.class);
     CompanyDefaultAccountsRequest request =
-        new CompanyDefaultAccountsRequest(11L, 12L, 13L, 14L, 14L, 15L);
+        new CompanyDefaultAccountsRequest(
+            11L, 12L, 13L, 14L, 14L, 15L, List.of("revenueAccountId"));
     CompanyDefaultAccountsService.DefaultAccounts updated =
         new CompanyDefaultAccountsService.DefaultAccounts(11L, 12L, 13L, 14L, 14L, 15L);
-    when(accountResolutionOwnerService.updateDefaultAccounts(11L, 12L, 13L, 14L, 14L, 15L))
+    when(accountResolutionOwnerService.updateDefaultAccounts(
+            11L, 12L, 13L, 14L, 14L, 15L, List.of("revenueAccountId")))
         .thenReturn(updated);
 
     ApiResponse<CompanyDefaultAccountsResponse> body =
@@ -76,6 +78,8 @@ class AccountControllerTest {
     assertThat(body.message()).isEqualTo("Default accounts updated");
     assertThat(body.data())
         .isEqualTo(new CompanyDefaultAccountsResponse(11L, 12L, 13L, 14L, 14L, 15L));
+    verify(accountResolutionOwnerService)
+        .updateDefaultAccounts(11L, 12L, 13L, 14L, 14L, 15L, List.of("revenueAccountId"));
   }
 
   @Test

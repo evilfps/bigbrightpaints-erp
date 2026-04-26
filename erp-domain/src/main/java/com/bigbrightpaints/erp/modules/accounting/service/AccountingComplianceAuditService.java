@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -232,6 +233,43 @@ public class AccountingComplianceAuditService {
         metadata);
   }
 
+  public void recordDefaultAccountsChange(
+      Company company,
+      CompanyDefaultAccountsService.DefaultAccounts beforeDefaults,
+      CompanyDefaultAccountsService.DefaultAccounts afterDefaults,
+      Set<CompanyDefaultAccountsService.DefaultAccountSlot> clearedSlots) {
+    if (company == null || beforeDefaults == null || afterDefaults == null) {
+      return;
+    }
+    Map<String, String> metadata =
+        baseMetadata(
+            company,
+            defaultAccountsState(beforeDefaults),
+            defaultAccountsState(afterDefaults),
+            true);
+    if (clearedSlots != null && !clearedSlots.isEmpty()) {
+      metadata.put(
+          "clearedSlots",
+          clearedSlots.stream()
+              .map(CompanyDefaultAccountsService.DefaultAccountSlot::name)
+              .sorted()
+              .reduce((left, right) -> left + "," + right)
+              .orElse(""));
+    }
+
+    record(
+        company,
+        clearedSlots == null || clearedSlots.isEmpty()
+            ? "DEFAULT_ACCOUNTS_UPDATED"
+            : "DEFAULT_ACCOUNTS_CLEARED",
+        "COMPANY_DEFAULT_ACCOUNTS",
+        stringifyId(company.getId()),
+        company.getCode(),
+        null,
+        company.getBaseCurrency(),
+        metadata);
+  }
+
   public void recordPeriodCloseRequestLifecycle(
       Company company,
       PeriodCloseRequest request,
@@ -448,6 +486,18 @@ public class AccountingComplianceAuditService {
     state.put("name", account.getName());
     state.put("type", account.getType() != null ? account.getType().name() : null);
     state.put("active", account.isActive());
+    return state;
+  }
+
+  private Map<String, Object> defaultAccountsState(
+      CompanyDefaultAccountsService.DefaultAccounts defaults) {
+    Map<String, Object> state = new LinkedHashMap<>();
+    state.put("inventoryAccountId", defaults.inventoryAccountId());
+    state.put("cogsAccountId", defaults.cogsAccountId());
+    state.put("revenueAccountId", defaults.revenueAccountId());
+    state.put("discountAccountId", defaults.discountAccountId());
+    state.put("fgDiscountAccountId", defaults.fgDiscountAccountId());
+    state.put("taxAccountId", defaults.taxAccountId());
     return state;
   }
 

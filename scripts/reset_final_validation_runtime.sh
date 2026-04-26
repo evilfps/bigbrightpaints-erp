@@ -362,6 +362,44 @@ invoice_fixtures_missing AS (
       AND UPPER(COALESCE(i.status, '')) = 'ISSUED'
   )
 ),
+expected_default_account_baseline(company_code, slot, expected_type) AS (
+  VALUES
+    ('MOCK', 'inventoryAccountId', 'ASSET'),
+    ('MOCK', 'cogsAccountId', 'COGS'),
+    ('MOCK', 'revenueAccountId', 'REVENUE'),
+    ('MOCK', 'discountAccountId', 'DISCOUNT'),
+    ('MOCK', 'taxAccountId', 'LIABILITY'),
+    ('RIVAL', 'inventoryAccountId', 'ASSET'),
+    ('RIVAL', 'cogsAccountId', 'COGS'),
+    ('RIVAL', 'revenueAccountId', 'REVENUE'),
+    ('RIVAL', 'discountAccountId', 'DISCOUNT'),
+    ('RIVAL', 'taxAccountId', 'LIABILITY')
+),
+default_account_baseline_gaps AS (
+  SELECT format(
+           'seeded company %s is missing ready default-account baseline slot %s',
+           edab.company_code,
+           edab.slot
+         ) AS error
+  FROM expected_default_account_baseline edab
+  JOIN companies c
+    ON UPPER(c.code) = edab.company_code
+  LEFT JOIN accounts a
+    ON a.company_id = c.id
+   AND a.id = CASE edab.slot
+                WHEN 'inventoryAccountId' THEN c.default_inventory_account_id
+                WHEN 'cogsAccountId' THEN c.default_cogs_account_id
+                WHEN 'revenueAccountId' THEN c.default_revenue_account_id
+                WHEN 'discountAccountId' THEN c.default_discount_account_id
+                WHEN 'taxAccountId' THEN c.default_tax_account_id
+              END
+  WHERE a.id IS NULL
+     OR CASE
+          WHEN edab.expected_type = 'DISCOUNT'
+            THEN UPPER(COALESCE(a.type, '')) NOT IN ('REVENUE', 'EXPENSE')
+          ELSE UPPER(COALESCE(a.type, '')) <> edab.expected_type
+        END
+),
 pending_mock_export_missing AS (
   SELECT 'missing mock pending export fixture SALES_REGISTER {"seed":"mock-validation-export"} for company MOCK' AS error
   WHERE NOT EXISTS (
@@ -494,6 +532,7 @@ UNION ALL SELECT error FROM missing_dealers
 UNION ALL SELECT error FROM dealer_portal_mismatches
 UNION ALL SELECT error FROM dealer_receivable_gaps
 UNION ALL SELECT error FROM invoice_fixtures_missing
+UNION ALL SELECT error FROM default_account_baseline_gaps
 UNION ALL SELECT error FROM pending_mock_export_missing
 UNION ALL SELECT error FROM pending_mock_support_missing
 UNION ALL SELECT error FROM pending_mock_credit_missing

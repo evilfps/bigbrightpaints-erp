@@ -56,13 +56,15 @@ public class AccountResolutionOwnerService {
       Long revenueAccountId,
       Long discountAccountId,
       Long fgDiscountAccountId,
-      Long taxAccountId) {
+      Long taxAccountId,
+      List<String> clearAccountFields) {
     return companyDefaultAccountsService.updateDefaults(
         inventoryAccountId,
         cogsAccountId,
         revenueAccountId,
         discountAccountId,
         fgDiscountAccountId,
-        taxAccountId);
+        taxAccountId,
+        clearAccountFields);
   }
 }

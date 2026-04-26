@@ -61,7 +61,8 @@ public class AccountController {
             request.revenueAccountId(),
             request.discountAccountId(),
             request.fgDiscountAccountId(),
-            request.taxAccountId());
+            request.taxAccountId(),
+            request.clearAccountFields());
     return ResponseEntity.ok(ApiResponse.success("Default accounts updated", toResponse(defaults)));
   }
 

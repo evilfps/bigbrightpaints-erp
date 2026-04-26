@@ -1,6 +1,10 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,7 @@ public class CompanyDefaultAccountsService {
   private final CompanyContextService companyContextService;
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyRepository companyRepository;
+  private AccountingComplianceAuditService accountingComplianceAuditService;
 
   @Autowired
   public CompanyDefaultAccountsService(
@@ -33,6 +38,12 @@ public class CompanyDefaultAccountsService {
     this.companyContextService = companyContextService;
     this.accountingLookupService = accountingLookupService;
     this.companyRepository = companyRepository;
+  }
+
+  @Autowired(required = false)
+  void setAccountingComplianceAuditService(
+      AccountingComplianceAuditService accountingComplianceAuditService) {
+    this.accountingComplianceAuditService = accountingComplianceAuditService;
   }
 
   public DefaultAccounts requireDefaults() {
@@ -74,7 +85,37 @@ public class CompanyDefaultAccountsService {
       Long discountAccountId,
       Long fgDiscountAccountId,
       Long taxAccountId) {
+    return updateDefaults(
+        inventoryAccountId,
+        cogsAccountId,
+        revenueAccountId,
+        discountAccountId,
+        fgDiscountAccountId,
+        taxAccountId,
+        List.of());
+  }
+
+  @Transactional
+  public DefaultAccounts updateDefaults(
+      Long inventoryAccountId,
+      Long cogsAccountId,
+      Long revenueAccountId,
+      Long discountAccountId,
+      Long fgDiscountAccountId,
+      Long taxAccountId,
+      List<String> clearAccountFields) {
     Company company = companyContextService.requireCurrentCompany();
+    DefaultAccounts before = snapshot(company);
+    Set<DefaultAccountSlot> clearSlots = resolveClearSlots(clearAccountFields);
+    validateNoClearSetConflicts(
+        clearSlots,
+        inventoryAccountId,
+        cogsAccountId,
+        revenueAccountId,
+        discountAccountId,
+        fgDiscountAccountId,
+        taxAccountId);
+    applyClearSlots(company, clearSlots);
     if (inventoryAccountId != null) {
       Account account = accountingLookupService.requireAccount(company, inventoryAccountId);
       requireType(account, AccountType.ASSET, "inventory");
@@ -115,13 +156,9 @@ public class CompanyDefaultAccountsService {
       }
     }
     companyRepository.save(company);
-    return new DefaultAccounts(
-        company.getDefaultInventoryAccountId(),
-        company.getDefaultCogsAccountId(),
-        company.getDefaultRevenueAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultTaxAccountId());
+    DefaultAccounts after = snapshot(company);
+    recordDefaultAccountsAudit(company, before, after, clearSlots);
+    return after;
   }
 
   public Long resolveAutoSettlementCashAccountId(
@@ -180,6 +217,118 @@ public class CompanyDefaultAccountsService {
         "discountAccountId and fgDiscountAccountId must match when both are provided");
   }
 
+  private DefaultAccounts snapshot(Company company) {
+    return new DefaultAccounts(
+        company.getDefaultInventoryAccountId(),
+        company.getDefaultCogsAccountId(),
+        company.getDefaultRevenueAccountId(),
+        company.getDefaultDiscountAccountId(),
+        company.getDefaultDiscountAccountId(),
+        company.getDefaultTaxAccountId());
+  }
+
+  private Set<DefaultAccountSlot> resolveClearSlots(List<String> clearAccountFields) {
+    if (clearAccountFields == null || clearAccountFields.isEmpty()) {
+      return Set.of();
+    }
+    Set<DefaultAccountSlot> slots = new LinkedHashSet<>();
+    for (String field : clearAccountFields) {
+      if (field == null || field.isBlank()) {
+        continue;
+      }
+      slots.add(resolveClearSlot(field));
+    }
+    return slots;
+  }
+
+  private DefaultAccountSlot resolveClearSlot(String field) {
+    String normalized =
+        field.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+    return switch (normalized) {
+      case "inventory",
+              "inventoryaccountid",
+              "defaultinventoryaccountid",
+              "fgvaluationaccountid" ->
+          DefaultAccountSlot.INVENTORY;
+      case "cogs", "cogsaccountid", "defaultcogsaccountid", "fgcogsaccountid" ->
+          DefaultAccountSlot.COGS;
+      case "revenue", "revenueaccountid", "defaultrevenueaccountid", "fgrevenueaccountid" ->
+          DefaultAccountSlot.REVENUE;
+      case "discount",
+              "discountaccountid",
+              "fgdiscountaccountid",
+              "defaultdiscountaccountid" ->
+          DefaultAccountSlot.DISCOUNT;
+      case "tax", "taxaccountid", "defaulttaxaccountid", "fgtaxaccountid" ->
+          DefaultAccountSlot.TAX;
+      default ->
+          throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+              "Unsupported default account clear field: " + field);
+    };
+  }
+
+  private void validateNoClearSetConflicts(
+      Set<DefaultAccountSlot> clearSlots,
+      Long inventoryAccountId,
+      Long cogsAccountId,
+      Long revenueAccountId,
+      Long discountAccountId,
+      Long fgDiscountAccountId,
+      Long taxAccountId) {
+    if (clearSlots.contains(DefaultAccountSlot.INVENTORY) && inventoryAccountId != null) {
+      rejectClearSetConflict("inventoryAccountId");
+    }
+    if (clearSlots.contains(DefaultAccountSlot.COGS) && cogsAccountId != null) {
+      rejectClearSetConflict("cogsAccountId");
+    }
+    if (clearSlots.contains(DefaultAccountSlot.REVENUE) && revenueAccountId != null) {
+      rejectClearSetConflict("revenueAccountId");
+    }
+    if (clearSlots.contains(DefaultAccountSlot.DISCOUNT)
+        && (discountAccountId != null || fgDiscountAccountId != null)) {
+      rejectClearSetConflict("discountAccountId");
+    }
+    if (clearSlots.contains(DefaultAccountSlot.TAX) && taxAccountId != null) {
+      rejectClearSetConflict("taxAccountId");
+    }
+  }
+
+  private void rejectClearSetConflict(String field) {
+    throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+        field + " cannot be set and cleared in the same default-account update");
+  }
+
+  private void applyClearSlots(Company company, Set<DefaultAccountSlot> clearSlots) {
+    if (clearSlots.isEmpty()) {
+      return;
+    }
+    if (clearSlots.contains(DefaultAccountSlot.INVENTORY)) {
+      company.setDefaultInventoryAccountId(null);
+    }
+    if (clearSlots.contains(DefaultAccountSlot.COGS)) {
+      company.setDefaultCogsAccountId(null);
+    }
+    if (clearSlots.contains(DefaultAccountSlot.REVENUE)) {
+      company.setDefaultRevenueAccountId(null);
+    }
+    if (clearSlots.contains(DefaultAccountSlot.DISCOUNT)) {
+      company.setDefaultDiscountAccountId(null);
+    }
+    if (clearSlots.contains(DefaultAccountSlot.TAX)) {
+      company.setDefaultTaxAccountId(null);
+      company.setGstOutputTaxAccountId(null);
+      company.setGstPayableAccountId(null);
+    }
+  }
+
+  private void recordDefaultAccountsAudit(
+      Company company, DefaultAccounts before, DefaultAccounts after, Set<DefaultAccountSlot> slots) {
+    if (accountingComplianceAuditService == null || before.equals(after)) {
+      return;
+    }
+    accountingComplianceAuditService.recordDefaultAccountsChange(company, before, after, slots);
+  }
+
   private void validateSettlementCashAccount(Account account, String operation) {
     if (account == null || account.getId() == null) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -225,6 +374,14 @@ public class CompanyDefaultAccountsService {
         || value.startsWith(token + "-")
         || value.endsWith("-" + token)
         || value.contains("-" + token + "-");
+  }
+
+  public enum DefaultAccountSlot {
+    INVENTORY,
+    COGS,
+    REVENUE,
+    DISCOUNT,
+    TAX
   }
 
   public record DefaultAccounts(

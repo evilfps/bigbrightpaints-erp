@@ -136,6 +136,8 @@ public class ValidationSeedDataInitializer {
       Account rivalReceivable =
           ensureAccount(
               accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+      ensureValidationDefaultAccounts(companyRepository, accountRepository, mockCompany);
+      ensureValidationDefaultAccounts(companyRepository, accountRepository, rivalCompany);
 
       UserAccount mockAdmin =
           ensureUser(
@@ -450,6 +452,35 @@ public class ValidationSeedDataInitializer {
               account.setBalance(BigDecimal.ZERO);
               return accountRepository.save(account);
             });
+  }
+
+  private void ensureValidationDefaultAccounts(
+      CompanyRepository companyRepository,
+      AccountRepository accountRepository,
+      Company company) {
+    Account inventory =
+        ensureAccount(accountRepository, company, "INV", "Inventory", AccountType.ASSET);
+    Account cogs =
+        ensureAccount(accountRepository, company, "COGS", "Cost of Goods Sold", AccountType.COGS);
+    Account revenue = ensureAccount(accountRepository, company, "REV", "Revenue", AccountType.REVENUE);
+    Account discount =
+        ensureAccount(accountRepository, company, "DISC", "Discounts", AccountType.EXPENSE);
+    Account taxOutput =
+        ensureAccount(accountRepository, company, "GST-OUT", "GST Output Tax", AccountType.LIABILITY);
+    Account taxInput =
+        ensureAccount(accountRepository, company, "GST-IN", "GST Input Tax", AccountType.ASSET);
+    Account taxPayable =
+        ensureAccount(accountRepository, company, "GST-PAY", "GST Payable", AccountType.LIABILITY);
+
+    company.setDefaultInventoryAccountId(inventory.getId());
+    company.setDefaultCogsAccountId(cogs.getId());
+    company.setDefaultRevenueAccountId(revenue.getId());
+    company.setDefaultDiscountAccountId(discount.getId());
+    company.setDefaultTaxAccountId(taxOutput.getId());
+    company.setGstInputTaxAccountId(taxInput.getId());
+    company.setGstOutputTaxAccountId(taxOutput.getId());
+    company.setGstPayableAccountId(taxPayable.getId());
+    companyRepository.save(company);
   }
 
   private void attachMainAdmin(
