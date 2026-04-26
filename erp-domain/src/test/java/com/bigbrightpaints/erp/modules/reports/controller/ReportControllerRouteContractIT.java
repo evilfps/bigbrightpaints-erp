@@ -132,8 +132,11 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
     List<String> sensitiveAccountingWritePaths =
         List.of(
             "/api/v1/accounting/receipts/dealer",
+            "/api/v1/accounting/receipts/dealer/hybrid",
             "/api/v1/accounting/settlements/dealers",
-            "/api/v1/accounting/settlements/suppliers");
+            "/api/v1/accounting/dealers/" + dealer.getId() + "/auto-settle",
+            "/api/v1/accounting/settlements/suppliers",
+            "/api/v1/accounting/suppliers/1/auto-settle");
 
     for (String path : sensitiveAccountingWritePaths) {
       ResponseEntity<Map> denied =
@@ -148,8 +151,11 @@ class ReportControllerRouteContractIT extends AbstractIntegrationTest {
     List<String> sensitiveAccountingWritePaths =
         List.of(
             "/api/v1/accounting/receipts/dealer",
+            "/api/v1/accounting/receipts/dealer/hybrid",
             "/api/v1/accounting/settlements/dealers",
-            "/api/v1/accounting/settlements/suppliers");
+            "/api/v1/accounting/dealers/" + dealer.getId() + "/auto-settle",
+            "/api/v1/accounting/settlements/suppliers",
+            "/api/v1/accounting/suppliers/1/auto-settle");
 
     for (String path : sensitiveAccountingWritePaths) {
       ResponseEntity<Map> validationFailure =

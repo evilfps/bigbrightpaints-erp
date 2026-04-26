@@ -1,89 +1,79 @@
 # R2 Checkpoint
 
-Last reviewed: 2026-04-16
+Last reviewed: 2026-04-26
 
 ## Scope
-- Feature: `tenant-admin-backend-hard-cut` slices 1-2 + slice 8 pending-status index hardening
-- Branch: codex/tenant-admin-hardcut-s1 (base: `fc3266800`)
+- Feature: `settlement-rbac-prevalidation-followup-hardcut`
+- Branch: refactor/accounting-centralization-20260420 (base: origin/main)
 - PR: pending
 - Review candidate:
-  - keep tenant-admin user assignment constrained to `ROLE_ACCOUNTING`, `ROLE_FACTORY`, `ROLE_SALES`, `ROLE_DEALER`
-  - keep tenant-admin `ROLE_ADMIN` / `ROLE_SUPER_ADMIN` assignment denied with explicit access-denied auditing
-  - keep tenant-admin custom/unknown role creation removed from the admin users workflow surface
-  - keep superadmin settings/roles/notify control-plane hosts platform-scope-only for superadmin callers
-  - keep denied role-mutation audit body extraction fail-closed when request body cache is unavailable
-  - keep normalized pending-status predicates (`upper(trim(status))='PENDING'`) index-backed for tenant-admin approval inbox/dashboard queries
-- Why this is R2: this packet changes high-risk auth/RBAC and superadmin control-plane enforcement behavior under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`; it also changes `erp-domain/src/main/resources/db/migration_v2/` in slice 8 to keep normalized pending query predicates index-backed.
+  - require ROLE_ADMIN, ROLE_ACCOUNTING, or ROLE_SUPER_ADMIN at the HTTP authorization layer for dealer hybrid receipt writes before MVC bean validation can inspect the request body
+  - require ROLE_ADMIN, ROLE_ACCOUNTING, or ROLE_SUPER_ADMIN at the HTTP authorization layer for dealer and supplier auto-settle writes before MVC bean validation can inspect the request body
+  - keep authorized accounting users reaching normal request validation/business handling on the same public settlement routes
+  - leave report/export/payment semantics unchanged outside the settlement receipt/auto-settle RBAC ordering corridor
+- Why this is R2: this packet changes high-risk auth/RBAC enforcement in `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/SecurityConfig.java` for accounting settlement and receipt mutation routes.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`
-  - `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/SecurityConfig.java`
+  - `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/controller/ReportControllerRouteContractIT.java`
 - Contract surfaces affected:
-  - tenant-admin create/update user role validation and assignment behavior
-  - role-escalation denial semantics for tenant-admin actors
-  - audit failure metadata for blocked privileged role attempts
-  - platform-scope host enforcement for superadmin settings/role/notify control-plane routes
-  - denied-path role target extraction behavior on oversized/uncached request bodies
-  - tenant-admin dashboard and approval inbox pending-status lookup performance under normalized status semantics
+  - POST /api/v1/accounting/receipts/dealer/hybrid
+  - POST /api/v1/accounting/dealers/{dealerId}/auto-settle
+  - POST /api/v1/accounting/suppliers/{supplierId}/auto-settle
+  - existing POST /api/v1/accounting/receipts/dealer, POST /api/v1/accounting/settlements/dealers, and POST /api/v1/accounting/settlements/suppliers pre-validation RBAC guarantees
 - Failure mode if wrong:
-  - tenant-admin could assign privileged or unknown roles
-  - tenant-scoped superadmin sessions could execute platform-only notify/settings/roles endpoints
-  - denied-path auditing could attempt raw request-stream reads instead of failing closed
-  - audit trail for blocked role escalation could become inconsistent
-  - tenant-admin dashboard approval summary could degrade under polling load if normalized status predicates are not index-backed
+  - ROLE_SALES or another insufficient role could trigger bean validation on accounting mutation bodies before authorization denies the request
+  - authorized accounting/admin callers could be denied before reaching normal validation/business handling
+  - settlement/receipt public-route behavior could drift from the VAL-PARTNER-027 contract
 
 ## Approval Authority
 - Mode: orchestrator
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
 - Approval status: branch-local integration candidate pending PR review
-- Basis: this is a hard-cut tenant-admin RBAC tightening with no compatibility bridge; rollout remains pre-deployment but still requires explicit R2 evidence because auth/RBAC semantics changed.
+- Basis: this is a compatibility-preserving accounting RBAC hardening that narrows unauthorized write access ordering without widening tenant, accounting, report, export, or payment semantics.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: this packet narrows tenant-admin privileges, hardens platform-only superadmin boundaries, and keeps denied-path parsing fail-closed; it does not widen tenant boundaries or introduce destructive migration behavior.
+- Reason: this packet only strengthens fail-closed authorization ordering for existing accounting write routes and does not widen privileges, change tenant boundaries, or introduce destructive migration behavior.
 
 ## Rollback Owner
 - Owner: Droid mission orchestrator
 - Rollback method:
-  - before merge: revert the packet if tenant-admin role assignment or superadmin platform-only host contracts regress
-  - after merge: revert packet and rerun focused security/auth tests plus enterprise policy gates
+  - before merge: revert the packet if the accounting settlement/receipt RBAC ordering contract regresses
+  - after merge: revert packet and rerun focused security/accounting tests plus enterprise policy gates
 - Rollback trigger:
-  - any non-allowlisted role can be assigned from the admin users API surface
-  - tenant-scoped superadmin can access superadmin settings/roles/notify control-plane hosts
-  - denied role-mutation audit extraction no longer fails closed when request body cache is unavailable
-  - tenant-admin privileged role denial/audit behavior diverges from the contract
+  - ROLE_SALES receives 400 bean-validation responses instead of 403 authorization denial on any protected settlement/receipt mutation route
+  - ROLE_ACCOUNTING or ROLE_ADMIN can no longer reach normal 400 validation/business handling with an invalid request body
+  - any report/export/payment semantics change outside the scoped RBAC ordering hard-cut
   - policy gate fails after integrating this packet
 
 ## Expiry
-- Valid until: 2026-04-23
-- Re-evaluate if: scope expands into broader auth, company-control-plane, or migration-path changes.
+- Valid until: 2026-05-03
+- Re-evaluate if: scope expands beyond settlement/receipt authorization ordering into broader auth, tenant isolation, payment semantics, or public contract changes.
 
 ## Verification Evidence
 - Scope-to-evidence mapping:
-  - tenant-admin role allowlist + escalation denial contract: commit `5fe768a5d` and targeted tests `AdminUserServiceTest`, `AuthTenantAuthorityIT#admin_cannot_create_tenant_admin_user+tenant_admin_can_still_create_non_privileged_user`
-  - platform-only superadmin host deny (`settings`, `roles`, `notify`): `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml` testcase `tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts`
-  - denied role-mutation body extraction fail-closed: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
-  - normalized pending-status predicate index hardening: migration `V183__credit_pending_status_norm_indexes.sql` + focused verification (`AdminApprovalServiceTest`, `AdminDashboardSecurityIT`)
+  - HTTP authorization pre-validation guard: `SecurityConfig` now covers dealer receipt, dealer hybrid receipt, dealer settlement, dealer auto-settle, supplier settlement, and supplier auto-settle POST routes before MVC validation.
+  - Regression proof: `ReportControllerRouteContractIT` asserts ROLE_SALES receives 403 on all protected settlement/receipt mutation routes with empty/invalid bodies, while ROLE_ACCOUNTING reaches 400 validation handling.
+  - Runtime proof: compose-backed curl probes against the approved local runtime showed ROLE_SALES 403 and ROLE_ACCOUNTING 400 on the three follow-up routes.
 - Commands run:
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=RequestBodyCachingFilterTest,CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT#tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts test`
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
-  - `bash ci/lint-knowledgebase.sh`
-  - `bash ci/check-architecture.sh`
-  - `bash ci/check-high-risk-changes.sh`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest=ReportControllerRouteContractIT test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -DspotlessFiles=src/main/java/com/bigbrightpaints/erp/core/security/SecurityConfig.java,src/test/java/com/bigbrightpaints/erp/modules/reports/controller/ReportControllerRouteContractIT.java spotless:check`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='AdminApprovalRbacIT,ReportControllerSecurityIT,ReportControllerRouteContractIT,PortalFinanceControllerIT,StatementAgingIT,DealerLedgerIT,CompanyContextFilterControlPlaneBindingTest,SuperAdminTenantWorkflowIsolationIT,TenantRuntimeEnforcementAuthIT,OpenApiSnapshotIT' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile`
+  - `bash scripts/reset_final_validation_runtime.sh`
+  - `commands.strict-runtime-smoke-check`
+  - `curl` runtime probes for ROLE_SALES and ROLE_ACCOUNTING on the dealer hybrid receipt, dealer auto-settle, and supplier auto-settle routes
+  - `ENTERPRISE_DIFF_BASE=HEAD bash ci/check-codex-review-guidelines.sh`
+  - `git diff --check`
 - Result summary:
-  - focused security/auth tests passed for this slice (`RequestBodyCachingFilterTest`, `CompanyContextFilterControlPlaneBindingTest`, `AuthTenantAuthorityIT` targeted method)
-  - tenant-scoped superadmin deny contract now explicitly covered on canonical notify POST call
-  - normalized pending-status queries remain behavior-compatible and now have dedicated expression indexes for dashboard/inbox load paths
-  - policy gates (`lint-knowledgebase`, `check-architecture`, `check-high-risk-changes`) passed
+  - focused route-contract proof passed for the follow-up endpoints and existing protected settlement/receipt routes
+  - targeted security proof, targeted accounting proof, compile, and scoped spotless check passed
+  - runtime reset verified validation seed fixtures and smoke checks passed on approved ports
+  - curl runtime probes returned 403 for ROLE_SALES and 400 for ROLE_ACCOUNTING with invalid bodies on the hybrid receipt and dealer/supplier auto-settle routes
+  - scoped policy gate passed against the current worktree packet; unscoped branch-wide policy mode still includes older branch migration changes outside this packet
 - Artifact note:
-  - evidence bundle index: `docs/approvals/evidence/2026-04-16-r2-slice2/README.md`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest.txt`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.txt`
-  - testcase anchor: `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml`
-  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-enterprise-policy.txt`
-  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-codex-review-guidelines.txt`
+  - inline evidence in this checkpoint records the route-contract, Maven proof, and runtime curl observations for the scoped RBAC ordering packet.
