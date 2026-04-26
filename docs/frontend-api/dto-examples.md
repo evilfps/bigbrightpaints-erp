@@ -543,13 +543,7 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 
 ### Approve Request
 
-> **Note**: Approve/reject actions are not exposed as separate REST endpoints on `/api/v1/admin/approvals`. Instead, approvals are handled through module-specific endpoints:
-> - Credit limit requests: `POST /api/v1/credit/limit-requests/{id}/approve`
-> - Credit limit overrides: `POST /api/v1/credit/override-requests/{id}/approve`
-> - Payroll runs: `POST /api/v1/payroll/runs/{id}/approve`
-> - Export requests: `PUT /api/v1/admin/exports/{requestId}/approve`
-> - Period close: `POST /api/v1/accounting/periods/{periodId}/approve-close`
-> - Purchase orders: `POST /api/v1/purchasing/purchase-orders/{id}/approve`
+> **Note**: Normalized tenant-admin approvals are decided through `POST /api/v1/admin/approvals/{originType}/{id}/decisions` with `decision` set to `APPROVE` or `REJECT`. Module-specific operational routes may still exist for their own workflows, but export requests and period-close inbox decisions should use the canonical approval decision route.
 
 ### Approve Response
 

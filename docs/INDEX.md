@@ -1,6 +1,6 @@
 # orchestrator-erp — Backend Documentation Index
 
-Last reviewed: 2026-04-02
+Last reviewed: 2026-04-26
 
 This is the canonical entrypoint for backend documentation. Every major docs section is linked from here. If a packet is not reachable through this index, it is not part of the canonical docs tree.
 
@@ -73,7 +73,7 @@ Flow packets explain cross-module behavior: actors, entrypoints, preconditions, 
 | --- | --- |
 | [docs/flows/FLOW-INVENTORY.md](flows/FLOW-INVENTORY.md) | Canonical inventory of the eleven major backend flow families with ownership summary, cross-module participants, and links to flow packets |
 
-The flow inventory covers auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, and reporting/export. All eleven flow packets are now available.
+The flow inventory covers auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, reporting/export, and the client-shareable [accounting workflow architecture](flows/accounting-workflow-architecture.md). All twelve flow packets are now available.
 
 ## Architecture Decision Records (ADRs)
 

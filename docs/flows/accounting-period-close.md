@@ -1,10 +1,10 @@
 # Accounting / Period Close Flow
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-26
 
-This packet documents the **accounting and period close flow**: the canonical lifecycle for journal posting, bank reconciliation, sub-ledger reconciliation, GST reconciliation, period locking, and the maker-checker workflow for period close. It covers manual and automated journal entry creation, reconciliation sessions, period state transitions, and correction mechanisms.
+This packet documents the **accounting and period close flow**: journal posting, correction, bank reconciliation, subledger reconciliation, discrepancy handling, month-end checklist controls, and the maker-checker close workflow. It is code-grounded and describes only current backend routes.
 
-This flow is **behavior-first** and **code-grounded**. Where the backend is incomplete, blocked, or intentionally partial, the packet explicitly states the current limitation instead of presenting partial behavior as complete.
+Accounting is the financial truth boundary for the ERP. Other modules may trigger accounting effects, but period state, reconciliation evidence, journal correction, and close artifacts are owned by accounting.
 
 ---
 
@@ -12,209 +12,155 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 | Actor | Role | Authorization Scope |
 | --- | --- | --- |
-| **Admin** | Full accounting access, period management | `ROLE_ADMIN` |
-| **Accounting** | Journal creation, reconciliation, period close | `ROLE_ACCOUNTING` |
-| **Sales** | Read-only access to some accounting views | `ROLE_SALES` |
-| **Factory** | Read access to relevant journals | `ROLE_FACTORY` |
+| **Admin** | Close checker, accounting operator | `ROLE_ADMIN` |
+| **Accounting** | Close maker, accounting operator | `ROLE_ACCOUNTING` |
+| **Super-admin** | Controlled period reopen | `ROLE_SUPER_ADMIN` |
 
 ---
 
 ## 2. Entrypoints
 
-### Journal Entry — `AccountingController` (`/api/v1/accounting/journals/**`)
+### Journals — `JournalController` (`/api/v1/accounting/**`)
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| List Journals | GET | `/api/v1/accounting/journals` | ADMIN, ACCOUNTING | List journal entries |
-| Get Journal | GET | `/api/v1/accounting/journals/{id}` | ADMIN, ACCOUNTING | Get journal detail |
-| Create Journal | POST | `/api/v1/accounting/journals` | ADMIN, ACCOUNTING | Create manual journal |
-| Post Journal | POST | `/api/v1/accounting/journals/{id}/post` | ADMIN, ACCOUNTING | Post to ledger |
-| Reverse Journal | POST | `/api/v1/accounting/journals/{id}/reverse` | ADMIN, ACCOUNTING | Reverse posted journal |
+| List Journal Entries | GET | `/api/v1/accounting/journal-entries` | ADMIN, ACCOUNTING | List journal entries with dealer/supplier/source filters. |
+| List Journals | GET | `/api/v1/accounting/journals` | ADMIN, ACCOUNTING | Paginated journal list with date/type/source filters. |
+| Post Manual Journal | POST | `/api/v1/accounting/journal-entries` | ADMIN, ACCOUNTING | Post a balanced manual journal. |
+| Reverse Journal | POST | `/api/v1/accounting/journal-entries/{entryId}/reverse` | ADMIN, ACCOUNTING | Full/partial/void correction according to period rules. |
+| Credit Note | POST | `/api/v1/accounting/credit-notes` | ADMIN, ACCOUNTING | Post credit note journal. |
+| Debit Note | POST | `/api/v1/accounting/debit-notes` | ADMIN, ACCOUNTING | Post debit note journal. |
+| Accrual | POST | `/api/v1/accounting/accruals` | ADMIN, ACCOUNTING | Post accrual journal. |
+| Bad Debt Write-Off | POST | `/api/v1/accounting/bad-debts/write-off` | ADMIN, ACCOUNTING | Post bad debt write-off. |
 
-### Period Management — `AccountingController` (`/api/v1/accounting/periods/**`)
-
-| Entrypoint | Method | Path | Actor | Purpose |
-| --- | --- | --- | --- | --- |
-| List Periods | GET | `/api/v1/accounting/periods` | ADMIN, ACCOUNTING | List periods |
-| Get Period | GET | `/api/v1/accounting/periods/{id}` | ADMIN, ACCOUNTING | Get period detail |
-| Create Period | POST | `/api/v1/accounting/periods` | ADMIN | Create new period |
-| Lock Period | POST | `/api/v1/accounting/periods/{id}/lock` | ADMIN | Lock period |
-| Unlock Period | POST | `/api/v1/accounting/periods/{id}/unlock` | ADMIN | Unlock period |
-
-### Period Close Request — `AccountingController` (`/api/v1/accounting/periods/**`)
+### Period Management — `PeriodController` (`/api/v1/accounting/**`)
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Request Close | POST | `/api/v1/accounting/periods/{id}/close-request` | ACCOUNTING | Request period close |
-| Approve Close | POST | `/api/v1/accounting/periods/{id}/close-approve` | ADMIN | Approve period close |
-| Finalize Close | POST | `/api/v1/accounting/periods/{id}/close-finalize` | ADMIN | Finalize period close |
+| List Periods | GET | `/api/v1/accounting/periods` | ADMIN, ACCOUNTING | List tenant accounting periods. |
+| Save Period | POST | `/api/v1/accounting/periods` | ADMIN, ACCOUNTING | Create or update a period. |
+| Update Period | PUT | `/api/v1/accounting/periods/{periodId}` | ADMIN, ACCOUNTING | Update an existing period. |
+| Request Close | POST | `/api/v1/accounting/periods/{periodId}/request-close` | ADMIN, ACCOUNTING | Submit maker close request. |
+| Approve Close | POST | `/api/v1/accounting/periods/{periodId}/approve-close` | ADMIN | Checker approval closes the period. |
+| Reject Close | POST | `/api/v1/accounting/periods/{periodId}/reject-close` | ADMIN | Reject pending close request. |
+| Reopen Period | POST | `/api/v1/accounting/periods/{periodId}/reopen` | SUPER_ADMIN | Reopen a closed period with reason and audit evidence. |
 
-### Bank Reconciliation — `AccountingController` (`/api/v1/accounting/reconciliation/**`)
-
-| Entrypoint | Method | Path | Actor | Purpose |
-| --- | --- | --- | --- | --- |
-| Start Session | POST | `/api/v1/accounting/reconciliation/sessions` | ADMIN, ACCOUNTING | Start reconciliation |
-| List Sessions | GET | `/api/v1/accounting/reconciliation/sessions` | ADMIN, ACCOUNTING | List sessions |
-| Get Session | GET | `/api/v1/accounting/reconciliation/sessions/{id}` | ADMIN, ACCOUNTING | Get session detail |
-| Match Entry | POST | `/api/v1/accounting/reconciliation/sessions/{id}/match` | ADMIN, ACCOUNTING | Match bank/book entry |
-| Unmatch Entry | POST | `/api/v1/accounting/reconciliation/sessions/{id}/unmatch` | ADMIN, ACCOUNTING | Unmatch entry |
-| Add Adjustment | POST | `/api/v1/accounting/reconciliation/sessions/{id}/adjustments` | ADMIN, ACCOUNTING | Add reconciliation adjustment |
-| Complete Session | POST | `/api/v1/accounting/reconciliation/sessions/{id}/complete` | ADMIN, ACCOUNTING | Complete session |
-
-### Sub-Ledger Reconciliation — `AccountingController` (`/api/v1/accounting/reconciliation/**`)
+### Month-End Checklist — `PeriodController`
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Dealer Reconciliation | GET | `/api/v1/accounting/reconciliation/dealers/{dealerId}` | ADMIN, ACCOUNTING | Dealer sub-ledger vs GL |
-| Supplier Reconciliation | GET | `/api/v1/accounting/reconciliation/suppliers/{supplierId}` | ADMIN, ACCOUNTING | Supplier sub-ledger vs GL |
-| Run Reconciliation | POST | `/api/v1/accounting/reconciliation/run` | ADMIN, ACCOUNTING | Run full reconciliation |
+| Read Checklist | GET | `/api/v1/accounting/month-end/checklist?periodId={periodId}` | ADMIN, ACCOUNTING | Returns readiness flags and actionable detail. |
+| Update Checklist | POST | `/api/v1/accounting/month-end/checklist/{periodId}` | ADMIN, ACCOUNTING | Updates allowed checklist fields and notes. |
 
-### GST Reconciliation — `AccountingController` (`/api/v1/accounting/gst/**`)
-
-| Entrypoint | Method | Path | Actor | Purpose |
-| --- | --- | --- | --- | --- |
-| GST Reconciliation | GET | `/api/v1/accounting/gst/reconciliation` | ADMIN, ACCOUNTING | Sales vs purchase GST |
-
-### Opening Balance Import — `OpeningBalanceImportController` (`/api/v1/migration/**`)
+### Reconciliation — `ReconciliationController`
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Import Opening Balance | POST | `/api/v1/migration/opening-balance` | ADMIN | Import opening balances |
+| Start Bank Session | POST | `/api/v1/accounting/reconciliation/bank/sessions` | ADMIN, ACCOUNTING | Create `IN_PROGRESS` bank reconciliation session. |
+| List Bank Sessions | GET | `/api/v1/accounting/reconciliation/bank/sessions` | ADMIN, ACCOUNTING | Paginated bank session list. |
+| Get Bank Session | GET | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}` | ADMIN, ACCOUNTING | Resume/review a saved session. |
+| Update Session Items | PUT | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` | ADMIN, ACCOUNTING | Add/remove matched journal lines. |
+| Complete Session | POST | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete` | ADMIN, ACCOUNTING | Promote session to `COMPLETED`; confirm period bank flag when linked. |
+| Subledger Reconciliation | GET | `/api/v1/accounting/reconciliation/subledger` | ADMIN, ACCOUNTING | Compare AR/AP control balances to dealer/supplier ledgers. |
+| Discrepancy List | GET | `/api/v1/accounting/reconciliation/discrepancies` | ADMIN, ACCOUNTING | List discrepancies with status/type filters. |
+| Discrepancy Resolve | POST | `/api/v1/accounting/reconciliation/discrepancies/{discrepancyId}/resolve` | ADMIN, ACCOUNTING | Record acknowledgement, correction, adjustment, or write-off resolution. |
+| Inter-Company Reconciliation | GET | `/api/v1/accounting/reconciliation/inter-company` | ADMIN, ACCOUNTING | Match cross-entity positions. |
 
-### Tally Import — `TallyImportController` (`/api/v1/migration/**`)
+### GST and Temporal Reads — `StatementReportController`
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Import Tally Data | POST | `/api/v1/migration/tally-import` | ADMIN | Import Tally XML |
+| GST Return | GET | `/api/v1/accounting/gst/return` | ADMIN, ACCOUNTING | Accounting GST return read. |
+| GST Reconciliation | GET | `/api/v1/accounting/gst/reconciliation` | ADMIN, ACCOUNTING | GST reconciliation read. |
+| Balance As-Of | GET | `/api/v1/accounting/accounts/{accountId}/balance/as-of?date={date}` | ADMIN, ACCOUNTING | Point-in-time balance. |
+| Trial Balance As-Of | GET | `/api/v1/accounting/trial-balance/as-of?date={date}` | ADMIN, ACCOUNTING | As-of trial balance. |
+| Account Activity | GET | `/api/v1/accounting/accounts/{accountId}/activity` | ADMIN, ACCOUNTING | Account activity and movement report. |
+| Date Context | GET | `/api/v1/accounting/date-context` | ADMIN, ACCOUNTING | Tenant accounting date context. |
+
+### Data Import
+
+| Entrypoint | Method | Path | Actor | Purpose |
+| --- | --- | --- | --- | --- |
+| Opening Balance Import | POST | `/api/v1/accounting/opening-balances` | ADMIN | CSV opening-balance import. |
+| Tally Import | POST | `/api/v1/migration/tally-import` | ADMIN | Legacy Tally XML migration path. |
 
 ---
 
 ## 3. Preconditions
 
-### Journal Creation Preconditions
+### Journal Preconditions
 
-1. **Period open** — accounting period must be OPEN
-2. **Valid journal lines** — at least one debit and one credit, amounts equal
-3. **Valid account codes** — accounts must exist in chart of accounts
-4. **Company context** — valid company in request context
+1. **Balanced lines** — total debit must equal total credit.
+2. **Reason present** — manual journals require a nonblank memo/reason.
+3. **Reference namespace safe** — system-reserved references are rejected for manual journals.
+4. **Period postable** — locked/closed period restrictions apply to posting and correction.
+5. **Tenant scoped** — accounts and journals belong to the authenticated company.
 
-### Journal Posting Preconditions
+### Reconciliation Preconditions
 
-1. **Journal in DRAFT status** — not already posted
-2. **Period open** — cannot post to closed period
-3. **Balanced** — total debits equals total credits
-4. **No duplicate posting** — idempotent (re-post checks existing)
+1. **Bank account valid** — bank reconciliation sessions use valid accounting data.
+2. **Session state valid** — only in-progress sessions accept item updates.
+3. **Linked period valid when supplied** — period linkage must match the statement month and be open at completion.
+4. **Discrepancy status valid** — only open discrepancies are resolvable.
 
 ### Period Close Preconditions
 
-1. **No open journals** — all journals in the period must be posted
-2. **Reconciled** — bank reconciliation and sub-ledger reconciliation complete
-3. **Maker-Checker** — request by ACCOUNTING, approved by ADMIN, finalized by ADMIN
-
-### Bank Reconciliation Preconditions
-
-1. **Period open** — reconciliation for open period
-2. **Bank account valid** — account exists and is bank type
-3. **Statement balance provided** — for variance calculation
-
-### Opening Balance Import Preconditions
-
-1. **Company exists** — target company valid
-2. **Period exists** — target period exists
-3. **Valid account mappings** — all account codes valid
+1. **Checklist readiness** — month-end checklist items return detail and can block close.
+2. **Close request note** — request, approval, and rejection require meaningful notes where enforced.
+3. **Maker-checker** — checker must differ from requester where the workflow requires it.
+4. **Admin checker** — approval/rejection is admin-gated.
+5. **No direct finalize route** — approval is the close completion step.
 
 ---
 
 ## 4. Lifecycle
 
-### 4.1 Journal Entry Lifecycle
+### 4.1 Journal and Correction Lifecycle
 
 ```
-[Start] → Validate period open → Validate lines balanced → 
-Validate accounts → Save as DRAFT → [End: Journal DRAFT]
-
-[DRAFT] → Post → Validate not already posted → 
-Update status POSTED → [End: Journal POSTED]
+[Start] → Validate role + tenant → Validate period/account/lines →
+Post journal → Audit/provenance evidence visible in accounting reads
 ```
 
-**Key behaviors:**
-- Journal created in DRAFT status
-- Posting moves to POSTED, makes it immutable
-- Reversal creates new journal with reversed amounts
+Corrections do not edit posted entries. They use reversal/correction entries through `POST /api/v1/accounting/journal-entries/{entryId}/reverse`. Locked periods block reversal; closed-period reversal requires explicit override behavior as implemented by the accounting policy.
 
-### 4.2 Period Lifecycle
+### 4.2 Bank Reconciliation Draft Lifecycle
 
-| Status | Meaning | Transitions |
+```
+Create session → IN_PROGRESS draft → update matched items →
+read/resume session → complete session → COMPLETED
+```
+
+This is the current save/resume workflow for accounting close support. An `IN_PROGRESS` session preserves the matching work without closing a period or posting unrelated accounting effects. Completion promotes the session and, when linked to a valid period, confirms the period's bank reconciliation flag.
+
+### 4.3 Subledger and Discrepancy Lifecycle
+
+```
+Run subledger reconciliation → review AR/AP variances →
+list discrepancies → resolve each open discrepancy with explicit action
+```
+
+Discrepancy resolution supports acknowledgement, correction, adjustment/journal-backed adjustment, and write-off style outcomes according to the request validation rules.
+
+### 4.4 Period Close Lifecycle
+
+```
+Checklist/reconciliation evidence ready → Maker requests close → PENDING →
+Checker approves or rejects → APPROVED closes period or REJECTED leaves period open/locked
+```
+
+Close approval records close artifacts and closes the period. There is no intermediate finalize state and no separate finalize route. A controlled super-admin reopen route exists for post-close correction.
+
+### 4.5 Approval Inbox Visibility
+
+Period close requests also appear in the tenant-admin approval inbox:
+
+| Purpose | Method | Path |
 | --- | --- | --- |
-| `OPEN` | Active for transactions | Can receive journals |
-| `LOCKED` | No new journals, existing visible | Unlock to OPEN |
-| `CLOSED` | Finalized, maker-checker complete | Cannot reopen (by design) |
+| Approval inbox | GET | `/api/v1/admin/approvals` |
+| Close decision | POST | `/api/v1/admin/approvals/PERIOD_CLOSE_REQUEST/{id}/decisions` |
 
-**Period creation:** New periods created by Admin with OPEN status
-
-**Period lock:** Admin locks to prevent new journals
-
-**Period close workflow:**
-```
-[OPEN] → ACCOUNTING requests close → [PENDING_APPROVAL]
-[PENDING_APPROVAL] → ADMIN approves → [PENDING_FINALIZE]
-[PENDING_FINALIZE] → ADMIN finalizes → [CLOSED]
-```
-
-### 4.3 Bank Reconciliation Lifecycle
-
-```
-[Start] → Select bank account → Enter statement balance → 
-Create session → [End: Session STARTED]
-
-[STARTED] → Match bank entries to book entries → 
-Add adjustments for unreconciled items → [End: In progress]
-
-[IN PROGRESS] → Complete → Validate matched amounts vs statement → 
-[End: COMPLETED]
-```
-
-**Key behaviors:**
-- Matches bank statement lines to book (GL) entries
-- Unmatched entries shown as outstanding
-- Adjustments create journal entries
-- Completion validates total matches statement balance
-
-### 4.4 Sub-Ledger Reconciliation Lifecycle
-
-```
-[Start] → Select dealer/supplier → Aggregate sub-ledger → 
-Aggregate GL → Compare → [End: Reconciliation report]
-```
-
-**Key behaviors:**
-- Compares dealer/supplier sub-ledger (from sales/purchasing) to GL
-- Shows discrepancy if amounts differ
-- Discrepancy resolution may require correcting either sub-ledger or GL
-
-### 4.5 Opening Balance Import Lifecycle
-
-```
-[Start] → Validate company → Validate period → Validate mappings → 
-Import account balances → [End: Opening balances set]
-```
-
-**Key behaviors:**
-- Bulk import of account balances for new company setup
-- Typically used during tenant onboarding
-- Creates journal entries for opening balances
-
-### 4.6 Tally Import Lifecycle
-
-```
-[Start] → Parse Tally XML → Map accounts → Validate → 
-Create journals → [End: Tally data imported]
-```
-
-**Key behaviors:**
-- Import from Tally accounting software XML export
-- Maps Tally ledgers to ERP accounts
-- Creates journal entries from imported data
+The period controller close routes remain the direct accounting lifecycle routes; the approval inbox is the canonical shared approval surface.
 
 ---
 
@@ -222,28 +168,18 @@ Create journals → [End: Tally data imported]
 
 The flow is complete when:
 
-1. **Journal Posted** — Journal moved to POSTED status, immutable
-2. **Period Locked** — No more journals can be posted
-3. **Period Closed** — Maker-checker workflow complete, period finalized
-4. **Bank Reconciliation Complete** — All entries matched or adjusted
-5. **Sub-Ledger Reconciled** — Dealer/supplier ledgers match GL
-6. **GST Reconciled** — Output tax matches input tax calculation
+1. **Financial events posted** — manual and automated journals are posted or rejected with controlled validation errors.
+2. **Reconciliation evidence saved** — bank sessions, subledger checks, and discrepancy decisions are visible.
+3. **Checklist ready** — month-end checklist items explain readiness and blockers.
+4. **Close decision recorded** — close request is approved or rejected through the maker-checker workflow.
+5. **Reports can read the result** — closed-period snapshots and live report reads reflect the implemented reporting rules.
 
 ### Current Limitations
 
-1. **No automatic journal posting** — All journals manually posted
-
-2. **Period close manual** — Requires manual request/approve/finalize workflow
-
-3. **No scheduled reconciliation** — Must be run manually
-
-4. **Correction via reversal only** — Posted journals cannot be edited, only reversed
-
-5. **Opening balance limited** — Basic import only, complex migrations require custom work
-
-6. **Tally import basic** — Limited to standard Tally XML format
-
-7. **No automatic GST return filing** — Just reconciliation, no filing integration
+1. **No separate finalize route** — approval is the close completion step.
+2. **No dealer/supplier-specific reconciliation routes** — AR/AP reconciliation is exposed through the combined subledger route.
+3. **Tally XML remains legacy migration support** — use opening-balance import for current controlled opening balance work.
+4. **Reopen is super-admin-only** — close is maker-checker; reopen is a controlled privileged correction route.
 
 ---
 
@@ -253,19 +189,31 @@ The flow is complete when:
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `POST /api/v1/accounting/journals` | `AccountingController` | Manual journal creation |
-| `POST /api/v1/accounting/journals/{id}/post` | `AccountingController` | Journal posting |
-| `POST /api/v1/accounting/periods/{id}/close-*` | `AccountingController` | Period close workflow |
-| `POST /api/v1/accounting/reconciliation/sessions` | `AccountingController` | Bank reconciliation |
-| `GET /api/v1/accounting/reconciliation/*` | `AccountingController` | Sub-ledger reconciliation |
+| `POST /api/v1/accounting/journal-entries` | `JournalController` | Manual journal posting. |
+| `POST /api/v1/accounting/journal-entries/{entryId}/reverse` | `JournalController` | Correction/reversal. |
+| `POST /api/v1/accounting/periods/{periodId}/request-close` | `PeriodController` | Maker close request. |
+| `POST /api/v1/accounting/periods/{periodId}/approve-close` | `PeriodController` | Checker approval closes period. |
+| `POST /api/v1/accounting/periods/{periodId}/reject-close` | `PeriodController` | Checker rejection. |
+| `POST /api/v1/accounting/periods/{periodId}/reopen` | `PeriodController` | Super-admin reopen. |
+| `POST /api/v1/accounting/reconciliation/bank/sessions` | `ReconciliationController` | Bank reconciliation draft/session. |
+| `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` | `ReconciliationController` | Update matched items. |
+| `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete` | `ReconciliationController` | Complete bank session. |
+| `GET /api/v1/accounting/reconciliation/subledger` | `ReconciliationController` | AR/AP reconciliation. |
+| `POST /api/v1/accounting/reconciliation/discrepancies/{discrepancyId}/resolve` | `ReconciliationController` | Discrepancy resolution. |
 
-### Non-Canonical / Deprecated Paths
+### Non-Canonical / Retired Paths
 
-| Path | Status | Notes |
+| Path | Status | Replacement |
 | --- | --- | --- |
-| Direct period reopen from CLOSED | Not supported | Closed periods cannot be reopened |
-| Editing posted journals | Not supported | Must reverse and re-create |
-| Automatic journal posting | Not implemented | Manual posting required |
+| Direct period close route | Not exposed | Request close, then approve close. |
+| Legacy close-request alias | Stale alias | `/api/v1/accounting/periods/{periodId}/request-close` |
+| Legacy close-approve alias | Stale alias | `/api/v1/accounting/periods/{periodId}/approve-close` |
+| Legacy close-finalize alias | Not exposed | No separate finalize route; approval closes. |
+| Legacy bank-session prefix without `/bank` | Stale alias | `/api/v1/accounting/reconciliation/bank/sessions/**` |
+| Legacy bank-session match/unmatch aliases | Not exposed | `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` |
+| Dealer-specific reconciliation alias | Not exposed | `GET /api/v1/accounting/reconciliation/subledger` |
+| Supplier-specific reconciliation alias | Not exposed | `GET /api/v1/accounting/reconciliation/subledger` |
+| Legacy full reconciliation run route | Not exposed | `GET /api/v1/accounting/reconciliation/subledger` and discrepancy routes. |
 
 ---
 
@@ -273,58 +221,42 @@ The flow is complete when:
 
 | Module | Dependency | Direction |
 | --- | --- | --- |
-| `sales` | AR/revenue journals from dispatch, dealer ledger | Trigger (via sales) |
-| `purchasing` | AP journals from purchase invoices, supplier ledger | Trigger (via purchasing) |
-| `inventory` | Adjustment journals, valuation journals | Trigger (via inventory) |
-| `factory` | WIP/cost journals from production | Trigger (via factory) |
-| `hr` | Payroll journals from payroll posting | Trigger (via HR) |
-
-## 8. Event/Listener Boundaries
-
-The accounting/period-close flow is materially affected by internal event bridges that create accounting entries from other modules:
-
-| Event | Listener | Phase | Effect on Accounting |
-| --- | --- | --- | --- |
-| `InventoryMovementEvent` | `InventoryAccountingEventListener` | `AFTER_COMMIT` | Inventory movements (including raw material receipts from P2P GRN and finished goods from manufacturing) automatically create valuation journal entries. This affects period-end inventory asset values. |
-| `InventoryValuationChangedEvent` | `InventoryAccountingEventListener` | `AFTER_COMMIT` | Raw material and finished goods valuation changes trigger accounting entries, affecting cost of goods sold and inventory asset values. |
-| `JournalEntryPostedEvent` | `JournalEntryPostedAuditListener` | `AFTER_COMMIT` (`fallbackExecution = true`) | Core audit trail marker is created when journals are posted, enabling audit trail lookups during period close verification. |
-
-**Key boundary notes:**
-- The `InventoryAccountingEventListener` is conditional on `erp.inventory.accounting.events.enabled` (default: `true`). If disabled, inventory movements silently skip accounting side effects, causing period-end inventory balances to be incomplete.
-- These event bridges run in `REQUIRES_NEW` transactions, meaning accounting entries are committed independently of the source transaction. This provides resilience but also means event failures do not roll back the source operation.
-- See [orchestrator.md](../modules/orchestrator.md) for the full event bridge map and configuration-guarded risks.
+| `sales` | Dispatch, invoice, AR, dealer ledger, receipt/settlement events | Trigger/write through accounting |
+| `purchasing` | GRN, purchase invoice, AP, supplier settlement events | Trigger/write through accounting |
+| `inventory` | Opening stock, adjustments, landed cost, revaluation, WIP | Trigger/write through accounting |
+| `factory` | Production WIP and cost allocation | Trigger/write through accounting |
+| `reports` | Period snapshots, live journals, reconciliation outputs | Read |
 
 ---
 
-## 9. Security Considerations
+## 8. Security Considerations
 
-- **RBAC** — Admin for period management, Accounting for daily operations
-- **Company scoping** — All operations scoped to tenant
-- **Period state enforcement** — Cannot post to closed/locked periods
-- **Maker-checker** — Period close requires multiple roles
-
----
-
-## 10. Related Documentation
-
-- [docs/modules/MODULE-INVENTORY.md](../modules/MODULE-INVENTORY.md) — Accounting module reference
-- [docs/modules/reports.md](../modules/reports.md) — Reporting module for period reports
-- [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
-- [docs/developer/accounting-flows/](../developer/accounting-flows/) — Internal accounting documentation
-
-### Relevant ADRs
-- [ADR-004-layered-audit-surfaces.md](../adrs/ADR-004-layered-audit-surfaces.md) — Audit trail layers (period close relies on JournalEntryPostedAuditListener for audit verification)
-- [ADR-005-flyway-v2-hard-cut-migration-posture.md](../adrs/ADR-005-flyway-v2-hard-cut-migration-posture.md) — Migration posture (period-end data integrity depends on v2 migration completion)
+- **RBAC** — accounting operations require `ROLE_ADMIN` or `ROLE_ACCOUNTING`; close approval requires `ROLE_ADMIN`; reopen requires `ROLE_SUPER_ADMIN`.
+- **Tenant scoping** — period, journal, reconciliation, and report reads are company-scoped.
+- **Maker-checker** — close request and close approval are separated.
+- **Posted-truth immutability** — posted journals are corrected with counter-entries, not edited in place.
+- **Auditability** — close, reopen, reconciliation, and journal correction actions record explicit evidence.
 
 ---
 
-## 11. Known Limitations
+## 9. Related Documentation
+
+- [Accounting Workflow Architecture](accounting-workflow-architecture.md) — connected accounting architecture for client sharing
+- [Reporting / Export Flow](reporting-export.md) — reports and export approvals
+- [Invoice / Dealer Finance Flow](invoice-dealer-finance.md) — settlement and dealer finance reads
+- [docs/modules/reports.md](../modules/reports.md) — reporting module packet
+- [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — flow inventory
+
+---
+
+## 10. Known Limitations
 
 > **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
 
 | Decision | Notes |
 | --- | --- |
-| Automatic journal posting | Not implemented. Manual posting required. |
-| Scheduled reconciliation | Not implemented. Manual run required. |
-| Automatic GST filing | Not implemented. Reconciliation only. |
-| Edit posted journals | Not supported. Reversal required to correct posted entries. |
+| Close finalization route | Not implemented; approval closes. |
+| Scheduled reconciliation | Not implemented; reconciliation is operator-driven. |
+| Automatic GST filing | Not implemented; GST return/reconciliation are backend reads. |
+| Edit posted journals | Not supported; reversal/correction is required. |
+| Reopen maker-checker | Not implemented; reopen is super-admin-only by design. |

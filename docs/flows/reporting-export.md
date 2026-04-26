@@ -1,10 +1,10 @@
 # Reporting / Export Flow
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-26
 
-This packet documents the **reporting and export flow**: the canonical lifecycle for financial reports, operational reports, and the export request/approval workflow. It covers trial balance, P&L, balance sheet, cash flow, GST, aging reports, inventory reports, production reports, and the export approval gate.
+This packet documents the **reporting and export flow**: financial report reads, account statements, workflow shortcut guidance, and the export approval/download gate. It is written for client and implementation readers who need the current shipped behavior, not a list of planned or retired routes.
 
-This flow is **behavior-first** and **code-grounded**. Where the backend is incomplete, blocked, or intentionally partial, the packet explicitly states the current limitation instead of presenting partial behavior as complete.
+Reports and exports are part of the connected accounting system. Reports read accounting-owned truth; export decisions are controlled by the tenant-admin approval inbox; sensitive disclosure remains role-gated.
 
 ---
 
@@ -12,10 +12,10 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 | Actor | Role | Authorization Scope |
 | --- | --- | --- |
-| **Admin** | Full reporting and export access | `ROLE_ADMIN` |
-| **Accounting** | Financial reports, export approval | `ROLE_ACCOUNTING` |
-| **Sales** | Sales-related reports | `ROLE_SALES` |
-| **Factory** | Production reports | `ROLE_FACTORY` |
+| **Admin** | Finance/report operator and export approver | `ROLE_ADMIN` |
+| **Accounting** | Finance/report operator and export requester | `ROLE_ACCOUNTING` |
+
+`ReportController` and `WorkflowShortcutController` are guarded by the shared report/accounting disclosure policy. Current report routes under `/api/v1/reports/**` require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
 
 ---
 
@@ -25,51 +25,56 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Trial Balance | GET | `/api/v1/reports/trial-balance` | ADMIN, ACCOUNTING | Trial balance report |
-| Profit & Loss | GET | `/api/v1/reports/profit-loss` | ADMIN, ACCOUNTING | Income statement |
-| Balance Sheet | GET | `/api/v1/reports/balance-sheet` | ADMIN, ACCOUNTING | Balance sheet |
-| Balance Sheet Hierarchy | GET | `/api/v1/reports/balance-sheet/hierarchy` | ADMIN, ACCOUNTING | Hierarchical view |
-| Cash Flow | GET | `/api/v1/reports/cash-flow` | ADMIN, ACCOUNTING | Cash flow statement |
-| GST Return | GET | `/api/v1/reports/gst-return` | ADMIN, ACCOUNTING | GST return data |
+| Trial Balance | GET | `/api/v1/reports/trial-balance` | ADMIN, ACCOUNTING | Trial balance report; supports period/range/as-of inputs. |
+| Profit & Loss | GET | `/api/v1/reports/profit-loss` | ADMIN, ACCOUNTING | Income statement; reads live journal truth. |
+| Balance Sheet | GET | `/api/v1/reports/balance-sheet` | ADMIN, ACCOUNTING | Balance sheet; supports period/range/as-of inputs. |
+| Balance Sheet Hierarchy | GET | `/api/v1/reports/balance-sheet/hierarchy` | ADMIN, ACCOUNTING | Hierarchical balance sheet. |
+| Income Statement Hierarchy | GET | `/api/v1/reports/income-statement/hierarchy` | ADMIN, ACCOUNTING | Hierarchical income statement. |
+| Cash Flow | GET | `/api/v1/reports/cash-flow` | ADMIN, ACCOUNTING | Cash flow statement. |
+| GST Return | GET | `/api/v1/reports/gst-return` | ADMIN, ACCOUNTING | GST return report data. |
+| Account Statement | GET | `/api/v1/reports/account-statement?accountId={accountId}` | ADMIN, ACCOUNTING | Account activity statement by account id and optional dates. |
 
-### Operational Reports — `ReportController` (`/api/v1/reports/**`)
-
-| Entrypoint | Method | Path | Actor | Purpose |
-| --- | --- | --- | --- | --- |
-| Aged Debtors | GET | `/api/v1/reports/aged-debtors` | ADMIN, ACCOUNTING | Dealer aging |
-| Aged Receivables | GET | `/api/v1/reports/aging/receivables` | ADMIN, ACCOUNTING | AR aging |
-| Inventory Valuation | GET | `/api/v1/reports/inventory-valuation` | ADMIN, ACCOUNTING, FACTORY | Current valuation |
-| Inventory Valuation (as-of) | GET | `/api/v1/reports/inventory-valuation?date={date}` | ADMIN, ACCOUNTING | Historical valuation |
-| Inventory Reconciliation | GET | `/api/v1/reports/inventory-reconciliation` | ADMIN, ACCOUNTING | Valuation vs GL |
-| Wastage Report | GET | `/api/v1/reports/wastage` | ADMIN, FACTORY | Production wastage |
-| Production Cost | GET | `/api/v1/reports/production-logs/{id}/cost-breakdown` | ADMIN, FACTORY | Cost per log |
-| Monthly Production Costs | GET | `/api/v1/reports/monthly-production-costs?year={year}&month={month}` | ADMIN, FACTORY | Monthly aggregation |
-
-### Dashboard Reports — `ReportController` (`/api/v1/reports/**`)
+### Operational Accounting Reports — `ReportController` (`/api/v1/reports/**`)
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Reconciliation Dashboard | GET | `/api/v1/reports/reconciliation-dashboard` | ADMIN, ACCOUNTING | Bank reconciliation view |
-| Balance Warnings | GET | `/api/v1/reports/balance-warnings` | ADMIN, ACCOUNTING | Anomalous balances |
+| Aged Debtors | GET | `/api/v1/reports/aged-debtors` | ADMIN, ACCOUNTING | Dealer aging rollup. |
+| Aged Receivables | GET | `/api/v1/reports/aging/receivables` | ADMIN, ACCOUNTING | AR aging from accounting read model. |
+| Inventory Valuation | GET | `/api/v1/reports/inventory-valuation` | ADMIN, ACCOUNTING | Current or as-of inventory valuation. |
+| Inventory Reconciliation | GET | `/api/v1/reports/inventory-reconciliation` | ADMIN, ACCOUNTING | Inventory valuation compared to GL. |
+| Product Costing | GET | `/api/v1/reports/product-costing?itemId={itemId}` | ADMIN, ACCOUNTING | Per-unit product cost breakdown. |
+| Cost Allocation | GET | `/api/v1/reports/cost-allocation` | ADMIN, ACCOUNTING | Factory cost allocation history. |
+| Wastage Report | GET | `/api/v1/reports/wastage` | ADMIN, ACCOUNTING | Production wastage report. |
+| Production Cost | GET | `/api/v1/reports/production-logs/{id}/cost-breakdown` | ADMIN, ACCOUNTING | Cost breakdown for a production log. |
+| Monthly Production Costs | GET | `/api/v1/reports/monthly-production-costs` | ADMIN, ACCOUNTING | Monthly production cost rows or period aggregate. |
+| Reconciliation Dashboard | GET | `/api/v1/reports/reconciliation-dashboard` | ADMIN, ACCOUNTING | Bank reconciliation dashboard. |
+| Balance Warnings | GET | `/api/v1/reports/balance-warnings` | ADMIN, ACCOUNTING | Anomalous balance warnings. |
 
-### Export Workflow — `ReportController` (`/api/v1/exports/**`)
+### Workflow Shortcuts — `WorkflowShortcutController`
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Request Export | POST | `/api/v1/exports/request` | ADMIN, ACCOUNTING | Request report export |
-| Get Export Status | GET | `/api/v1/exports/{requestId}` | ADMIN, ACCOUNTING | Check status |
-| Download Export | GET | `/api/v1/exports/{requestId}/download` | ADMIN, ACCOUNTING | Download file |
-| Approve Export | POST | `/api/v1/exports/{requestId}/approve` | ADMIN | Approve export |
-| Reject Export | POST | `/api/v1/exports/{requestId}/reject` | ADMIN | Reject export |
+| Connected Workflow Shortcuts | GET | `/api/v1/reports/workflow-shortcuts` | ADMIN, ACCOUNTING | Returns guided step lists for order-to-invoice, procure-to-pay, and period-close/reconciliation. |
 
-### Statement Exports — Various Controllers
+### Export Workflow — `ReportController` + `AdminApprovalController`
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Dealer Statement PDF | GET | `/api/v1/accounting/statements/dealers/{dealerId}/pdf` | ADMIN | Download statement |
-| Supplier Statement PDF | GET | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | ADMIN | Download statement |
-| Dealer Aging PDF | GET | `/api/v1/accounting/aging/dealers/{dealerId}/pdf` | ADMIN | Download aging |
-| Supplier Aging PDF | GET | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | ADMIN | Download aging |
+| Request Export | POST | `/api/v1/exports/request` | ADMIN, ACCOUNTING | Create an export request for a supported report type. |
+| Approval Inbox | GET | `/api/v1/admin/approvals` | Tenant ADMIN | Review pending approval rows including export requests. |
+| Approval Decision | POST | `/api/v1/admin/approvals/{originType}/{id}/decisions` | Tenant ADMIN | Approve or reject an approval item such as `EXPORT_REQUEST`. |
+| Download Export | GET | `/api/v1/exports/{requestId}/download` | Requesting ADMIN or ACCOUNTING | Download after approval or explicit approval-gate bypass. |
+
+There is no standalone export status endpoint, and there are no direct export approve/reject routes. Approval decisions belong to the canonical approval inbox.
+
+### Statement and Aging Exports
+
+| Entrypoint | Method | Path | Actor | Purpose |
+| --- | --- | --- | --- | --- |
+| Supplier Statement PDF | GET | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | ADMIN | Download supplier statement PDF. |
+| Supplier Aging PDF | GET | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | ADMIN | Download supplier aging PDF. |
+
+Dealer finance disclosure uses internal finance reads under `/api/v1/portal/finance/**` and dealer self-service reads under `/api/v1/dealer-portal/**`. Dealer statement/aging PDF aliases under `/api/v1/accounting/statements/dealers/**` or `/api/v1/accounting/aging/dealers/**` are not current backend surfaces.
 
 ---
 
@@ -77,27 +82,21 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 ### Financial Report Preconditions
 
-1. **Period exists** — valid period ID or date range
-2. **Period open or closed** — closed periods use snapshot, open periods use live
-3. **RBAC** — ADMIN or ACCOUNTING role required
+1. **Authenticated tenant context** — every report is scoped to the caller's company.
+2. **RBAC** — `ROLE_ADMIN` or `ROLE_ACCOUNTING` is required.
+3. **Valid filters** — period ids, date ranges, `accountId`, or `itemId` must match the selected report.
 
 ### Export Request Preconditions
 
-1. **Report type valid** — supported report type
-2. **Parameters valid** — date range, period, etc.
-3. **Idempotency optional** — can provide Idempotency-Key header
-
-### Export Download Preconditions
-
-1. **Export request exists** — valid request ID
-2. **File ready** — status is READY
-3. **Approved if required** — if exportApprovalRequired enabled, must be APPROVED
+1. **Report type and parameters** — the request body names the report type and serialized parameters.
+2. **Requester ownership** — the created export belongs to the requesting user.
+3. **Approval setting** — if export approval is required, download is blocked until approval.
 
 ### Export Approval Preconditions
 
-1. **Request exists** — valid request ID
-2. **Status PENDING_APPROVAL** — waiting for approval
-3. **ADMIN role** — only ADMIN can approve/reject
+1. **Approval inbox item exists** — export approvals appear with `originType=EXPORT_REQUEST`.
+2. **Tenant admin actor** — tenant `ROLE_ADMIN` decides; platform super-admin is not the tenant-admin approval actor.
+3. **Decision payload** — decision is `APPROVE` or `REJECT`; reason is accepted where the origin rules require or allow it.
 
 ---
 
@@ -106,60 +105,37 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 ### 4.1 Financial Report Lifecycle
 
 ```
-[Start] → Validate RBAC → Resolve period/window → 
-[If closed: Read snapshot] or [If open: Read live journals] → 
-Format output → [End: Report data]
+[Start] → Validate tenant + role → Resolve report filters →
+Read accounting/reporting source truth → Return report DTO
 ```
 
 **Key behaviors:**
-- **Trial Balance**: Closed = snapshot, Open = live journals
-- **P&L**: Always reads live journals (no snapshot branch)
-- **Balance Sheet**: Closed = snapshot + current earnings, Open = live + current earnings
-- **Cash Flow**: Heuristic classification, no date filtering, always live
 
-### 4.2 Operational Report Lifecycle
+- Trial balance uses period/range/as-of report queries and closed-period snapshot behavior where implemented.
+- Profit & Loss reads live journal truth, including for closed periods.
+- Balance Sheet supports snapshot/live branching where implemented.
+- Account statement is a canonical account-level report keyed by `accountId`.
+- Cash flow is available to admin/accounting but remains a sensitive finance report.
 
-```
-[Start] → Validate RBAC → Resolve parameters → 
-Query source data → Format output → [End: Report data]
-```
-
-**Key behaviors:**
-- **Aged Debtors**: From DealerLedgerRepository (dealer-centric)
-- **Aged Receivables**: From JournalLineRepository (account-centric) — different source!
-- **Inventory Valuation**: From InventoryValuationService (batch-based)
-- **Inventory Reconciliation**: Compares inventory valuation vs GL inventory account
-
-### 4.3 Export Request Lifecycle
+### 4.2 Export Approval Lifecycle
 
 ```
-[Start] → Validate report type → Create request → 
-[End: PENDING_APPROVAL]
-
-[PENDING_APPROVAL] → Approve → [APPROVED]
-[PENDING_APPROVAL] → Reject → [REJECTED]
-
-[APPROVED] → Generate file → [READY]
-[REJECTED] → (if approval disabled, still downloadable)
+Report user requests export → Export request PENDING →
+Tenant admin reviews inbox → Tenant admin posts decision →
+Requester retries download → Approved or bypass-allowed download returns file
 ```
 
 **Key behaviors:**
-- **Export approval gate**: If system setting `exportApprovalRequired` enabled, blocks REJECTED downloads
-- **If disabled**: Returns download even for REJECTED (with informational message)
-- **Admin bypass**: Statement and aging PDFs bypass approval workflow
 
-### 4.4 GST Return Lifecycle
+- The export request route returns the export request identity; callers should keep that id.
+- The approval inbox route is the decision surface for tenant-admin review.
+- The download route is the only current export retrieval route.
+- If approval is required and the request is not approved, download is denied.
+- If approval is disabled in settings, the backend may allow the download without an approved status; that is a backend policy outcome, not a frontend override.
 
-```
-[Start] → Validate period → Aggregate sales GST (output) → 
-Aggregate purchase GST (input) → Apply returned quantity ratio → 
-Calculate net liability → [End: GST data]
-```
+### 4.3 Workflow Shortcut Lifecycle
 
-**Key behaviors:**
-- Output tax from sales journal lines
-- Input tax from purchase journal lines
-- Line-level GST components preferred, falls back to aggregate split
+`GET /api/v1/reports/workflow-shortcuts` returns connected step lists. The implemented draft/resume capability is bank reconciliation: create a bank reconciliation session, read it back while `IN_PROGRESS`, and complete it to promote the work.
 
 ---
 
@@ -167,28 +143,17 @@ Calculate net liability → [End: GST data]
 
 The flow is complete when:
 
-1. **Report Generated** — Data returned for the requested report type
-2. **Export Requested** — Export request created with status
-3. **Export Approved** — Request approved (if approval required)
-4. **Export Ready** — File generated and available for download
+1. **Report Generated** — the selected report returns for the tenant and authorized role.
+2. **Export Requested** — `POST /api/v1/exports/request` creates a request.
+3. **Export Decided** — a tenant admin applies a decision through `/api/v1/admin/approvals/{originType}/{id}/decisions`, when approval is required.
+4. **Export Downloaded** — `GET /api/v1/exports/{requestId}/download` returns the file or a controlled denial.
 
 ### Current Limitations
 
-1. **P&L has no snapshot branch** — Data can change even for closed periods
-
-2. **Cash flow has no date filtering** — Returns all-time data, not filtered by period
-
-3. **Cash flow heuristic classification** — Relies on pattern matching, may miscategorize
-
-4. **Aging has split ownership** — Two different endpoints may return inconsistent data
-
-5. **Balance sheet date behavior drift** — After period rows seeded, date param may behave like activity instead of cumulative balance
-
-6. **Reconciliation dashboard tied to sessions** — Only shows current session, no historical
-
-7. **Inventory reconciliation no date filter** — Always returns current state
-
-8. **Export approval configurable** — Can be bypassed when disabled
+1. **No standalone export status endpoint** — the current contract uses create, approval inbox, and download routes.
+2. **No direct export approve/reject routes** — decisions are made through the approval inbox route only.
+3. **Cash flow remains a sensitive live report** — use it as a finance disclosure, not as an ungated operational summary.
+4. **Dealer statement PDFs are not exposed under accounting statement/aging aliases** — use portal finance or dealer portal reads for dealer finance disclosure.
 
 ---
 
@@ -198,20 +163,26 @@ The flow is complete when:
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `GET /api/v1/reports/trial-balance` | `ReportController` | Trial balance with snapshot/live branching |
-| `GET /api/v1/reports/balance-sheet` | `ReportController` | Balance sheet |
-| `GET /api/v1/reports/gst-return` | `ReportController` | GST return |
-| `POST /api/v1/exports/request` | `ReportController` | Export request |
-| `GET /api/v1/exports/{id}/download` | `ReportController` | Export download |
+| `GET /api/v1/reports/trial-balance` | `ReportController` | Trial balance report. |
+| `GET /api/v1/reports/profit-loss` | `ReportController` | Live P&L report. |
+| `GET /api/v1/reports/balance-sheet` | `ReportController` | Balance sheet report. |
+| `GET /api/v1/reports/account-statement` | `ReportController` | Account statement by `accountId`. |
+| `GET /api/v1/reports/workflow-shortcuts` | `WorkflowShortcutController` | Connected workflow guidance. |
+| `POST /api/v1/exports/request` | `ReportController` | Export request. |
+| `GET /api/v1/admin/approvals` | `AdminApprovalController` | Approval inbox. |
+| `POST /api/v1/admin/approvals/{originType}/{id}/decisions` | `AdminApprovalController` | Approval decision. |
+| `GET /api/v1/exports/{requestId}/download` | `ReportController` | Export download. |
 
-### Non-Canonical / Deprecated Paths
+### Non-Canonical / Retired Paths
 
-| Path | Status | Notes |
+| Path | Status | Replacement |
 | --- | --- | --- |
-| `GET /api/v1/reports/cash-flow` | Non-canonical | No date filtering, heuristic classification |
-| `GET /api/v1/reports/aged-debtors` vs `/api/v1/reports/aging/receivables` | Split ownership | May be inconsistent |
-| `GET /api/v1/reports/account-statement` | Non-canonical | Returns dealer-only rollup, name suggests more |
-| Audit digest CSV export | Deprecated | Use standard export workflow |
+| Standalone export status route | Not exposed | Keep the created id; use inbox and download route. |
+| Direct export approve route | Not exposed | `POST /api/v1/admin/approvals/EXPORT_REQUEST/{id}/decisions` |
+| Direct export reject route | Not exposed | `POST /api/v1/admin/approvals/EXPORT_REQUEST/{id}/decisions` |
+| Export-specific tenant-admin approve/reject aliases | Retired approval aliases | `POST /api/v1/admin/approvals/EXPORT_REQUEST/{id}/decisions` |
+| Export-specific pending list alias | Retired pending alias | `GET /api/v1/admin/approvals` |
+| Dealer statement/aging PDFs under `/api/v1/accounting/statements/dealers/**` or `/aging/dealers/**` | Not current backend surface | `/api/v1/portal/finance/**` for internal dealer finance and `/api/v1/dealer-portal/**` for dealer self-service. |
 
 ---
 
@@ -219,63 +190,41 @@ The flow is complete when:
 
 | Module | Dependency | Direction |
 | --- | --- | --- |
-| `accounting` | Journal lines, periods, snapshots, dealer/supplier ledgers | Read |
-| `inventory` | Stock batches, valuation data | Read |
-| `factory` | Production logs, cost data | Read |
-| `sales` | Commercial data for operational reports | Read |
-| `admin` | Export approval service | Read |
+| `accounting` | Journal lines, periods, snapshots, account activity, dealer/supplier ledgers | Read |
+| `inventory` | Stock batches and valuation data | Read |
+| `factory` | Production logs and costing data | Read |
+| `sales` | Dealer and commercial data for receivables/aging context | Read |
+| `admin` | Approval inbox and decision workflow for sensitive export requests | Write/read |
 
 ---
 
-## 8. Event/Listener Boundaries
+## 8. Security Considerations
 
-The reporting/export flow consumes data from upstream modules and enforces an approval gate on sensitive exports:
-
-| Event | Listener | Phase | Effect on Reporting |
-| --- | --- | --- | --- |
-| `JournalEntryPostedEvent` | Report queries | Read-time | Financial reports (trial balance, P&L, balance sheet) read journal entries. For open periods, they read live data; for closed periods, they may read snapshots. This means report accuracy depends on journal posting completion. |
-| Export request status change | Export audit | Sync | Export download activity is audit-logged for compliance. Approve/reject actions are tracked. |
-
-**Access-control boundaries:**
-
-| Boundary | Description |
-| --- | --- |
-| **Export approval gate** | If system setting `exportApprovalRequired` is enabled, exports must be APPROVED before download. ADMIN approves/rejects. If disabled, exports are downloadable even in REJECTED status (with informational message). |
-| **RBAC** | Reports require ADMIN or ACCOUNTING roles. |
-| **Statement PDFs bypass approval** | Dealer and supplier statement PDFs, aging PDFs bypass the approval workflow entirely—they are directly downloadable by ADMIN. |
-| **Split aging ownership** | `GET /api/v1/reports/aged-debtors` (DealerLedgerRepository) vs `GET /api/v1/reports/aging/receivables` (JournalLineRepository) may return inconsistent data—this is a known architectural split. |
-
-**Key boundary note:** Reports are consumers of data created by other flows. For closed periods, reports read snapshot data which is stable. For open periods, reports read live journals which can change. This is a fundamental source-of-truth distinction that affects report interpretation—users should understand whether they're viewing stable closed-period data or dynamic open-period data.
+- **RBAC** — report and export request/download routes require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
+- **Company scoping** — report and export records are tenant-scoped.
+- **Requester-owned download** — export download checks the request belongs to the authenticated requester.
+- **Approval gate** — when enabled, non-approved exports are denied at download time.
+- **Admin-only PDFs** — supplier statement and supplier aging PDF exports require `ROLE_ADMIN`.
 
 ---
 
-## 9. Security Considerations
+## 9. Related Documentation
 
-- **RBAC** — ADMIN and ACCOUNTING roles required
-- **Company scoping** — All reports scoped to tenant
-- **Export audit logging** — Download activity logged
-- **Export approval gate** — Configurable approval requirement (see Event/Listener section)
-
----
-
-## 10. Related Documentation
-
-- [docs/modules/reports.md](../modules/reports.md) — Reports module canonical packet
-- [docs/modules/inventory.md](../modules/inventory.md) — Inventory module
-- [docs/modules/factory.md](../modules/factory.md) — Factory module
-- [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
-- [docs/developer/accounting-flows/07-reports-truth-sources.md](../developer/accounting-flows/07-reports-truth-sources.md) — Truth source mapping
+- [Accounting Workflow Architecture](accounting-workflow-architecture.md) — client-shareable connected accounting architecture
+- [Accounting / Period Close Flow](accounting-period-close.md) — period close and reconciliation workflow
+- [Invoice / Dealer Finance Flow](invoice-dealer-finance.md) — dealer finance reads and settlement linkage
+- [docs/modules/reports.md](../modules/reports.md) — Reports module packet
+- [docs/frontend-api/exports-and-approvals.md](../frontend-api/exports-and-approvals.md) — frontend-facing export and approval contract
 
 ---
 
-## 11. Known Limitations
+## 10. Known Limitations
 
 > **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
 
 | Decision | Notes |
 | --- | --- |
-| P&L snapshot branch | Not implemented. Always returns live data. |
-| Cash flow date filtering | Not implemented. Returns all-time data. |
-| Cash flow explicit tagging | Not implemented. Uses heuristic classification only. |
-| Unified aging source | Not implemented. Split ownership remains. |
-| Historical reconciliation | Not implemented. Current session only. |
+| P&L snapshot branch | Not implemented. P&L reads live journal truth. |
+| Standalone export status endpoint | Not implemented. Use the created request id and canonical download route. |
+| Direct export approval aliases | Retired/not exposed. Use the approval inbox decision route. |
+| Dealer statement PDF aliases under accounting | Not exposed. Use portal finance/dealer portal reads for dealer finance and supplier PDF routes for supplier exports. |
