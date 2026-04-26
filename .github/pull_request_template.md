@@ -82,7 +82,7 @@ Paste test output here
 <!-- Check if this PR touches high-risk areas -->
 - [ ] This PR touches high-risk paths (auth, company, RBAC, HR, accounting, orchestrator, or `db/migration_v2`)
 - [ ] R2 checkpoint evidence added to `docs/approvals/R2-CHECKPOINT.md`
-- [ ] Enterprise policy check passed (`bash ci/check-enterprise-policy.sh`)
+- [ ] High-Risk Change Control passed (`bash ci/check-high-risk-changes.sh`)
 
 ## Screenshots (If Applicable)
 <!-- Add screenshots for UI changes -->

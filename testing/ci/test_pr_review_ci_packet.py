@@ -446,10 +446,11 @@ class RuntimeProbeContractTest(unittest.TestCase):
     def test_pr_ci_parity_merge_gate_blocks_failed_jobs(self):
         blocking = pr_ci_parity.evaluate_merge_gate(
             {
+                "ci-config-check": "success",
                 "knowledgebase-lint": "success",
                 "architecture-check": "success",
-                "enterprise-policy-check": "failure",
-                "orchestrator-layer-check": "success",
+                "high-risk-change-control": "failure",
+                "secrets-scan": "success",
                 "pr-risk-router": "success",
                 "pr-build": "success",
                 "pr-auth-tenant": "skipped",
@@ -465,11 +466,46 @@ class RuntimeProbeContractTest(unittest.TestCase):
 
         self.assertEqual(
             {
-                "enterprise-policy-check": "failure",
+                "high-risk-change-control": "failure",
                 "pr-changed-coverage": "failure",
             },
             blocking,
         )
+
+    def test_ci_pr_ship_gate_uses_readable_statuses_and_secret_scan(self):
+        ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        security_workflow = (REPO_ROOT / ".github" / "workflows" / "security-review.yml").read_text(encoding="utf-8")
+
+        self.assertIn("name: Change Impact Router", ci_workflow)
+        self.assertIn("name: CI Config Check", ci_workflow)
+        self.assertIn("name: Changed-Code Coverage", ci_workflow)
+        self.assertIn("name: PR Ship Gate", ci_workflow)
+        self.assertIn("bash ci/check-ci-config.sh", ci_workflow)
+        self.assertIn("secrets-scan:", ci_workflow)
+        self.assertIn("gitleaks git .", ci_workflow)
+        self.assertIn("- secrets-scan", ci_workflow)
+        self.assertNotIn("orchestrator-layer-check", ci_workflow)
+        self.assertNotIn("enterprise-policy-check", ci_workflow)
+        self.assertNotIn("check-enterprise-policy.sh", ci_workflow)
+        self.assertNotIn("pull_request:", security_workflow)
+
+    def test_ci_config_check_closes_review_findings(self):
+        ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        ci_config_script = (REPO_ROOT / "ci" / "check-ci-config.sh").read_text(encoding="utf-8")
+        ci_contract = (REPO_ROOT / "docs" / "ci-cd-contract.md").read_text(encoding="utf-8")
+
+        self.assertIn('go-version: "1.25.x"', ci_workflow)
+        self.assertNotIn("go-version: stable", ci_workflow)
+        self.assertIn("exec shellcheck --severity=error", ci_config_script)
+        self.assertIn('actionlint -shellcheck "$shellcheck_wrapper"', ci_config_script)
+        self.assertNotIn("actionlint -shellcheck=", ci_config_script)
+        self.assertIn("Required pull-request status-check API contexts:", ci_contract)
+        self.assertIn("gh api --method PATCH", ci_contract)
+        self.assertIn("`CI Config Check`", ci_contract)
+        self.assertIn("`PR Ship Gate`", ci_contract)
+        self.assertIn("`pr-merge-gate`", ci_contract)
+        self.assertIn("`codex-review-policy`", ci_contract)
+        self.assertIn("`Security Review Gate`", ci_contract)
 
     def test_services_manifest_exposes_pr_ci_parity_command(self):
         services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
@@ -524,12 +560,10 @@ class RuntimeProbeContractTest(unittest.TestCase):
         self.assertIn("guard_dispatch_frontend_handoff_contract.sh", release_proof)
 
     def test_docs_only_lane_includes_factory_library_guidance_packets(self):
-        review_policy = (REPO_ROOT / "scripts" / "enforce_codex_review_policy.sh").read_text(encoding="utf-8")
         agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         workflow = (REPO_ROOT / "docs" / "agents" / "WORKFLOW.md").read_text(encoding="utf-8")
         conventions = (REPO_ROOT / "docs" / "CONVENTIONS.md").read_text(encoding="utf-8")
 
-        self.assertIn(".factory/library/*", review_policy)
         self.assertIn(".factory/library/**", agents)
         self.assertIn(".factory/library/**", workflow)
         self.assertIn(".factory/library/**", conventions)

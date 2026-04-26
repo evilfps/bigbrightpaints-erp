@@ -203,5 +203,5 @@ Rationale:
 - Use direct evidence from the current repo state: canonical docs, retirement registry entries, repo-root surfaces, and governance scripts.
 - Treat canonical spine assertions as link-and-classification checks: follow the reader path from `README.md`, root `ARCHITECTURE.md`, and `docs/INDEX.md` into the current docs spine and record where those paths land.
 - Treat repo-hygiene assertions as retention checks: confirm that any repo-root or docs-root worklog/artifact surface that still exists has an explicit live governance or script reason.
-- Treat docs-only governance assertions as executable-policy checks: compare the policy text in mission/root guidance against `scripts/enforce_codex_review_policy.sh` and record any mismatch.
+- Check docs-only governance assertions as executable-policy checks: compare the policy text in mission/root guidance against `AGENTS.md` and record any mismatch.
 - Safe concurrency boundary: multiple repo-static validators may read the same checkout concurrently, but each validator must write only its own flow report and evidence files.

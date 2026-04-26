@@ -6,13 +6,13 @@ This review inventories the current automated-test layers, the GitHub Actions wo
 
 Primary evidence:
 
-- `.github/workflows/{ci.yml,doc-lint.yml,codex-review.yml,codex-autofix.yml}`
+- `.github/workflows/{ci.yml,doc-lint.yml}`
 - `README.md`
 - `docs/developer-guide.md`
 - `.factory/services.yaml`
 - `erp-domain/pom.xml`
 - `qodana.yaml`
-- `ci/{lint-knowledgebase.sh,check-architecture.sh,check-enterprise-policy.sh,check-orchestrator-layer.sh}`
+- `ci/{check-ci-config.sh,lint-knowledgebase.sh,check-architecture.sh,check-high-risk-changes.sh}`
 - `scripts/{gate_fast.sh,gate_core.sh,gate_release.sh,gate_reconciliation.sh,gate_quality.sh,verify_local.sh,validate_test_catalog.py,check_flaky_tags.py,changed_files_coverage.py,module_coverage_gate.py,pit_mutation_summary.py,flake_rate_gate.py,guard_openapi_contract_drift.sh}`
 - `erp-domain/src/test/java/com/bigbrightpaints/erp/**`
 
@@ -70,9 +70,7 @@ Several suites exist but are not part of the normal CI hard gates:
 | Workflow | Trigger | Purpose | Effective posture |
 | --- | --- | --- | --- |
 | `.github/workflows/ci.yml` | PR, push to `main`, tags, schedule, manual dispatch | Primary repository CI. Runs knowledgebase/policy checks and the `gate-fast`, `gate-core`, `gate-release`, `gate-reconciliation`, and `gate-quality` scripts on different triggers. | **Primary quality workflow**. |
-| `.github/workflows/doc-lint.yml` | PR, push to `main`, manual | Runs `bash ci/lint-knowledgebase.sh`. | Functionally **duplicates** the `knowledgebase-lint` job already present in `ci.yml`. |
-| `.github/workflows/codex-review.yml` | PR, manual | Enforces Codex review policy via `scripts/enforce_codex_review_policy.sh`. | Governance/process workflow, not product-quality evidence. |
-| `.github/workflows/codex-autofix.yml` | Manual | Runs template autofix checks. | Manual helper, not a hard release gate. |
+| `.github/workflows/doc-lint.yml` | Manual | Runs `bash ci/lint-knowledgebase.sh`. | Manual helper; the required PR docs signal is the `Docs Lint` job in `ci.yml`. |
 
 ## Gate classification
 
@@ -80,10 +78,10 @@ Several suites exist but are not part of the normal CI hard gates:
 
 | Gate | Trigger | Main checks | Nominal status | Effective status on this branch |
 | --- | --- | --- | --- | --- |
-| `knowledgebase-lint` | PR, `main`, manual | `ci/lint-knowledgebase.sh` | Hard | Hard, but mostly in compatibility mode because the repo lacks the full canonical knowledgebase contract set. |
+| `ci-config-check` | PR, `main`, release-related runs | GitHub Actions validation and changed shell-script linting | Hard | Hard and fast. |
+| `knowledgebase-lint` | PR, `main`, manual | `ci/lint-knowledgebase.sh` | Hard | Hard. |
 | `architecture-check` | PR, `main` | import-edge allowlist and architecture doc presence | Hard | Hard on obvious failures, but import-edge enforcement relaxes when `agents/catalog.yaml` is absent. |
-| `enterprise-policy-check` | PR, `main`, release-related runs | R2 approval workflow checks for high-risk paths | Hard | Hard, but path-scoped; docs-only/test-only changes mostly bypass it. |
-| `orchestrator-layer-check` | PR, `main` | agent-layer contract validation | Hard | Effectively advisory because the script falls back to compatibility mode when canonical orchestrator-layer files are absent and `.codex/config.toml` exists. |
+| `high-risk-change-control` | PR, `main`, release-related runs | R2 approval workflow checks for high-risk paths | Hard | Hard and path-scoped. |
 | `gate-fast` | PR or manual with `diff_base` | truthsuite critical lane + several contract guards + changed-files coverage summary | Hard | Mixed: the job fails on script/test crashes, but catalog validation, OpenAPI inventory, and changed-files coverage all degrade to compatibility or warning-only behavior in common cases. |
 | `gate-core` | `main` | wider truthsuite lane + fixture matrix + module coverage gate | Hard | Stronger than `gate-fast`; module coverage is a real hard fail. Some documentation-based guards still allow compatibility mode. |
 | `gate-release` | tags, manual release validation | release-grade truth lane, `verify_local.sh`, migration matrix, Flyway guards | Hard | Strongest hard gate, but only on tag/manual paths, not on every PR. |
@@ -127,7 +125,7 @@ Several suites exist but are not part of the normal CI hard gates:
 
 | Redundant or overlapping surface | Evidence | Assessment |
 | --- | --- | --- |
-| `doc-lint.yml` vs `knowledgebase-lint` job in `ci.yml` | both run `bash ci/lint-knowledgebase.sh` | Operational duplication; useful only if the team wants a dedicated doc-only workflow badge. |
+| Manual docs lint workflow vs `Docs Lint` job in `ci.yml` | both run `bash ci/lint-knowledgebase.sh` | Acceptable because only `ci.yml` blocks PRs; the standalone workflow is manual reproduction. |
 | Repeated preflight guards across `gate-fast`, `gate-core`, and `gate-release` | shared scripts for catalog, flaky tags, correlation, OpenAPI, audit/portal guards | Mostly acceptable duplication: it keeps each lane self-contained, but it does lengthen CI time. |
 | Runtime executable-coverage truthsuite vs module/service/controller unit tests | many `truthsuite/runtime/TS_Runtime*ExecutableCoverageTest.java` alongside existing unit/controller tests | This is the biggest signal-overlap problem in the test tree. The tests are not useless, but the hard gate leans too heavily on shallow path coverage. |
 

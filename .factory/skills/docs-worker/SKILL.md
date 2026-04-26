@@ -54,9 +54,8 @@ None.
 3. If the mission `AGENTS.md` or feature description says docs-only packets skip validators, follow that instruction and record the skip explicitly in the handoff instead of running lint/check scripts.
 4. Otherwise run the docs validators relevant to the packet:
    - `bash ci/lint-knowledgebase.sh`
-   - `bash ci/check-enterprise-policy.sh`
+   - `bash ci/check-high-risk-changes.sh`
    - `bash ci/check-architecture.sh`
-   - `bash ci/check-orchestrator-layer.sh`
    Use the narrowest set that proves the packet, but run the packet's required commands from the feature verification steps.
 5. Do not start services or mutate runtime state for this mission unless a feature explicitly requires non-doc evidence.
 6. Verify links, route/host names, role names, DTO names, and deprecated markers against source and `openapi.json`.
@@ -81,7 +80,7 @@ Include:
   "verification": {
     "commandsRun": [
       {"command": "bash ci/lint-knowledgebase.sh", "exitCode": 0, "observation": "Docs tree and canonical governance links remain valid."},
-      {"command": "bash ci/check-enterprise-policy.sh", "exitCode": 0, "observation": "No policy regressions introduced by docs-only changes."}
+      {"command": "bash ci/check-high-risk-changes.sh", "exitCode": 0, "observation": "No policy regressions introduced by docs-only changes."}
     ],
     "interactiveChecks": [
       {"action": "Compared the new auth/company packet against controller routes, service behavior, and mission scope.", "observed": "The packet reflects implemented behavior and explicitly labels caveats instead of presenting them as guarantees."}

@@ -166,7 +166,7 @@ Markdown outside that lane is **not** docs-only. That includes `docs/platform/**
 Docs-only packets:
 
 - run `bash ci/lint-knowledgebase.sh` only
-- skip Codex review/subagent review
+- skip manual review/subagent review
 - skip runtime validators and service startup
 - must not change backend runtime behavior
 

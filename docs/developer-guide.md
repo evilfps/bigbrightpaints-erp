@@ -248,14 +248,16 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 ## CI/CD pipeline overview (`.github/workflows/ci.yml`)
 - Global env: `MIGRATION_SET=v2`
 - PR workflow runs:
-  - `knowledgebase-lint`
-  - `architecture-check`
-  - `enterprise-policy-check`
-  - `orchestrator-layer-check`
-  - `gate-fast` (for PR and manual dispatch with explicit diff base)
-- `main` branch pushes run `gate-core`.
-- Release/tag/manual paths run `gate-release` and `gate-reconciliation`.
-- Scheduled/manual deep checks run `gate-quality`.
+  - `CI Config Check`
+  - `Docs Lint`
+  - `Module Boundary Check`
+  - `High-Risk Change Control`
+  - `Secrets Scan`
+  - changed-file routing, compile/package, routed parallel shards, changed-code coverage, and `PR Ship Gate`
+- `main` branch pushes run `Gate Core`.
+- Release/tag/manual paths run `Gate Release` and `Gate Reconciliation`.
+- Scheduled/manual deep checks run `Gate Quality`.
+- The lane contract lives in [`docs/ci-cd-contract.md`](ci-cd-contract.md).
 
 ---
 

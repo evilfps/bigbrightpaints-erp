@@ -220,9 +220,7 @@ def recommended_tests(conn: sqlite3.Connection, impacted_symbols: List[str], top
 
 
 def guard_recommendations(modules: List[str]) -> List[str]:
-    checks = ["bash ci/check-architecture.sh", "bash ci/check-enterprise-policy.sh"]
-    if any(module in {"auth", "rbac", "company"} for module in modules):
-        checks.append("bash ci/check-orchestrator-layer.sh")
+    checks = ["bash ci/check-architecture.sh", "bash ci/check-high-risk-changes.sh"]
     if any(module in {"accounting", "inventory", "invoice", "purchasing"} for module in modules):
         checks.append("bash scripts/gate_reconciliation.sh")
     if any(module in {"orchestrator", "production", "factory"} for module in modules):

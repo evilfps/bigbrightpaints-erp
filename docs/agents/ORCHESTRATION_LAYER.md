@@ -35,7 +35,7 @@ The orchestrator-erp backend uses an internal orchestrator for background coordi
 
 ## Orchestration Layer Checks
 
-- `bash ci/check-orchestrator-layer.sh` validates orchestrator layer boundaries.
+- The PR ship-safety lane validates orchestrator code through high-risk change control, routed shards, changed-code coverage, and release/main gates.
 - Changes to `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/` trigger enterprise mode controls.
 - The orchestrator layer contract is codified in [agents/orchestrator-layer.yaml](../../agents/orchestrator-layer.yaml).
 

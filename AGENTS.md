@@ -26,15 +26,15 @@ Last reviewed: 2026-04-04
 ## Review Guidelines (Required)
 
 - Use `Factory-droid` as the integration base for remediation packet review unless a packet explicitly states a narrower stacked-review base.
-- Treat a packet as docs-only only when every changed file stays inside the canonical docs/governance lane — repo-root `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`; canonical docs spine files `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`; canonical directories `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`; or the internal worker-guidance lane `.factory/library/**`. In those docs-only lanes, run `bash ci/lint-knowledgebase.sh` only and skip Codex review/subagent/runtime validators.
+- Treat a packet as docs-only only when every changed file stays inside the canonical docs/governance lane — repo-root `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`; canonical docs spine files `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`; canonical directories `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`; or the internal worker-guidance lane `.factory/library/**`. In those docs-only lanes, run `bash ci/lint-knowledgebase.sh` only and skip manual review/subagent/runtime validators.
 - Markdown elsewhere — including `docs/platform/**`, `docs/runbooks/**`, `docs/design/**`, `docs/code-review/**`, `docs/developer/**`, `docs/frontend-update-v2/**`, root worklogs/reports, or mixed markdown-plus-code/config/test/script/OpenAPI changes — is not docs-only.
-- Any runtime, config, schema, or test-impacting packet must pass `bash ci/check-codex-review-guidelines.sh` before it is considered review-ready.
+- Runtime, config, schema, or test-impacting packets must pass the PR ship-safety lane in `.github/workflows/ci.yml`: compile, routed shard tests, changed-code coverage, secrets scan, and any applicable high-risk control.
 - High-risk auth, company, RBAC, HR, accounting, orchestrator, or `erp-domain/src/main/resources/db/migration_v2/` changes must update `docs/approvals/R2-CHECKPOINT.md` in the same packet with scope-specific evidence.
 - Review workers may prepare packet/release-gate evidence and commit docs-only governance fixes, but they must never push, merge, or rewrite history.
 
 ## R2 Escalation Checkpoint
 
-- Trigger R2 whenever the packet touches high-risk paths enforced by `ci/check-enterprise-policy.sh`.
+- Trigger R2 whenever the packet touches high-risk paths enforced by `ci/check-high-risk-changes.sh` / `High-Risk Change Control`.
 - Record the exact scope, approval mode, escalation decision, rollback owner, expiry, and verification evidence in `docs/approvals/R2-CHECKPOINT.md`.
 - Use orchestrator approval for compatibility-preserving high-risk remediation packets; escalate to human approval if the packet widens privileges, changes tenant boundaries, or introduces destructive migration risk.
 - Do not treat degraded runtime evidence as a waiver for product-correctness proof.

@@ -21,10 +21,11 @@ JACOCO_SOURCE = REPO_ROOT / "erp-domain" / "target" / "site" / "jacoco" / "jacoc
 MAVEN_ENV = {"MIGRATION_SET": "v2"}
 
 BASELINE_JOBS = (
+    "ci-config-check",
     "knowledgebase-lint",
     "architecture-check",
-    "enterprise-policy-check",
-    "orchestrator-layer-check",
+    "high-risk-change-control",
+    "secrets-scan",
 )
 
 ROUTED_SHARDS = (
@@ -97,6 +98,24 @@ MERGE_GATE_NEEDS = [
     *(spec["job"] for spec in ROUTED_SHARDS),
     "pr-changed-coverage",
 ]
+
+JOB_LABELS = {
+    "ci-config-check": ("ci-config", "CI Config Check"),
+    "knowledgebase-lint": ("docs", "Docs Lint"),
+    "architecture-check": ("module-boundary", "Module Boundary Check"),
+    "high-risk-change-control": ("high-risk-control", "High-Risk Change Control"),
+    "secrets-scan": ("secrets", "Secrets Scan"),
+    "pr-risk-router": ("ci-routing", "Change Impact Router"),
+    "pr-build": ("compile", "Compile Check"),
+    "pr-auth-tenant": ("product-tests", "Access And Tenant Tests"),
+    "pr-accounting": ("product-tests", "Finance And Accounting Tests"),
+    "pr-idempotency-outbox": ("product-tests", "Idempotency And Outbox Tests"),
+    "pr-business-slice": ("product-tests", "Workflow Integration Tests"),
+    "pr-persistence-smoke": ("product-tests", "Persistence Smoke"),
+    "pr-codered-access": ("security-tests", "CODE-RED Access Tests"),
+    "pr-codered-finance": ("finance-tests", "CODE-RED Finance Tests"),
+    "pr-changed-coverage": ("changed-code-coverage", "Changed-Code Coverage"),
+}
 
 
 def load_module(module_name: str, file_path: Path):
@@ -310,6 +329,11 @@ def skipped_job(name: str, reason: str) -> JobResult:
     return JobResult(name=name, result="skipped", command="", reason=reason)
 
 
+def failed_job(name: str, reason: str) -> JobResult:
+    print(f"[{name}] FAILURE ({reason})")
+    return JobResult(name=name, result="failure", command="", reason=reason)
+
+
 def main() -> int:
     args = parse_args()
     artifacts_dir = Path(args.artifacts_dir).resolve()
@@ -363,14 +387,58 @@ def main() -> int:
             ["bash", str(REPO_ROOT / "ci" / "check-architecture.sh")],
             {"ARCH_DIFF_BASE": base_sha},
         ),
-        "enterprise-policy-check": (
-            ["bash", str(REPO_ROOT / "ci" / "check-enterprise-policy.sh")],
-            {"ENTERPRISE_DIFF_BASE": base_sha},
+        "high-risk-change-control": (
+            ["bash", str(REPO_ROOT / "ci" / "check-high-risk-changes.sh")],
+            {"HIGH_RISK_DIFF_BASE": base_sha},
         ),
-        "orchestrator-layer-check": (["bash", str(REPO_ROOT / "ci" / "check-orchestrator-layer.sh")], {}),
     }
 
     for job_name in BASELINE_JOBS:
+        if job_name == "ci-config-check":
+            if shutil.which("actionlint") is None or shutil.which("shellcheck") is None:
+                results[job_name] = failed_job(
+                    job_name,
+                    "missing_actionlint_or_shellcheck",
+                )
+                continue
+            results[job_name] = execute_job(
+                job_name,
+                ["bash", str(REPO_ROOT / "ci" / "check-ci-config.sh")],
+                logs_dir / f"{job_name}.log",
+                env_overrides={"CI_CONFIG_DIFF_BASE": base_sha},
+                artifacts_dir=artifacts_dir,
+            )
+            continue
+
+        if job_name == "secrets-scan":
+            report_path = artifacts_dir / "gitleaks-report.json"
+            if shutil.which("gitleaks") is None:
+                results[job_name] = failed_job(
+                    job_name,
+                    "missing_gitleaks",
+                )
+                continue
+            results[job_name] = execute_job(
+                job_name,
+                [
+                    "gitleaks",
+                    "git",
+                    ".",
+                    "--config",
+                    ".gitleaks.toml",
+                    "--redact",
+                    "--report-format",
+                    "json",
+                    "--report-path",
+                    str(report_path),
+                    "--log-opts",
+                    f"{base_sha}..{head_sha}",
+                ],
+                logs_dir / f"{job_name}.log",
+                artifacts_dir=artifacts_dir,
+            )
+            continue
+
         command, env_overrides = baseline_commands[job_name]
         results[job_name] = execute_job(
             job_name,
@@ -512,9 +580,10 @@ def main() -> int:
     }
     write_json(artifacts_dir / "pr-merge-gate.json", merge_gate_summary)
     if blocking:
-        print("[pr-merge-gate] FAIL: blocking jobs detected")
+        print("[pr-ship-gate] FAIL: blocking jobs detected")
         for name, status in sorted(blocking.items()):
-            print(f"  - {name}: {status}")
+            blocker_type, label = JOB_LABELS.get(name, ("unknown", name))
+            print(f"  - {label}: {status} [{blocker_type}]")
         results["pr-merge-gate"] = JobResult(
             name="pr-merge-gate",
             result="failure",
@@ -523,7 +592,7 @@ def main() -> int:
             reason=f"blocking jobs: {', '.join(sorted(blocking))}",
         )
     else:
-        print("[pr-merge-gate] OK: all required jobs succeeded or were skipped")
+        print("[pr-ship-gate] OK: all required jobs succeeded or were skipped")
         results["pr-merge-gate"] = JobResult(
             name="pr-merge-gate",
             result="success",
