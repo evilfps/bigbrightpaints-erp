@@ -38,6 +38,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
 @Tag("critical")
@@ -54,6 +55,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   @Autowired private AccountRepository accountRepository;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private ProductionBrandRepository brandRepository;
+  @Autowired private ProductionProductRepository productRepository;
   @Autowired private FinishedGoodRepository finishedGoodRepository;
   @Autowired private RawMaterialRepository rawMaterialRepository;
 
@@ -252,6 +254,119 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     assertThat(data(salesDetail).get("minDiscountPercent"))
         .isEqualTo(first.get("minDiscountPercent"));
     assertThat(data(salesDetail).get("minSellingPrice")).isEqualTo(first.get("minSellingPrice"));
+  }
+
+  @Test
+  void bulkVariantDryRun_returnsDeterministicPreview_withoutPersistingCatalogOrInventoryTruth() {
+    ProductionBrand brand = saveBrand("Bulk Dry Run Brand", true);
+    Map<String, Object> payload = bulkVariantPayload(brand.getId(), "Bulk Dry Run Family");
+    payload.remove("colors");
+    payload.remove("sizes");
+    payload.put(
+        "colorSizeMatrix",
+        List.of(
+            Map.of("color", "BLUE", "sizes", List.of("4L", "1L")),
+            Map.of("color", "WHITE", "sizes", List.of("1L"))));
+
+    ResponseEntity<Map> first = postBulkVariants(payload, true, adminHeaders);
+    ResponseEntity<Map> second = postBulkVariants(payload, true, adminHeaders);
+
+    assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> firstData = data(first);
+    Map<String, Object> secondData = data(second);
+    assertThat(firstData.get("generated")).isEqualTo(secondData.get("generated"));
+    assertThat(firstData.get("wouldCreate")).isEqualTo(firstData.get("generated"));
+    assertThat(listOfMaps(firstData.get("conflicts"))).isEmpty();
+    assertThat(listOfMaps(firstData.get("created"))).isEmpty();
+
+    List<String> skus = variantSkus(firstData.get("generated"));
+    assertThat(skus)
+        .containsExactly(
+            "FG-" + brand.getCode() + "-BULKDRYRUNFAMILY-BLUE-4L",
+            "FG-" + brand.getCode() + "-BULKDRYRUNFAMILY-BLUE-1L",
+            "FG-" + brand.getCode() + "-BULKDRYRUNFAMILY-WHITE-1L");
+    skus.forEach(
+        sku -> {
+          assertThat(productRepository.findByCompanyAndSkuCode(company, sku)).isEmpty();
+          assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku)).isEmpty();
+        });
+  }
+
+  @Test
+  void bulkVariantCommit_persistsOnlyNonConflictingMembers_andRetryDoesNotDuplicateSkus() {
+    ProductionBrand brand = saveBrand("Bulk Commit Brand", true);
+    postCatalogItem(finishedGoodPayload(brand.getId(), "Bulk Commit Family"), adminHeaders);
+    Map<String, Object> payload = bulkVariantPayload(brand.getId(), "Bulk Commit Family");
+    payload.put("colors", List.of("WHITE", "BLUE", "BLUE"));
+    payload.put("sizes", List.of("1L"));
+
+    ResponseEntity<Map> commit = postBulkVariants(payload, false, adminHeaders);
+
+    assertThat(commit.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> data = data(commit);
+    assertThat(variantSkus(data.get("created")))
+        .containsExactly("FG-" + brand.getCode() + "-BULKCOMMITFAMILY-BLUE-1L");
+    assertThat(listOfMaps(data.get("conflicts")))
+        .extracting(conflict -> conflict.get("reason"))
+        .contains("SKU_ALREADY_EXISTS", "DUPLICATE_IN_REQUEST");
+    assertThat(productRepository.findByBrandOrderByProductNameAsc(brand)).hasSize(2);
+    assertThat(
+            finishedGoodRepository.findByCompanyAndProductCode(
+                company, "FG-" + brand.getCode() + "-BULKCOMMITFAMILY-BLUE-1L"))
+        .isPresent();
+
+    ResponseEntity<Map> retry = postBulkVariants(payload, false, adminHeaders);
+
+    assertThat(retry.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(variantSkus(data(retry).get("created"))).isEmpty();
+    assertThat(listOfMaps(data(retry).get("conflicts")))
+        .extracting(conflict -> conflict.get("reason"))
+        .contains("SKU_ALREADY_EXISTS", "DUPLICATE_IN_REQUEST");
+    assertThat(productRepository.findByBrandOrderByProductNameAsc(brand)).hasSize(2);
+  }
+
+  @Test
+  void bulkVariantCommit_keepsPackagingDefaultsAndVariantOverridesExplicitOnEachMember() {
+    ProductionBrand brand = saveBrand("Bulk Packaging Brand", true);
+    Map<String, Object> payload = bulkVariantPayload(brand.getId(), "Bulk Packaging Family");
+    payload.put("colors", List.of("WHITE", "BLUE"));
+    payload.put("sizes", List.of("1L"));
+    payload.put(
+        "packagingDefaults",
+        Map.of("piecesPerCarton", 12, "piecesPerBox", 6, "defaultPackQuantity", 24));
+    payload.put(
+        "packagingOverrides",
+        List.of(
+            Map.of(
+                "color",
+                "BLUE",
+                "size",
+                "1L",
+                "packaging",
+                Map.of("piecesPerCarton", 8, "piecesPerBox", 4, "defaultPackQuantity", 16))));
+
+    ResponseEntity<Map> response = postBulkVariants(payload, false, adminHeaders);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    String whiteSku = "FG-" + brand.getCode() + "-BULKPACKAGINGFAMILY-WHITE-1L";
+    String blueSku = "FG-" + brand.getCode() + "-BULKPACKAGINGFAMILY-BLUE-1L";
+    Long whiteId =
+        productRepository.findByCompanyAndSkuCode(company, whiteSku).orElseThrow().getId();
+    Long blueId = productRepository.findByCompanyAndSkuCode(company, blueSku).orElseThrow().getId();
+    Map<String, Object> whiteMetadata =
+        metadata(data(getCatalogItem(whiteId, false, true, adminHeaders)));
+    Map<String, Object> blueMetadata =
+        metadata(data(getCatalogItem(blueId, false, true, adminHeaders)));
+
+    assertThat(packaging(whiteMetadata, "packagingDefault")).containsEntry("piecesPerCarton", 12);
+    assertThat(packaging(whiteMetadata, "packagingEffective")).containsEntry("piecesPerBox", 6);
+    assertThat(whiteMetadata).doesNotContainKey("packagingOverride");
+    assertThat(packaging(blueMetadata, "packagingDefault")).containsEntry("piecesPerCarton", 12);
+    assertThat(packaging(blueMetadata, "packagingOverride")).containsEntry("piecesPerCarton", 8);
+    assertThat(packaging(blueMetadata, "packagingEffective"))
+        .containsEntry("piecesPerCarton", 8)
+        .containsEntry("piecesPerBox", 4);
   }
 
   @Test
@@ -633,10 +748,42 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     return payload;
   }
 
+  private Map<String, Object> bulkVariantPayload(Long brandId, String baseProductName) {
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("brandId", brandId);
+    payload.put("baseProductName", baseProductName);
+    payload.put("category", "FINISHED_GOOD");
+    payload.put("colors", List.of("WHITE", "BLUE"));
+    payload.put("sizes", List.of("1L", "4L"));
+    payload.put("unitOfMeasure", "LITER");
+    payload.put("hsnCode", "320910");
+    payload.put("basePrice", new BigDecimal("1200.00"));
+    payload.put("gstRate", new BigDecimal("18.00"));
+    payload.put("minDiscountPercent", new BigDecimal("5.00"));
+    payload.put("minSellingPrice", new BigDecimal("1140.00"));
+    payload.put(
+        "metadata",
+        Map.of(
+            "productType", "decorative",
+            "wipAccountId", wipAccountId,
+            "laborAppliedAccountId", laborAppliedAccountId,
+            "overheadAppliedAccountId", overheadAppliedAccountId));
+    return payload;
+  }
+
   private ResponseEntity<Map> postCatalogItem(
       Map<String, Object> payload, HttpHeaders requestHeaders) {
     return rest.exchange(
         "/api/v1/catalog/items",
+        HttpMethod.POST,
+        new HttpEntity<>(payload, requestHeaders),
+        Map.class);
+  }
+
+  private ResponseEntity<Map> postBulkVariants(
+      Map<String, Object> payload, boolean dryRun, HttpHeaders requestHeaders) {
+    return rest.exchange(
+        "/api/v1/catalog/items/bulk-variants?dryRun=" + dryRun,
         HttpMethod.POST,
         new HttpEntity<>(payload, requestHeaders),
         Map.class);
@@ -708,6 +855,15 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   }
 
   @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> listOfMaps(Object value) {
+    return (List<Map<String, Object>>) value;
+  }
+
+  private List<String> variantSkus(Object value) {
+    return listOfMaps(value).stream().map(item -> String.valueOf(item.get("sku"))).toList();
+  }
+
+  @SuppressWarnings("unchecked")
   private List<String> stringList(Object value) {
     return ((List<Object>) value).stream().map(String::valueOf).toList();
   }
@@ -715,6 +871,11 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   @SuppressWarnings("unchecked")
   private Map<String, Object> metadata(Map<String, Object> item) {
     return (Map<String, Object>) item.get("metadata");
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> packaging(Map<String, Object> metadata, String key) {
+    return (Map<String, Object>) metadata.get(key);
   }
 
   private void assertMetadataAccountId(

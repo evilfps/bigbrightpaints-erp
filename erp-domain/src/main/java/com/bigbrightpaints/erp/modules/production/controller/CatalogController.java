@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
@@ -93,6 +95,17 @@ public class CatalogController {
       @Valid @RequestBody CatalogItemRequest request) {
     return ResponseEntity.ok(
         ApiResponse.success("Item created", catalogService.createItem(request)));
+  }
+
+  @PostMapping("/items/bulk-variants")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  public ResponseEntity<ApiResponse<BulkVariantResponse>> createBulkVariants(
+      @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun,
+      @Valid @RequestBody BulkVariantRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            dryRun ? "Bulk variant dry run processed" : "Bulk variants processed",
+            catalogService.createBulkVariants(request, dryRun)));
   }
 
   @GetMapping("/items")

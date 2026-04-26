@@ -529,6 +529,14 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ApiResponseCatalogItemDto");
     assertOperationContract(
         root,
+        "/api/v1/catalog/items/bulk-variants",
+        "post",
+        "#/components/schemas/BulkVariantRequest",
+        "200",
+        "#/components/schemas/ApiResponseBulkVariantResponse");
+    assertQueryParameter(root, "/api/v1/catalog/items/bulk-variants", "post", "dryRun");
+    assertOperationContract(
+        root,
         "/api/v1/catalog/items/{itemId}",
         "get",
         null,

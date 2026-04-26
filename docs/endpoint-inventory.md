@@ -19,9 +19,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `8f389b18c6c54b7c1014f7ae7508004b7493eaca6909ecd2e0e097c7a5a2b78b`)
-- OpenAPI total paths: `278`
-- OpenAPI total operations: `333`
+- OpenAPI snapshot: `openapi.json` (sha256 `a43898a37b46a2d868c1085c212530ecc937992aaa1dd5219c1bd484faab91a5`)
+- OpenAPI total paths: `279`
+- OpenAPI total operations: `334`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 - Hard-cut contract reminder: retired surfaces such as `/api/v1/auth/profile`, `/api/v1/accounting/journals/manual`, `/api/v1/accounting/journals/{entryId}/reverse`, and direct `/api/v1/accounting/periods/{periodId}/close` are intentionally absent from this inventory and must not be reintroduced in frontend or review docs.
 
@@ -33,7 +33,7 @@ Portal scope guardrail:
 | `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/approvals/{originType}/{id}/decisions, /api/v1/admin/audit/events |
 | `audit` | 1 | /api/v1/audit/ml-events |
 | `auth` | 10 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
+| `catalog` | 6 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
 | `companies` | 1 | /api/v1/companies |
 | `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/limit-requests/{id}/reject |
@@ -160,6 +160,7 @@ Portal scope guardrail:
 - `GET, PUT, DELETE` `/api/v1/catalog/brands/{brandId}`
 - `POST` `/api/v1/catalog/import`
 - `GET, POST` `/api/v1/catalog/items`
+- `POST` `/api/v1/catalog/items/bulk-variants`
 - `GET, PUT, DELETE` `/api/v1/catalog/items/{itemId}`
 
 ## `changelog`

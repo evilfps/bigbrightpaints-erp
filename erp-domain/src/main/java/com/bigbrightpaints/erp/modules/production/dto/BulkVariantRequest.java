@@ -16,6 +16,7 @@ public record BulkVariantRequest(
     String brandCode,
     @NotBlank String baseProductName,
     @NotBlank String category,
+    String hsnCode,
     List<String> colors,
     List<String> sizes,
     List<@Valid ColorSizeMatrixEntry> colorSizeMatrix,
@@ -25,6 +26,14 @@ public record BulkVariantRequest(
     BigDecimal gstRate,
     BigDecimal minDiscountPercent,
     BigDecimal minSellingPrice,
+    PackagingMetadata packagingDefaults,
+    List<@Valid VariantPackagingOverride> packagingOverrides,
     Map<String, Object> metadata) {
   public record ColorSizeMatrixEntry(@NotBlank String color, List<String> sizes) {}
+
+  public record PackagingMetadata(
+      Integer piecesPerCarton, Integer piecesPerBox, BigDecimal defaultPackQuantity) {}
+
+  public record VariantPackagingOverride(
+      @NotBlank String color, @NotBlank String size, @Valid PackagingMetadata packaging) {}
 }
