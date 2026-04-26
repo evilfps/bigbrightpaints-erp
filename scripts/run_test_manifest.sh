@@ -81,6 +81,18 @@ echo "[run_test_manifest] selectors=${#SELECTORS[@]} batch_size=$BATCH_SIZE"
     rm -rf target/site/jacoco target/jacoco.exec
 
     cmd=(mvn -B -ntp -P"$PROFILE" test -Dtest="$batch_selector")
+    has_api_version_arg=false
+    if [[ "${#MAVEN_ARGS[@]}" -gt 0 ]]; then
+      for arg in "${MAVEN_ARGS[@]}"; do
+        if [[ "$arg" == -Dapi.version=* ]]; then
+          has_api_version_arg=true
+          break
+        fi
+      done
+    fi
+    if [[ "$has_api_version_arg" == false && -n "${DOCKER_HOST:-}" ]]; then
+      cmd+=("-Dapi.version=${DOCKER_API_VERSION:-1.44}")
+    fi
     if [[ "${#MAVEN_ARGS[@]}" -gt 0 ]]; then
       cmd+=("${MAVEN_ARGS[@]}")
     fi

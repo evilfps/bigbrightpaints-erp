@@ -30,7 +30,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
-import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 @Service
@@ -52,7 +52,7 @@ public class ReconciliationService {
       ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
-      ReportService reportService,
+      InventoryValuationQueryService inventoryValuationQueryService,
       ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.operations =
         new ReconciliationOperations(
@@ -69,7 +69,7 @@ public class ReconciliationService {
             reconciliationDiscrepancyRepository,
             accountingPeriodRepository,
             taxService,
-            reportService,
+            inventoryValuationQueryService,
             journalEntryServiceProvider);
   }
 

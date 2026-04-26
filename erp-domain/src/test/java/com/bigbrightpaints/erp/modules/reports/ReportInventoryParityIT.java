@@ -182,14 +182,14 @@ class ReportInventoryParityIT extends AbstractIntegrationTest {
 
     List<Map<String, Object>> trackedRows =
         stockSummaryRows(headers).stream()
-            .filter(row -> String.valueOf(row.get("code")).startsWith(prefix))
+            .filter(row -> String.valueOf(row.get("productCode")).startsWith(prefix))
             .toList();
 
     assertThat(trackedRows).hasSize(6);
 
     Map<String, Map<String, Object>> byCode =
         trackedRows.stream()
-            .collect(Collectors.toMap(row -> String.valueOf(row.get("code")), row -> row));
+            .collect(Collectors.toMap(row -> String.valueOf(row.get("productCode")), row -> row));
 
     assertThat(asDecimal(byCode.get(fifoCode).get("weightedAverageCost")))
         .isEqualByComparingTo(new BigDecimal("20"));
@@ -208,7 +208,7 @@ class ReportInventoryParityIT extends AbstractIntegrationTest {
         trackedRows.stream()
             .map(
                 row ->
-                    asDecimal(row.get("currentStock"))
+                    asDecimal(row.get("totalStock"))
                         .multiply(asDecimal(row.get("weightedAverageCost"))))
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .setScale(2, RoundingMode.HALF_UP);
@@ -216,8 +216,7 @@ class ReportInventoryParityIT extends AbstractIntegrationTest {
         trackedRows.stream()
             .filter(
                 row ->
-                    asDecimal(row.get("currentStock"))
-                            .compareTo(asDecimal(row.get("reservedStock")))
+                    asDecimal(row.get("totalStock")).compareTo(asDecimal(row.get("reservedStock")))
                         < 0)
             .count();
 

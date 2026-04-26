@@ -82,7 +82,6 @@ public class OpeningStockImportService {
 
   private static final String DEFAULT_BATCH_REF = "OPENING";
   private static final int MAX_HISTORY_PAGE_SIZE = 100;
-  private static final long LEGACY_MANUFACTURED_AT_TOLERANCE_SECONDS = 300L;
 
   private final CompanyContextService companyContextService;
   private final RawMaterialRepository rawMaterialRepository;
@@ -161,7 +160,7 @@ public class OpeningStockImportService {
             .orElse(null);
     if (existing != null) {
       String contentFingerprint = fingerprintFile(file);
-      assertReplayMatch(company, existing, normalizedKey, normalizedBatchKey, contentFingerprint);
+      assertReplayMatch(existing, normalizedKey, normalizedBatchKey, contentFingerprint);
       return toResponse(existing);
     }
 
@@ -191,7 +190,7 @@ public class OpeningStockImportService {
     }
 
     String contentFingerprint = fingerprintFile(file);
-    OpeningStockImport contentReplay = findContentReplay(company, contentFingerprint, true);
+    OpeningStockImport contentReplay = findContentReplay(company, contentFingerprint);
     if (contentReplay != null
         && !normalizedBatchKey.equals(contentReplay.getOpeningStockBatchKey())) {
       throw openingStockContentReplayConflict(contentReplay, normalizedKey, normalizedBatchKey);
@@ -230,7 +229,7 @@ public class OpeningStockImportService {
         }
         throw ex;
       }
-      assertReplayMatch(company, concurrent, normalizedKey, normalizedBatchKey, contentFingerprint);
+      assertReplayMatch(concurrent, normalizedKey, normalizedBatchKey, contentFingerprint);
       return toResponse(concurrent);
     }
   }
@@ -267,7 +266,7 @@ public class OpeningStockImportService {
     }
 
     String contentFingerprint = fingerprintFile(file);
-    OpeningStockImport contentReplay = findContentReplay(company, contentFingerprint, false);
+    OpeningStockImport contentReplay = findContentReplay(company, contentFingerprint);
     if (contentReplay != null
         && !normalizedBatchKey.equals(contentReplay.getOpeningStockBatchKey())) {
       throw openingStockContentReplayConflict(contentReplay, "PREVIEW", normalizedBatchKey);
@@ -547,159 +546,11 @@ public class OpeningStockImportService {
     }
   }
 
-  private OpeningStockImport findContentReplay(
-      Company company, String contentFingerprint, boolean backfillLegacyFingerprint) {
-    OpeningStockImport exactMatch =
-        openingStockImportRepository
-            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
-                company, contentFingerprint)
-            .orElse(null);
-    if (exactMatch != null) {
-      return exactMatch;
-    }
-    return findLegacyContentReplay(company, contentFingerprint, backfillLegacyFingerprint);
-  }
-
-  private OpeningStockImport findLegacyContentReplay(
-      Company company, String contentFingerprint, boolean backfillLegacyFingerprint) {
-    List<OpeningStockImport> candidates =
-        openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company);
-    if (candidates == null || candidates.isEmpty()) {
-      return null;
-    }
-    for (OpeningStockImport candidate : candidates) {
-      if (!isLegacyContentFingerprint(candidate)) {
-        continue;
-      }
-      String rebuiltFingerprint = rebuildLegacyContentFingerprint(company, candidate);
-      if (!StringUtils.hasText(rebuiltFingerprint)) {
-        continue;
-      }
-      if (backfillLegacyFingerprint
-          && !rebuiltFingerprint.equals(candidate.getContentFingerprint())) {
-        candidate.setContentFingerprint(rebuiltFingerprint);
-        openingStockImportRepository.save(candidate);
-      }
-      if (rebuiltFingerprint.equals(contentFingerprint)) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  private boolean isLegacyContentFingerprint(OpeningStockImport record) {
-    if (record == null || !StringUtils.hasText(record.getContentFingerprint())) {
-      return false;
-    }
-    return record
-        .getContentFingerprint()
-        .equals(
-            legacyContentFingerprint(record.getOpeningStockBatchKey(), record.getIdempotencyKey()));
-  }
-
-  private String legacyContentFingerprint(String openingStockBatchKey, String idempotencyKey) {
-    String legacySeed =
-        StringUtils.hasText(openingStockBatchKey)
-            ? openingStockBatchKey
-            : StringUtils.hasText(idempotencyKey) ? idempotencyKey : "";
-    return IdempotencyUtils.sha256Hex(legacySeed);
-  }
-
-  private String rebuildLegacyContentFingerprint(Company company, OpeningStockImport record) {
-    if (record == null || record.getJournalEntryId() == null) {
-      return null;
-    }
-    List<String> fingerprintRows = new ArrayList<>();
-
-    List<RawMaterialMovement> rawMovements =
-        rawMaterialMovementRepository
-            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, record.getJournalEntryId(), InventoryReference.OPENING_STOCK);
-    if (rawMovements != null) {
-      for (RawMaterialMovement movement : rawMovements) {
-        if (movement.getRawMaterial() == null) {
-          continue;
-        }
-        RawMaterialBatch batch = movement.getRawMaterialBatch();
-        StockType stockType =
-            movement.getRawMaterial().getMaterialType()
-                    == com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING
-                ? StockType.PACKAGING_RAW_MATERIAL
-                : StockType.RAW_MATERIAL;
-        fingerprintRows.add(
-            fingerprintRow(
-                stockType,
-                movement.getRawMaterial().getSku(),
-                batch != null ? batch.getUnit() : null,
-                movement.getRawMaterial().getUnitType(),
-                batch != null ? batch.getBatchCode() : null,
-                movement.getQuantity(),
-                movement.getUnitCost(),
-                resolveLegacyManufacturedDate(company, record, batch),
-                batch != null ? batch.getExpiryDate() : null));
-      }
-    }
-
-    List<InventoryMovement> finishedMovements =
-        inventoryMovementRepository
-            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, record.getJournalEntryId(), InventoryReference.OPENING_STOCK);
-    if (finishedMovements != null) {
-      for (InventoryMovement movement : finishedMovements) {
-        if (movement.getFinishedGood() == null) {
-          continue;
-        }
-        FinishedGoodBatch batch = movement.getFinishedGoodBatch();
-        fingerprintRows.add(
-            fingerprintRow(
-                StockType.FINISHED_GOOD,
-                movement.getFinishedGood().getProductCode(),
-                "UNIT",
-                "UNIT",
-                batch != null ? batch.getBatchCode() : null,
-                movement.getQuantity(),
-                movement.getUnitCost(),
-                resolveLegacyManufacturedDate(company, record, batch),
-                batch != null ? batch.getExpiryDate() : null));
-      }
-    }
-
-    if (fingerprintRows.isEmpty()) {
-      return null;
-    }
-    return fingerprintRows(fingerprintRows);
-  }
-
-  private LocalDate resolveLegacyManufacturedDate(
-      Company company, OpeningStockImport record, RawMaterialBatch batch) {
-    if (batch == null) {
-      return null;
-    }
-    return resolveLegacyManufacturedDate(company, record, batch.getManufacturedAt());
-  }
-
-  private LocalDate resolveLegacyManufacturedDate(
-      Company company, OpeningStockImport record, FinishedGoodBatch batch) {
-    if (batch == null) {
-      return null;
-    }
-    return resolveLegacyManufacturedDate(company, record, batch.getManufacturedAt());
-  }
-
-  private LocalDate resolveLegacyManufacturedDate(
-      Company company, OpeningStockImport record, Instant manufacturedAt) {
-    if (manufacturedAt == null) {
-      return null;
-    }
-    Instant createdAt = record.getCreatedAt();
-    if (createdAt != null) {
-      Instant earliest = createdAt.minusSeconds(LEGACY_MANUFACTURED_AT_TOLERANCE_SECONDS);
-      Instant latest = createdAt.plusSeconds(LEGACY_MANUFACTURED_AT_TOLERANCE_SECONDS);
-      if (!manufacturedAt.isBefore(earliest) && !manufacturedAt.isAfter(latest)) {
-        return null;
-      }
-    }
-    return manufacturedAt.atZone(resolveZone(company)).toLocalDate();
+  private OpeningStockImport findContentReplay(Company company, String contentFingerprint) {
+    return openingStockImportRepository
+        .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+            company, contentFingerprint)
+        .orElse(null);
   }
 
   private List<String> parseFingerprintRows(String normalizedPayload) throws IOException {
@@ -797,7 +648,6 @@ public class OpeningStockImportService {
   }
 
   private void assertReplayMatch(
-      Company company,
       OpeningStockImport record,
       String idempotencyKey,
       String openingStockBatchKey,
@@ -814,7 +664,7 @@ public class OpeningStockImportService {
           .withDetail("openingStockBatchKey", openingStockBatchKey)
           .withDetail("existingOpeningStockBatchKey", storedBatchKey);
     }
-    String storedContentFingerprint = resolveReplayContentFingerprint(company, record);
+    String storedContentFingerprint = resolveReplayContentFingerprint(record);
     if (!StringUtils.hasText(storedContentFingerprint)
         || !storedContentFingerprint.equals(attemptedContentFingerprint)) {
       throw openingStockIdempotencyReplayConflict(
@@ -826,22 +676,11 @@ public class OpeningStockImportService {
     }
   }
 
-  private String resolveReplayContentFingerprint(Company company, OpeningStockImport record) {
+  private String resolveReplayContentFingerprint(OpeningStockImport record) {
     if (record == null || !StringUtils.hasText(record.getContentFingerprint())) {
       return null;
     }
-    if (!isLegacyContentFingerprint(record)) {
-      return record.getContentFingerprint();
-    }
-    String rebuiltFingerprint = rebuildLegacyContentFingerprint(company, record);
-    if (!StringUtils.hasText(rebuiltFingerprint)) {
-      return null;
-    }
-    if (!rebuiltFingerprint.equals(record.getContentFingerprint())) {
-      record.setContentFingerprint(rebuiltFingerprint);
-      openingStockImportRepository.save(record);
-    }
-    return rebuiltFingerprint;
+    return record.getContentFingerprint();
   }
 
   private OpeningStockImportResponse toResponse(OpeningStockImport record) {

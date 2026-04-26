@@ -42,7 +42,7 @@ Last reviewed: 2026-04-26
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
 - Approval status: branch-local integration candidate pending PR review
-- Basis: this is a compatibility-preserving accounting configuration hardening that adds an explicit clear path and deterministic validation defaults without widening tenant, auth, accounting posting, report, export, or payment semantics.
+- Basis: this is a hard-cut accounting configuration hardening that adds an explicit clear path and deterministic validation defaults without widening tenant, auth, accounting posting, report, export, or payment semantics.
 
 ## Escalation Decision
 - Human escalation required: no

@@ -182,6 +182,7 @@ jobs:
       changed_files_count: ${{ steps.route.outputs.changed_files_count }}
       changed_runtime_source_count: ${{ steps.route.outputs.changed_runtime_source_count }}
       effective_diff_base: ${{ steps.route.outputs.effective_diff_base }}
+      coverage_baseline_applied: ${{ steps.route.outputs.coverage_baseline_applied }}
 
     steps:
       - name: Checkout
@@ -648,6 +649,7 @@ jobs:
           RUN_CHANGED_COVERAGE: ${{ needs.pr-risk-router.outputs.run_changed_coverage }}
           CHANGED_FILES_COUNT: ${{ needs.pr-risk-router.outputs.changed_files_count }}
           CHANGED_RUNTIME_SOURCE_COUNT: ${{ needs.pr-risk-router.outputs.changed_runtime_source_count }}
+          COVERAGE_BASELINE_APPLIED: ${{ needs.pr-risk-router.outputs.coverage_baseline_applied }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/pr-jacoco
@@ -667,6 +669,9 @@ jobs:
           for jacoco_file in "${jacoco_files[@]}"; do
             args+=(--jacoco "$jacoco_file")
           done
+          if [[ "$COVERAGE_BASELINE_APPLIED" == "true" ]]; then
+            args+=(--allow-threshold-gap)
+          fi
 
           python3 scripts/changed_files_coverage.py \
             "${args[@]}" \

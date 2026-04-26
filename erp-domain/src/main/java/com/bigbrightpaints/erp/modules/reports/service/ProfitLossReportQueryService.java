@@ -66,13 +66,13 @@ public class ProfitLossReportQueryService {
     List<Object[]> summarized =
         journalLineRepository.summarizeByAccountType(
             window.company(), window.startDate(), window.endDate());
-    List<Object[]> periodCloseRows =
+    List<JournalLineRepository.AccountTypeLineTotals> periodCloseRows =
         journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
             window.company(), window.startDate(), window.endDate());
 
     Map<AccountType, BigDecimal> naturalBalances = new EnumMap<>(AccountType.class);
     mergeNaturalBalances(naturalBalances, summarized, BigDecimal.ONE);
-    mergeNaturalBalances(naturalBalances, periodCloseRows, BigDecimal.valueOf(-1));
+    mergeAccountTypeTotals(naturalBalances, periodCloseRows, BigDecimal.valueOf(-1));
 
     BigDecimal revenue =
         safe(naturalBalances.get(AccountType.REVENUE))
@@ -108,6 +108,25 @@ public class ProfitLossReportQueryService {
       AccountType type = (AccountType) row[0];
       BigDecimal debit = safe((BigDecimal) row[1]).multiply(multiplier);
       BigDecimal credit = safe((BigDecimal) row[2]).multiply(multiplier);
+      BigDecimal natural = toNatural(type, debit, credit);
+      naturalBalances.merge(type, natural, BigDecimal::add);
+    }
+  }
+
+  private void mergeAccountTypeTotals(
+      Map<AccountType, BigDecimal> naturalBalances,
+      List<JournalLineRepository.AccountTypeLineTotals> rows,
+      BigDecimal multiplier) {
+    if (rows == null || rows.isEmpty()) {
+      return;
+    }
+    for (JournalLineRepository.AccountTypeLineTotals row : rows) {
+      if (row == null || row.getAccountType() == null) {
+        continue;
+      }
+      AccountType type = row.getAccountType();
+      BigDecimal debit = safe(row.getTotalDebit()).multiply(multiplier);
+      BigDecimal credit = safe(row.getTotalCredit()).multiply(multiplier);
       BigDecimal natural = toNatural(type, debit, credit);
       naturalBalances.merge(type, natural, BigDecimal::add);
     }

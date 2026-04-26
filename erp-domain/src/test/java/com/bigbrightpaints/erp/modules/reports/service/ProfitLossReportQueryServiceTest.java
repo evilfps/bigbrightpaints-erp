@@ -173,8 +173,8 @@ class ProfitLossReportQueryServiceTest {
             window.company(), window.startDate(), window.endDate()))
         .thenReturn(
             List.of(
-                row(AccountType.REVENUE, "100.00", "0.00"),
-                row(AccountType.EXPENSE, "0.00", "40.00")));
+                accountTypeTotals(AccountType.REVENUE, "100.00", "0.00"),
+                accountTypeTotals(AccountType.EXPENSE, "0.00", "40.00")));
 
     ProfitLossDto dto = service.generate(request);
 
@@ -188,5 +188,25 @@ class ProfitLossReportQueryServiceTest {
 
   private Object[] row(AccountType type, String debit, String credit) {
     return new Object[] {type, new BigDecimal(debit), new BigDecimal(credit)};
+  }
+
+  private JournalLineRepository.AccountTypeLineTotals accountTypeTotals(
+      AccountType type, String debit, String credit) {
+    return new JournalLineRepository.AccountTypeLineTotals() {
+      @Override
+      public AccountType getAccountType() {
+        return type;
+      }
+
+      @Override
+      public BigDecimal getTotalDebit() {
+        return new BigDecimal(debit);
+      }
+
+      @Override
+      public BigDecimal getTotalCredit() {
+        return new BigDecimal(credit);
+      }
+    };
   }
 }

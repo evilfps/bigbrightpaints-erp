@@ -62,8 +62,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchReposit
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
-import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImport;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImportRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -513,8 +511,8 @@ class OpeningStockImportServiceTest {
 
   @Test
   void helperMethods_resolveImportReferenceUsesSanitizedCompanyCodeAndBatchKeyHash() {
-    Company legacyCompany = new Company();
-    legacyCompany.setCode(" acme-west ");
+    Company spacedCodeCompany = new Company();
+    spacedCodeCompany.setCode(" acme-west ");
     Company blankCodeCompany = new Company();
     String batchOneHash =
         com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex("batch-1")
@@ -534,7 +532,7 @@ class OpeningStockImportServiceTest {
     assertThat(
             (String)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    service, "sanitizeCompanyCode", legacyCompany.getCode()))
+                    service, "sanitizeCompanyCode", spacedCodeCompany.getCode()))
         .isEqualTo("ACMEWEST");
     assertThat(
             (String)
@@ -549,7 +547,7 @@ class OpeningStockImportServiceTest {
     assertThat(
             (String)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    service, "resolveImportReference", legacyCompany, "batch-2"))
+                    service, "resolveImportReference", spacedCodeCompany, "batch-2"))
         .isEqualTo("OPEN-STOCK-ACMEWEST-" + batchTwoHash);
     assertThat(
             (String)
@@ -1760,75 +1758,6 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void importOpeningStock_rejectsLegacyReplayAfterRebuildingHistoricalFingerprint() {
-    String csv =
-        String.join(
-            "\n",
-            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
-            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
-    MockMultipartFile file = csvFile(csv);
-
-    OpeningStockImport existing = new OpeningStockImport();
-    existing.setCompany(company);
-    existing.setIdempotencyKey("original-key");
-    existing.setOpeningStockBatchKey("OPEN-STOCK-BATCH-ORIGINAL");
-    existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
-    existing.setJournalEntryId(900L);
-    existing.setContentFingerprint(legacyFingerprint("OPEN-STOCK-BATCH-ORIGINAL", "original-key"));
-    ReflectionTestUtils.setField(existing, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
-
-    RawMaterial rawMaterial = new RawMaterial();
-    rawMaterial.setCompany(company);
-    rawMaterial.setSku("RM-1");
-    rawMaterial.setUnitType("KG");
-    rawMaterial.setMaterialType(MaterialType.PRODUCTION);
-
-    RawMaterialBatch rawBatch = new RawMaterialBatch();
-    rawBatch.setRawMaterial(rawMaterial);
-    rawBatch.setBatchCode("RM-B1");
-    rawBatch.setUnit("KG");
-    rawBatch.setManufacturedAt(Instant.parse("2026-02-03T12:00:00Z"));
-
-    RawMaterialMovement rawMovement = new RawMaterialMovement();
-    rawMovement.setRawMaterial(rawMaterial);
-    rawMovement.setRawMaterialBatch(rawBatch);
-    rawMovement.setQuantity(new BigDecimal("10.00"));
-    rawMovement.setUnitCost(new BigDecimal("5.00"));
-
-    when(openingStockImportRepository
-            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
-                company, fingerprint(csv)))
-        .thenReturn(Optional.empty());
-    when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
-        .thenReturn(List.of(existing));
-    when(rawMaterialMovementRepository
-            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 900L, InventoryReference.OPENING_STOCK))
-        .thenReturn(List.of(rawMovement));
-    when(inventoryMovementRepository
-            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 900L, InventoryReference.OPENING_STOCK))
-        .thenReturn(List.of());
-
-    assertThatThrownBy(() -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
-        .isInstanceOfSatisfying(
-            ApplicationException.class,
-            ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
-              assertThat(ex.getMessage()).contains("Opening stock file already imported");
-              assertThat(ex.getDetails())
-                  .containsEntry("existingIdempotencyKey", "original-key")
-                  .containsEntry("existingOpeningStockBatchKey", "OPEN-STOCK-BATCH-ORIGINAL");
-            });
-
-    verify(openingStockImportRepository)
-        .save(
-            org.mockito.ArgumentMatchers.argThat(
-                record ->
-                    record != null && fingerprint(csv).equals(record.getContentFingerprint())));
-  }
-
-  @Test
   void importOpeningStock_allowsContentFingerprintReplayRecordWhenBatchKeyMatches() {
     String csv =
         String.join(
@@ -2228,7 +2157,7 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
-  void openingStockFingerprint_normalizesBomAndLegacyLineEndings() {
+  void openingStockFingerprint_normalizesBomAndWindowsLineEndings() {
     MockMultipartFile canonical =
         new MockMultipartFile(
             "file",
@@ -2265,163 +2194,6 @@ class OpeningStockImportServiceTest {
     assertThatThrownBy(() -> importOpeningStock(whitespaceFile, "whitespace-key", "batch-space"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("CSV file is required");
-  }
-
-  @Test
-  void findContentReplay_rebuildsLegacyPackagingAndFinishedGoodFingerprint() {
-    OpeningStockImport legacy = new OpeningStockImport();
-    legacy.setCompany(company);
-    legacy.setIdempotencyKey("legacy-key");
-    legacy.setOpeningStockBatchKey("OPEN-STOCK-BATCH-LEGACY");
-    legacy.setJournalEntryId(901L);
-    legacy.setContentFingerprint(legacyFingerprint("OPEN-STOCK-BATCH-LEGACY", "legacy-key"));
-    ReflectionTestUtils.setField(legacy, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
-
-    RawMaterial packaging = new RawMaterial();
-    packaging.setCompany(company);
-    packaging.setSku("PK-1");
-    packaging.setUnitType("KG");
-    packaging.setMaterialType(MaterialType.PACKAGING);
-
-    RawMaterialBatch packagingBatch = new RawMaterialBatch();
-    packagingBatch.setRawMaterial(packaging);
-    packagingBatch.setBatchCode("PK-B1");
-    packagingBatch.setUnit("KG");
-    packagingBatch.setManufacturedAt(Instant.parse("2026-02-01T08:15:00Z"));
-    packagingBatch.setExpiryDate(LocalDate.of(2026, 7, 1));
-
-    RawMaterialMovement packagingMovement = new RawMaterialMovement();
-    packagingMovement.setRawMaterial(packaging);
-    packagingMovement.setRawMaterialBatch(packagingBatch);
-    packagingMovement.setQuantity(new BigDecimal("10.00"));
-    packagingMovement.setUnitCost(new BigDecimal("2.500"));
-
-    FinishedGood finishedGood = new FinishedGood();
-    finishedGood.setCompany(company);
-    finishedGood.setProductCode("FG-1");
-
-    FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
-    finishedBatch.setFinishedGood(finishedGood);
-    finishedBatch.setBatchCode("FG-B1");
-    finishedBatch.setManufacturedAt(Instant.parse("2026-02-03T12:03:00Z"));
-    finishedBatch.setExpiryDate(LocalDate.of(2026, 8, 15));
-
-    InventoryMovement finishedMovement = new InventoryMovement();
-    finishedMovement.setFinishedGood(finishedGood);
-    finishedMovement.setFinishedGoodBatch(finishedBatch);
-    finishedMovement.setQuantity(new BigDecimal("5.0"));
-    finishedMovement.setUnitCost(new BigDecimal("12.00"));
-
-    String expectedFingerprint =
-        fingerprint(
-            String.join(
-                "\n",
-                "type,sku,unit,unit_type,batch_code,quantity,unit_cost,manufactured_at,expiry_date",
-                "PACKAGING_RAW_MATERIAL,PK-1,KG,KG,PK-B1,10.00,2.500,2026-02-01,2026-07-01",
-                "FINISHED_GOOD,FG-1,UNIT,UNIT,FG-B1,5.0,12.00,,2026-08-15"));
-
-    when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
-        .thenReturn(List.of(legacy));
-    when(rawMaterialMovementRepository
-            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 901L, InventoryReference.OPENING_STOCK))
-        .thenReturn(List.of(packagingMovement));
-    when(inventoryMovementRepository
-            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 901L, InventoryReference.OPENING_STOCK))
-        .thenReturn(List.of(finishedMovement));
-
-    OpeningStockImport replay =
-        com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-            service, "findContentReplay", company, expectedFingerprint, false);
-
-    assertThat(replay).isSameAs(legacy);
-    verify(openingStockImportRepository, never()).save(any(OpeningStockImport.class));
-
-    replay =
-        com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-            service, "findContentReplay", company, expectedFingerprint, true);
-
-    assertThat(replay).isSameAs(legacy);
-    verify(openingStockImportRepository)
-        .save(
-            org.mockito.ArgumentMatchers.argThat(
-                record ->
-                    record == legacy
-                        && expectedFingerprint.equals(record.getContentFingerprint())));
-  }
-
-  @Test
-  void findContentReplay_skipsNonLegacyBlankAndNonMatchingLegacyCandidates() {
-    OpeningStockImport nonLegacy = new OpeningStockImport();
-    nonLegacy.setCompany(company);
-    nonLegacy.setContentFingerprint("already-new-format");
-
-    OpeningStockImport missingJournal = new OpeningStockImport();
-    missingJournal.setCompany(company);
-    missingJournal.setIdempotencyKey("legacy-no-journal");
-    missingJournal.setOpeningStockBatchKey("OPEN-STOCK-BATCH-NO-JOURNAL");
-    missingJournal.setContentFingerprint(
-        legacyFingerprint("OPEN-STOCK-BATCH-NO-JOURNAL", "legacy-no-journal"));
-
-    OpeningStockImport differentLegacy = new OpeningStockImport();
-    differentLegacy.setCompany(company);
-    differentLegacy.setIdempotencyKey("legacy-different");
-    differentLegacy.setOpeningStockBatchKey("OPEN-STOCK-BATCH-DIFFERENT");
-    differentLegacy.setJournalEntryId(902L);
-    differentLegacy.setContentFingerprint(
-        legacyFingerprint("OPEN-STOCK-BATCH-DIFFERENT", "legacy-different"));
-    ReflectionTestUtils.setField(
-        differentLegacy, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
-
-    RawMaterial rawMaterial = new RawMaterial();
-    rawMaterial.setCompany(company);
-    rawMaterial.setSku("RM-2");
-    rawMaterial.setUnitType("KG");
-    rawMaterial.setMaterialType(MaterialType.PRODUCTION);
-
-    RawMaterialBatch rawBatch = new RawMaterialBatch();
-    rawBatch.setRawMaterial(rawMaterial);
-    rawBatch.setBatchCode("RM-B2");
-    rawBatch.setUnit("KG");
-
-    RawMaterialMovement ignoredMovement = new RawMaterialMovement();
-
-    RawMaterialMovement validMovement = new RawMaterialMovement();
-    validMovement.setRawMaterial(rawMaterial);
-    validMovement.setRawMaterialBatch(rawBatch);
-    validMovement.setQuantity(new BigDecimal("3.00"));
-    validMovement.setUnitCost(new BigDecimal("4.00"));
-
-    String rebuiltFingerprint =
-        fingerprint(
-            String.join(
-                "\n",
-                "type,sku,unit,unit_type,batch_code,quantity,unit_cost,manufactured_at,expiry_date",
-                "RAW_MATERIAL,RM-2,KG,KG,RM-B2,3.00,4.00,,"));
-
-    when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
-        .thenReturn(List.of(nonLegacy, missingJournal, differentLegacy));
-    when(rawMaterialMovementRepository
-            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 902L, InventoryReference.OPENING_STOCK))
-        .thenReturn(List.of(ignoredMovement, validMovement));
-    when(inventoryMovementRepository
-            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                company, 902L, InventoryReference.OPENING_STOCK))
-        .thenReturn(null);
-
-    OpeningStockImport replay =
-        com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-            service, "findContentReplay", company, "missing-target", true);
-
-    assertThat(replay).isNull();
-    verify(openingStockImportRepository)
-        .save(
-            org.mockito.ArgumentMatchers.argThat(
-                record ->
-                    record == differentLegacy
-                        && rebuiltFingerprint.equals(record.getContentFingerprint())));
   }
 
   @Test
@@ -2462,36 +2234,6 @@ class OpeningStockImportServiceTest {
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
                     service, "normalizeDate", (Object) null))
         .isEmpty();
-  }
-
-  @Test
-  void resolveLegacyManufacturedDate_omitsNearCreatedAtValuesAndPreservesOlderOnes() {
-    OpeningStockImport record = new OpeningStockImport();
-    ReflectionTestUtils.setField(record, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
-
-    assertThat(
-            (LocalDate)
-                com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    service,
-                    "resolveLegacyManufacturedDate",
-                    company,
-                    record,
-                    Instant.parse("2026-02-03T12:04:00Z")))
-        .isNull();
-    assertThat(
-            (LocalDate)
-                com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    service,
-                    "resolveLegacyManufacturedDate",
-                    company,
-                    record,
-                    Instant.parse("2026-02-01T12:00:00Z")))
-        .isEqualTo(LocalDate.of(2026, 2, 1));
-    assertThat(
-            (LocalDate)
-                com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    service, "resolveLegacyManufacturedDate", company, record, (Instant) null))
-        .isNull();
   }
 
   private void stubDefaultImportState(MockMultipartFile file) {
@@ -2566,14 +2308,6 @@ class OpeningStockImportServiceTest {
   private String fingerprint(String payload) {
     return com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
         service, "fingerprintFile", csvFile(payload));
-  }
-
-  private String legacyFingerprint(String openingStockBatchKey, String idempotencyKey) {
-    String legacySeed =
-        openingStockBatchKey == null || openingStockBatchKey.isBlank()
-            ? idempotencyKey
-            : openingStockBatchKey;
-    return IdempotencyUtils.sha256Hex(legacySeed == null ? "" : legacySeed);
   }
 
   private MultipartFile unreadableCsvFile(String originalFilename) {

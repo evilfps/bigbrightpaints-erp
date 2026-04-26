@@ -23,6 +23,8 @@ com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataServ
 com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.BankReconciliationSessionServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.PartnerPaymentEventServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.AgingReportServiceTest
 com.bigbrightpaints.erp.modules.accounting.controller.SettlementControllerIdempotencyHeaderParityTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingEndpointContractTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingApplicationExceptionAdviceTest
@@ -68,7 +70,9 @@ com.bigbrightpaints.erp.modules.reports.ReportExportApprovalIT
 com.bigbrightpaints.erp.modules.reports.controller.ReportControllerContractTest
 com.bigbrightpaints.erp.modules.reports.controller.ReportControllerRouteContractIT
 com.bigbrightpaints.erp.modules.reports.service.BalanceSheetReportQueryServiceTest
+com.bigbrightpaints.erp.modules.reports.service.ProfitLossReportQueryServiceTest
 com.bigbrightpaints.erp.modules.reports.service.ReportServiceInventoryAndGstTest
+com.bigbrightpaints.erp.modules.reports.ReportInventoryParityIT
 com.bigbrightpaints.erp.modules.reports.service.TrialBalanceReportQueryServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.ClosedPeriodPostingExceptionServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberServiceTest

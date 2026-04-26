@@ -2,7 +2,6 @@ package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -147,7 +147,7 @@ public class StatementReportController {
 
   @GetMapping("/date-context")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountingDateContext() {
+  public ResponseEntity<ApiResponse<AccountingDateContextDto>> getAccountingDateContext() {
     return ResponseEntity.ok(
         ApiResponse.success("Accounting date context", support.getAccountingDateContext()));
   }

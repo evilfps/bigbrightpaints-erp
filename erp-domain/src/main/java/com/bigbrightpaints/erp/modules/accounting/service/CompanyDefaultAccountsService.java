@@ -57,24 +57,12 @@ public class CompanyDefaultAccountsService {
     requireConfiguredDefault(
         company.getDefaultDiscountAccountId(), company.getCode(), "fgDiscountAccountId");
     requireConfiguredDefault(company.getDefaultTaxAccountId(), company.getCode(), "fgTaxAccountId");
-    return new DefaultAccounts(
-        company.getDefaultInventoryAccountId(),
-        company.getDefaultCogsAccountId(),
-        company.getDefaultRevenueAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultTaxAccountId());
+    return snapshot(company);
   }
 
   public DefaultAccounts getDefaults() {
     Company company = companyContextService.requireCurrentCompany();
-    return new DefaultAccounts(
-        company.getDefaultInventoryAccountId(),
-        company.getDefaultCogsAccountId(),
-        company.getDefaultRevenueAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultDiscountAccountId(),
-        company.getDefaultTaxAccountId());
+    return snapshot(company);
   }
 
   @Transactional

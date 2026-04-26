@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -82,6 +83,13 @@ public class DealerPortalService {
   }
 
   public Dealer getCurrentDealer() {
+    return findCurrentDealerMapping()
+        .map(this::requireActivePortalDealer)
+        .orElseThrow(
+            () -> new AccessDeniedException("Dealer mapping missing for authenticated principal"));
+  }
+
+  public Optional<Dealer> findCurrentDealerMapping() {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null || !auth.isAuthenticated()) {
       throw new AccessDeniedException("No authenticated user");
@@ -95,7 +103,7 @@ public class DealerPortalService {
               dealerRepository.findAllByCompanyAndPortalUserId(company, authenticatedUser.getId()),
               "userId:" + authenticatedUser.getId());
       if (matchedByUserId != null) {
-        return requireActivePortalDealer(matchedByUserId);
+        return Optional.of(matchedByUserId);
       }
     }
 
@@ -105,9 +113,9 @@ public class DealerPortalService {
             dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, email),
             "email:" + email);
     if (matchedByEmail != null) {
-      return requireActivePortalDealer(matchedByEmail);
+      return Optional.of(matchedByEmail);
     }
-    throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
+    return Optional.empty();
   }
 
   public RequesterIdentity getCurrentRequesterIdentity() {

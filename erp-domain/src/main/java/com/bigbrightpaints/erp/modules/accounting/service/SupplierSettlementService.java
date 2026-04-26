@@ -189,35 +189,20 @@ class SupplierSettlementService {
         JournalEntry entry =
             journalReplayService.resolveReplayJournalEntry(
                 trimmedIdempotencyKey, existingEntry, existingAllocations);
-        PartnerPaymentEvent paymentEvent =
-            resolveSupplierSettlementPaymentEvent(
-                company,
-                supplier,
-                totals.totalApplied(),
-                entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
-                reference,
-                trimmedIdempotencyKey,
-                memo,
-                sourceRoute);
-        partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
-        attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
-        journalReplayService.linkReferenceMapping(
-            company, trimmedIdempotencyKey, entry, journalSource);
-        settlementReplayValidationService.validateSettlementIdempotencyKey(
-            trimmedIdempotencyKey,
-            PartnerType.SUPPLIER,
-            supplier.getId(),
-            existingAllocations,
-            allocations);
-        settlementReplayValidationService.validatePartnerSettlementJournalLines(
-            trimmedIdempotencyKey,
-            PartnerType.SUPPLIER,
-            supplier.getId(),
+        return replaySupplierSettlement(
+            company,
+            supplier,
+            totals,
             requestedEffectiveSettlementDate,
+            reference,
+            trimmedIdempotencyKey,
             memo,
+            sourceRoute,
+            journalSource,
             entry,
-            replayLineDraft.lines());
-        return settlementOutcomeService.buildSupplierSettlementResponse(existingAllocations);
+            existingAllocations,
+            allocations,
+            replayLineDraft);
       }
       throw journalReplayService.missingReservedPartnerAllocation(
           "Supplier settlement", trimmedIdempotencyKey, PartnerType.SUPPLIER, supplier.getId());
@@ -229,35 +214,20 @@ class SupplierSettlementService {
       JournalEntry entry =
           journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
               company, reference, trimmedIdempotencyKey, existingAllocations);
-      PartnerPaymentEvent paymentEvent =
-          resolveSupplierSettlementPaymentEvent(
-              company,
-              supplier,
-              totals.totalApplied(),
-              entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
-              reference,
-              trimmedIdempotencyKey,
-              memo,
-              sourceRoute);
-      partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
-      attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
-      journalReplayService.linkReferenceMapping(
-          company, trimmedIdempotencyKey, entry, journalSource);
-      settlementReplayValidationService.validateSettlementIdempotencyKey(
-          trimmedIdempotencyKey,
-          PartnerType.SUPPLIER,
-          supplier.getId(),
-          existingAllocations,
-          allocations);
-      settlementReplayValidationService.validatePartnerSettlementJournalLines(
-          trimmedIdempotencyKey,
-          PartnerType.SUPPLIER,
-          supplier.getId(),
+      return replaySupplierSettlement(
+          company,
+          supplier,
+          totals,
           requestedEffectiveSettlementDate,
+          reference,
+          trimmedIdempotencyKey,
           memo,
+          sourceRoute,
+          journalSource,
           entry,
-          replayLineDraft.lines());
-      return settlementOutcomeService.buildSupplierSettlementResponse(existingAllocations);
+          existingAllocations,
+          allocations,
+          replayLineDraft);
     }
 
     supplier.requireTransactionalUsage("settle supplier invoices");
@@ -531,6 +501,50 @@ class SupplierSettlementService {
         idempotencyKey,
         memo,
         sourceRoute);
+  }
+
+  private PartnerSettlementResponse replaySupplierSettlement(
+      Company company,
+      Supplier supplier,
+      SettlementTotals totals,
+      LocalDate requestedEffectiveSettlementDate,
+      String reference,
+      String trimmedIdempotencyKey,
+      String memo,
+      String sourceRoute,
+      String journalSource,
+      JournalEntry entry,
+      List<PartnerSettlementAllocation> existingAllocations,
+      List<SettlementAllocationRequest> allocations,
+      SettlementLineDraft replayLineDraft) {
+    PartnerPaymentEvent paymentEvent =
+        resolveSupplierSettlementPaymentEvent(
+            company,
+            supplier,
+            totals.totalApplied(),
+            entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
+            reference,
+            trimmedIdempotencyKey,
+            memo,
+            sourceRoute);
+    partnerPaymentEventService.linkJournalEntry(paymentEvent, entry);
+    attachPaymentEventToSettlementRows(existingAllocations, paymentEvent);
+    journalReplayService.linkReferenceMapping(company, trimmedIdempotencyKey, entry, journalSource);
+    settlementReplayValidationService.validateSettlementIdempotencyKey(
+        trimmedIdempotencyKey,
+        PartnerType.SUPPLIER,
+        supplier.getId(),
+        existingAllocations,
+        allocations);
+    settlementReplayValidationService.validatePartnerSettlementJournalLines(
+        trimmedIdempotencyKey,
+        PartnerType.SUPPLIER,
+        supplier.getId(),
+        requestedEffectiveSettlementDate,
+        memo,
+        entry,
+        replayLineDraft.lines());
+    return settlementOutcomeService.buildSupplierSettlementResponse(existingAllocations);
   }
 
   private void attachPaymentEventToSettlementRows(

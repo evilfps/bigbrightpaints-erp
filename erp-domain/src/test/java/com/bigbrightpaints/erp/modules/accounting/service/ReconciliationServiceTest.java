@@ -71,7 +71,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
-import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
@@ -93,7 +93,7 @@ class ReconciliationServiceTest {
   @Mock private ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private TaxService taxService;
-  @Mock private ReportService reportService;
+  @Mock private InventoryValuationQueryService inventoryValuationQueryService;
   @Mock private CompanyClock companyClock;
 
   private ReconciliationService reconciliationService;
@@ -126,7 +126,7 @@ class ReconciliationServiceTest {
             reconciliationDiscrepancyRepository,
             accountingPeriodRepository,
             taxService,
-            reportService,
+            inventoryValuationQueryService,
             journalEntryServiceProvider);
     company = new Company();
     company.setCode("ACME");
@@ -326,16 +326,10 @@ class ReconciliationServiceTest {
             eq(JournalEntryStatus.POSTED)))
         .thenReturn(List.of(arTotals), List.of(apTotals));
 
-    when(reportService.inventoryValuationAsOf(openPeriod.getEndDate()))
+    when(inventoryValuationQueryService.snapshotAsOf(company, openPeriod.getEndDate()))
         .thenReturn(
-            new com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto(
-                new BigDecimal("500.00"),
-                0,
-                "WEIGHTED_AVERAGE",
-                List.of(),
-                List.of(),
-                List.of(),
-                null));
+            new InventoryValuationQueryService.InventorySnapshot(
+                new BigDecimal("500.00"), 0, "WEIGHTED_AVERAGE", List.of()));
     when(accountRepository.findByCompanyAndId(company, 13L)).thenReturn(Optional.of(inventory));
 
     GstReconciliationDto gst = gstReconciliation("0.00", "0.00", "0.00");
@@ -427,16 +421,10 @@ class ReconciliationServiceTest {
             eq(JournalEntryStatus.POSTED)))
         .thenReturn(List.of(arTotals), List.of(apTotals));
 
-    when(reportService.inventoryValuationAsOf(openPeriod.getEndDate()))
+    when(inventoryValuationQueryService.snapshotAsOf(company, openPeriod.getEndDate()))
         .thenReturn(
-            new com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto(
-                new BigDecimal("420.00"),
-                0,
-                "WEIGHTED_AVERAGE",
-                List.of(),
-                List.of(),
-                List.of(),
-                null));
+            new InventoryValuationQueryService.InventorySnapshot(
+                new BigDecimal("420.00"), 0, "WEIGHTED_AVERAGE", List.of()));
     when(accountRepository.findByCompanyAndId(company, 113L)).thenReturn(Optional.of(inventory));
 
     when(taxService.generateGstReconciliation(YearMonth.from(openPeriod.getStartDate())))

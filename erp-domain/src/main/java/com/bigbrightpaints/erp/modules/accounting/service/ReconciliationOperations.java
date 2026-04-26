@@ -66,9 +66,8 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
-import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
-import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
@@ -94,7 +93,7 @@ final class ReconciliationOperations {
   private final ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   private final AccountingPeriodRepository accountingPeriodRepository;
   private final TaxService taxService;
-  private final ReportService reportService;
+  private final InventoryValuationQueryService inventoryValuationQueryService;
   private final ObjectProvider<JournalEntryService> journalEntryServiceProvider;
 
   ReconciliationOperations(
@@ -111,7 +110,7 @@ final class ReconciliationOperations {
       ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
-      ReportService reportService,
+      InventoryValuationQueryService inventoryValuationQueryService,
       ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
@@ -126,7 +125,7 @@ final class ReconciliationOperations {
     this.reconciliationDiscrepancyRepository = reconciliationDiscrepancyRepository;
     this.accountingPeriodRepository = accountingPeriodRepository;
     this.taxService = taxService;
-    this.reportService = reportService;
+    this.inventoryValuationQueryService = inventoryValuationQueryService;
     this.journalEntryServiceProvider = journalEntryServiceProvider;
   }
 
@@ -1205,24 +1204,16 @@ final class ReconciliationOperations {
     AccountingPeriod period = maybeOpenPeriod.get();
     PeriodReconciliationResult base =
         reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate());
-    ReconciliationSummaryDto inventorySummary = null;
-    GstReconciliationDto gstSummary = null;
-    try {
-      inventorySummary = buildInventorySummary(company, period);
-    } catch (Exception ex) {
-      log.warn("Inventory reconciliation summary unavailable during discrepancy sync", ex);
-    }
-    try {
-      gstSummary = taxService.generateGstReconciliation(YearMonth.from(period.getStartDate()));
-    } catch (Exception ex) {
-      log.warn("GST reconciliation summary unavailable during discrepancy sync", ex);
-    }
+    ReconciliationSummaryDto inventorySummary = buildInventorySummary(company, period);
+    GstReconciliationDto gstSummary =
+        taxService.generateGstReconciliation(YearMonth.from(period.getStartDate()));
 
     syncPeriodDiscrepancies(company, period, base, inventorySummary, gstSummary);
   }
 
   private ReconciliationSummaryDto buildInventorySummary(Company company, AccountingPeriod period) {
-    InventoryValuationDto valuation = reportService.inventoryValuationAsOf(period.getEndDate());
+    InventoryValuationQueryService.InventorySnapshot valuation =
+        inventoryValuationQueryService.snapshotAsOf(company, period.getEndDate());
     BigDecimal physicalValue = safe(valuation != null ? valuation.totalValue() : null);
 
     BigDecimal ledgerValue = BigDecimal.ZERO;

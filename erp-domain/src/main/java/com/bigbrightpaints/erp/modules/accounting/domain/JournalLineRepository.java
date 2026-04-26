@@ -21,6 +21,14 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
     BigDecimal getTotalCredit();
   }
 
+  interface AccountTypeLineTotals {
+    AccountType getAccountType();
+
+    BigDecimal getTotalDebit();
+
+    BigDecimal getTotalCredit();
+  }
+
   @Query(
       """
 select line from JournalLine line
@@ -54,7 +62,9 @@ order by entry.entryDate asc, line.id asc
 
   @Query(
       """
-select line.account.type, sum(line.debit), sum(line.credit)
+select line.account.type as accountType,
+       coalesce(sum(line.debit), 0) as totalDebit,
+       coalesce(sum(line.credit), 0) as totalCredit
 from JournalLine line
 join line.journalEntry entry
 where entry.company = :company
@@ -69,7 +79,9 @@ group by line.account.type
 
   @Query(
       """
-select line.account.type, sum(line.debit), sum(line.credit)
+select line.account.type as accountType,
+       coalesce(sum(line.debit), 0) as totalDebit,
+       coalesce(sum(line.credit), 0) as totalCredit
 from JournalLine line
 join line.journalEntry entry
 where entry.company = :company
@@ -80,7 +92,7 @@ where entry.company = :company
   and entry.sourceReference = entry.referenceNumber
 group by line.account.type
 """)
-  List<Object[]> summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
+  List<AccountTypeLineTotals> summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
       @Param("company") Company company,
       @Param("start") LocalDate start,
       @Param("end") LocalDate end);

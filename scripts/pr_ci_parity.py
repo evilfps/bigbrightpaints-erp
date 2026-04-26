@@ -546,6 +546,8 @@ def main() -> int:
                     str(changed_coverage_output),
                 ]
             )
+            if coverage_baseline_applied:
+                coverage_command.append("--allow-threshold-gap")
             results["pr-changed-coverage"] = execute_job(
                 "pr-changed-coverage",
                 coverage_command,

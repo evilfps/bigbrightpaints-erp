@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -17,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
@@ -75,19 +75,17 @@ class StatementReportControllerActivityContractTest {
     StatementReportController controller = controller(accountingService);
     when(accountingService.getAccountingDateContext())
         .thenReturn(
-            Map.of(
-                "companyCode", "BBP",
-                "timezone", "Asia/Kolkata",
-                "today", LocalDate.of(2026, 2, 10)));
+            new AccountingDateContextDto(
+                11L, "BBP", "Asia/Kolkata", LocalDate.of(2026, 2, 10), null));
 
-    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+    ResponseEntity<ApiResponse<AccountingDateContextDto>> response =
         controller.getAccountingDateContext();
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody().data()).containsEntry("companyCode", "BBP");
-    assertThat(response.getBody().data()).containsEntry("timezone", "Asia/Kolkata");
-    assertThat(response.getBody().data()).containsEntry("today", LocalDate.of(2026, 2, 10));
+    assertThat(response.getBody().data().companyCode()).isEqualTo("BBP");
+    assertThat(response.getBody().data().timezone()).isEqualTo("Asia/Kolkata");
+    assertThat(response.getBody().data().today()).isEqualTo(LocalDate.of(2026, 2, 10));
   }
 
   private StatementReportController controller(AccountingService accountingService) {

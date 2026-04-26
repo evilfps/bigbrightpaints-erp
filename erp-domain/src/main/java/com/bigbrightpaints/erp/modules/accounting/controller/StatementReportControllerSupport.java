@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -156,7 +157,7 @@ public class StatementReportControllerSupport {
         movements);
   }
 
-  Map<String, Object> getAccountingDateContext() {
+  AccountingDateContextDto getAccountingDateContext() {
     return accountingService.getAccountingDateContext();
   }
 

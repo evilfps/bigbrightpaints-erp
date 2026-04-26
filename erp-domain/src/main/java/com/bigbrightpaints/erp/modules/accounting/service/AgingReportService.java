@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -103,7 +104,7 @@ public class AgingReportService {
     AgingSummaryResponse summary =
         statementService.dealerAging(dealer, today, REPORT_AGING_BUCKETS);
     AgingBuckets buckets = toAgingBuckets(summary);
-    BigDecimal totalOutstanding = safe(summary != null ? summary.totalOutstanding() : null);
+    BigDecimal totalOutstanding = requireAmount(summary.totalOutstanding(), "totalOutstanding");
 
     return new DealerAgingDetail(
         dealer.getId(), dealer.getCode(), dealer.getName(), buckets, totalOutstanding);
@@ -196,7 +197,7 @@ public class AgingReportService {
       AgingSummaryResponse summary =
           resolveCanonicalDealerAging(
               dealer, effectiveDate, startDate, endDate, filterByEntryWindow);
-      BigDecimal totalOutstanding = safe(summary != null ? summary.totalOutstanding() : null);
+      BigDecimal totalOutstanding = requireAmount(summary.totalOutstanding(), "totalOutstanding");
       if (totalOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
         continue;
       }
@@ -226,9 +227,9 @@ public class AgingReportService {
   }
 
   private AgingBuckets toAgingBuckets(AgingSummaryResponse summary) {
-    if (summary == null || summary.buckets() == null) {
-      return new AgingBuckets();
-    }
+    Objects.requireNonNull(summary, "StatementService returned null dealer aging summary");
+    Objects.requireNonNull(
+        summary.buckets(), "StatementService returned null dealer aging buckets");
 
     BigDecimal current = BigDecimal.ZERO;
     BigDecimal days1to30 = BigDecimal.ZERO;
@@ -237,19 +238,24 @@ public class AgingReportService {
     BigDecimal over90 = BigDecimal.ZERO;
 
     for (AgingBucketDto bucket : summary.buckets()) {
-      if (bucket == null || bucket.amount() == null) {
-        continue;
-      }
+      Objects.requireNonNull(bucket, "StatementService returned null dealer aging bucket");
+      BigDecimal amount = requireAmount(bucket.amount(), "bucket.amount");
       if (bucket.fromDays() == 0 && Integer.valueOf(0).equals(bucket.toDays())) {
-        current = current.add(bucket.amount());
+        current = current.add(amount);
       } else if (bucket.fromDays() == 1 && Integer.valueOf(30).equals(bucket.toDays())) {
-        days1to30 = days1to30.add(bucket.amount());
+        days1to30 = days1to30.add(amount);
       } else if (bucket.fromDays() == 31 && Integer.valueOf(60).equals(bucket.toDays())) {
-        days31to60 = days31to60.add(bucket.amount());
+        days31to60 = days31to60.add(amount);
       } else if (bucket.fromDays() == 61 && Integer.valueOf(90).equals(bucket.toDays())) {
-        days61to90 = days61to90.add(bucket.amount());
+        days61to90 = days61to90.add(amount);
       } else if (bucket.fromDays() == 91 && bucket.toDays() == null) {
-        over90 = over90.add(bucket.amount());
+        over90 = over90.add(amount);
+      } else {
+        throw new IllegalStateException(
+            "StatementService returned unsupported dealer aging bucket: "
+                + bucket.fromDays()
+                + "-"
+                + bucket.toDays());
       }
     }
     return new AgingBuckets(current, days1to30, days31to60, days61to90, over90);
@@ -303,8 +309,11 @@ public class AgingReportService {
     return "90+";
   }
 
-  private BigDecimal safe(BigDecimal value) {
-    return value == null ? BigDecimal.ZERO : value;
+  private BigDecimal requireAmount(BigDecimal value, String fieldName) {
+    if (value == null) {
+      throw new IllegalStateException("StatementService returned null dealer aging " + fieldName);
+    }
+    return value;
   }
 
   // DTOs

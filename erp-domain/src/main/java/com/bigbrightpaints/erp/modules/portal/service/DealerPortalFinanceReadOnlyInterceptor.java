@@ -20,6 +20,8 @@ import jakarta.servlet.http.HttpServletResponse;
 public class DealerPortalFinanceReadOnlyInterceptor implements HandlerInterceptor {
 
   private static final String DEALER_PORTAL_ROOT_PATH = "/api/v1/dealer-portal";
+  private static final String DEALER_PORTAL_SUPPORT_TICKETS_PATH =
+      "/api/v1/dealer-portal/support/tickets";
   private static final Set<String> FINANCE_READ_ONLY_PATHS =
       Set.of(
           "/api/v1/dealer-portal/ledger",
@@ -43,7 +45,16 @@ public class DealerPortalFinanceReadOnlyInterceptor implements HandlerIntercepto
     if (!isDealerAuthentication(authentication)) {
       return true;
     }
-    Dealer dealer = dealerPortalService.getCurrentDealer();
+    Dealer dealer =
+        dealerPortalService
+            .findCurrentDealerMapping()
+            .orElseGet(
+                () -> {
+                  if (isSupportTicketPath(path)) {
+                    return null;
+                  }
+                  return dealerPortalService.getCurrentDealer();
+                });
     if (!dealerPortalService.isFinanceReadOnlyDealer(dealer)) {
       return true;
     }
@@ -59,6 +70,12 @@ public class DealerPortalFinanceReadOnlyInterceptor implements HandlerIntercepto
       return false;
     }
     return path.equals(DEALER_PORTAL_ROOT_PATH) || path.startsWith(DEALER_PORTAL_ROOT_PATH + "/");
+  }
+
+  private boolean isSupportTicketPath(String path) {
+    return path != null
+        && (path.equals(DEALER_PORTAL_SUPPORT_TICKETS_PATH)
+            || path.startsWith(DEALER_PORTAL_SUPPORT_TICKETS_PATH + "/"));
   }
 
   private boolean isDealerAuthentication(Authentication authentication) {

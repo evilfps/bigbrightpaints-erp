@@ -4,9 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +15,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
@@ -162,17 +161,16 @@ public class AccountingService {
     return temporalBalanceService.compareBalances(accountId, from, to);
   }
 
-  public Map<String, Object> getAccountingDateContext() {
+  public AccountingDateContextDto getAccountingDateContext() {
     Company company = companyContextService.requireCurrentCompany();
     LocalDate today = companyClock.today(company);
     Instant now = companyClock.now(company);
-    Map<String, Object> payload = new HashMap<>();
-    payload.put("companyId", company != null ? company.getId() : null);
-    payload.put("companyCode", company != null ? company.getCode() : null);
-    payload.put("timezone", company != null ? company.getTimezone() : null);
-    payload.put("today", today);
-    payload.put("now", now);
-    return payload;
+    return new AccountingDateContextDto(
+        company != null ? company.getId() : null,
+        company != null ? company.getCode() : null,
+        company != null ? company.getTimezone() : null,
+        today,
+        now);
   }
 
   public ConfigurationHealthService.ConfigurationHealthReport getConfigurationHealthReport() {
