@@ -335,7 +335,40 @@ POST /api/v1/inventory/adjustments
 }
 ```
 
-### Opening stock import response (`importedCount`)
+### Opening stock preview/import response (`importedCount`)
+
+```json
+POST /api/v1/inventory/opening-stock/preview?openingStockBatchKey=FY26-OPENING-STOCK-01
+{
+  "success": true,
+  "data": {
+    "openingStockBatchKey": "FY26-OPENING-STOCK-01",
+    "preview": true,
+    "rowsProcessed": 1,
+    "importedCount": 0,
+    "finishedGoodBatchesCreated": 1,
+    "rawMaterialBatchesCreated": 0,
+    "results": [
+      {
+        "rowNumber": 1,
+        "sku": "ULTRA-BLACK-1L",
+        "stockType": "FINISHED_GOOD",
+        "batchCode": "FG-OPEN-001",
+        "quantity": 120,
+        "unitCost": 2.50,
+        "entryMode": "BOXES",
+        "enteredQuantity": 10,
+        "piecesPerBox": 12
+      }
+    ],
+    "errors": []
+  }
+}
+```
+
+When a CSV row omits `batch_code`, preview returns a read-only candidate
+`batchCode` without reserving the number sequence; the final import performs the
+actual allocation.
 
 ```json
 POST /api/v1/inventory/opening-stock
@@ -343,6 +376,7 @@ POST /api/v1/inventory/opening-stock
   "success": true,
   "data": {
     "openingStockBatchKey": "FY26-OPENING-STOCK-01",
+    "preview": false,
     "rowsProcessed": 24,
     "importedCount": 24,
     "finishedGoodBatchesCreated": 8,

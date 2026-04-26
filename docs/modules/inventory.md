@@ -65,6 +65,7 @@ The inventory module is the authoritative stock boundary. Catalog/setup truth (b
 | Route | Method | Actor | Purpose |
 | --- | --- | --- | --- |
 | `/api/v1/inventory/opening-stock` | POST | ADMIN, ACCOUNTING, FACTORY | Import opening stock (multipart CSV) |
+| `/api/v1/inventory/opening-stock/preview` | POST | ADMIN, ACCOUNTING, FACTORY | Validate opening stock CSV without creating batches, movements, or journals |
 | `/api/v1/inventory/opening-stock` | GET | ADMIN, ACCOUNTING, FACTORY | Import history |
 
 ### Dispatch
@@ -233,7 +234,7 @@ When enabled, the listener:
 
 ### Overview
 
-`POST /api/v1/inventory/opening-stock` accepts a multipart CSV upload to create initial batches for both finished goods and raw materials.
+`POST /api/v1/inventory/opening-stock` accepts a multipart CSV upload to create initial batches for both finished goods and raw materials. `POST /api/v1/inventory/opening-stock/preview` accepts the same CSV and `openingStockBatchKey`, but only validates and calculates row results. Preview also runs the duplicate-content replay guard used by import and only peeks at generated batch-code candidates; it does not reserve number-sequence values.
 
 ### Endpoint Contract
 
@@ -242,6 +243,28 @@ When enabled, the listener:
 | `Idempotency-Key` header | Yes | Prevents duplicate imports |
 | `openingStockBatchKey` param | Yes | Logical batch identifier; must be unique per company |
 | `file` part (CSV) | Yes | Opening stock rows |
+
+Preview does not require `Idempotency-Key` because it never writes inventory, accounting, import history, or number-sequence state.
+
+### CSV Quantity Rules
+
+Opening stock is posted against the concrete prepared SKU, not the parent product family. A parent such as `Ultra Paint` may group `Ultra Paint / Black / 1L` and `Ultra Paint / Black / 20L`, but opening stock must be entered per variant SKU.
+
+Rows can use direct unit entry:
+
+```csv
+type,sku,batch_code,quantity,unit_cost
+FINISHED_GOOD,ULTRA-BLACK-1L,FG-OPEN-001,120,2.50
+```
+
+Rows can also use box entry. The backend calculates canonical SKU quantity as `boxes * pieces_per_box` and stores that final quantity on the SKU batch and movement:
+
+```csv
+type,sku,batch_code,boxes,pieces_per_box,unit_cost
+FINISHED_GOOD,ULTRA-BLACK-1L,FG-OPEN-001,10,12,2.50
+```
+
+If both `quantity` and box fields are sent, `quantity` must already equal `boxes * pieces_per_box`; otherwise the row is rejected.
 
 ### Prerequisites and Readiness Gates
 

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,8 +39,8 @@ class NumberSequenceServiceTest {
 
   @BeforeEach
   void setup() {
-    when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-    when(companyRepository.existsById(anyLong())).thenReturn(true);
+    lenient().when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+    lenient().when(companyRepository.existsById(anyLong())).thenReturn(true);
     numberSequenceService = new NumberSequenceService(repository, companyRepository, txManager);
     lenient()
         .when(repository.saveAndFlush(any()))
@@ -90,6 +91,28 @@ class NumberSequenceServiceTest {
     }
 
     verify(repository).findWithLockByCompanyAndSequenceKey(eq(company), eq("TEST"));
+  }
+
+  @Test
+  void previewNextValueReadsCurrentSequenceWithoutIncrementing() {
+    Company company = companyWithId(1L);
+    NumberSequence sequence = new NumberSequence();
+    sequence.setNextValue(9L);
+    when(repository.findByCompanyAndSequenceKey(company, "TEST")).thenReturn(Optional.of(sequence));
+
+    long value = numberSequenceService.previewNextValue(company, "TEST");
+
+    assertThat(value).isEqualTo(9L);
+    verify(repository).findByCompanyAndSequenceKey(company, "TEST");
+    verify(repository, never()).saveAndFlush(any());
+  }
+
+  @Test
+  void previewNextValueDefaultsToOneWhenSequenceDoesNotExist() {
+    Company company = companyWithId(1L);
+    when(repository.findByCompanyAndSequenceKey(company, "NEW")).thenReturn(Optional.empty());
+
+    assertThat(numberSequenceService.previewNextValue(company, "NEW")).isEqualTo(1L);
   }
 
   private Company companyWithId(Long id) {

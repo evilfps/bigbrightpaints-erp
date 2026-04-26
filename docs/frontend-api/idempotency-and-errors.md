@@ -7,6 +7,11 @@ Last reviewed: 2026-04-07
 - `POST /api/v1/inventory/opening-stock` requires:
   - `Idempotency-Key` header
   - `openingStockBatchKey` query param
+- `POST /api/v1/inventory/opening-stock/preview` requires
+  `openingStockBatchKey` and the CSV file only. It validates readiness, duplicate
+  batch keys, duplicate file content, row quantities, and box conversion, but
+  does not create stock, movements, journals, import history, idempotency
+  records, or number-sequence reservations.
 - `POST /api/v1/purchasing/goods-receipts` and
   `POST /api/v1/inventory/raw-materials/adjustments` accept only
   `Idempotency-Key`.

@@ -63,6 +63,28 @@ public class OpeningStockImportController {
     }
   }
 
+  @PostMapping(value = "/opening-stock/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
+  public ResponseEntity<ApiResponse<OpeningStockImportResponse>> previewOpeningStock(
+      @RequestParam("openingStockBatchKey") String openingStockBatchKey,
+      @RequestPart("file") MultipartFile file,
+      Authentication authentication) {
+    boolean includeAccountingMetadata = canViewAccountingMetadata(authentication);
+    try {
+      OpeningStockImportResponse response =
+          openingStockImportService.previewOpeningStock(file, openingStockBatchKey);
+      return ResponseEntity.ok(
+          ApiResponse.success(
+              "Opening stock preview processed",
+              sanitizeResponseReadiness(response, includeAccountingMetadata)));
+    } catch (ApplicationException ex) {
+      if (includeAccountingMetadata) {
+        throw ex;
+      }
+      throw sanitizeImportException(ex);
+    }
+  }
+
   @GetMapping("/opening-stock")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
   public ResponseEntity<ApiResponse<PageResponse<OpeningStockImportHistoryItem>>> importHistory(
@@ -79,16 +101,14 @@ public class OpeningStockImportController {
     }
     return new OpeningStockImportResponse(
         response.openingStockBatchKey(),
+        response.preview(),
         response.rowsProcessed(),
         response.rawMaterialBatchesCreated(),
         response.finishedGoodBatchesCreated(),
         response.results().stream()
             .map(
                 result ->
-                    new OpeningStockImportResponse.ImportRowResult(
-                        result.rowNumber(),
-                        result.sku(),
-                        result.stockType(),
+                    result.withReadiness(
                         skuReadinessService.sanitizeForCatalogViewer(result.readiness(), false)))
             .toList(),
         response.errors().stream()

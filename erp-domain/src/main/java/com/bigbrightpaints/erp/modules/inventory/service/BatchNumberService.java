@@ -25,27 +25,52 @@ public class BatchNumberService {
 
   public String nextRawMaterialBatchCode(RawMaterial material) {
     Company company = material.getCompany();
-    YearMonth period = YearMonth.now(resolveZone(company));
-    String sku =
-        sanitize(material.getSku() != null ? material.getSku() : String.valueOf(material.getId()));
-    String key = "RM-%s-%s".formatted(sku, formatPeriod(period));
+    String key = rawMaterialSequenceKey(material);
     return formatted(key, numberSequenceService.nextValue(company, key));
   }
 
+  long previewRawMaterialBatchSequence(RawMaterial material) {
+    Company company = material.getCompany();
+    String key = rawMaterialSequenceKey(material);
+    return numberSequenceService.previewNextValue(company, key);
+  }
+
+  String previewRawMaterialBatchCodeAt(RawMaterial material, long sequenceValue) {
+    return formatted(rawMaterialSequenceKey(material), sequenceValue);
+  }
+
   public String nextFinishedGoodBatchCode(FinishedGood finishedGood, LocalDate packedDate) {
+    Company company = finishedGood.getCompany();
+    String key = finishedGoodSequenceKey(finishedGood, packedDate);
+    return formatted(key, numberSequenceService.nextValue(company, key));
+  }
+
+  String previewFinishedGoodBatchCode(FinishedGood finishedGood, LocalDate packedDate) {
+    Company company = finishedGood.getCompany();
+    String key = finishedGoodSequenceKey(finishedGood, packedDate);
+    return formatted(key, numberSequenceService.previewNextValue(company, key));
+  }
+
+  public String nextPackagingSlipNumber(Company company) {
+    String key = "%s-PS".formatted(company.getCode());
+    return formatted(key, numberSequenceService.nextValue(company, key));
+  }
+
+  private String rawMaterialSequenceKey(RawMaterial material) {
+    YearMonth period = YearMonth.now(resolveZone(material.getCompany()));
+    String sku =
+        sanitize(material.getSku() != null ? material.getSku() : String.valueOf(material.getId()));
+    return "RM-%s-%s".formatted(sku, formatPeriod(period));
+  }
+
+  private String finishedGoodSequenceKey(FinishedGood finishedGood, LocalDate packedDate) {
     Company company = finishedGood.getCompany();
     YearMonth period =
         packedDate != null
             ? YearMonth.of(packedDate.getYear(), packedDate.getMonth())
             : YearMonth.now(resolveZone(company));
     String sku = sanitize(finishedGood.getProductCode());
-    String key = "%s-FG-%s-%s".formatted(company.getCode(), sku, formatPeriod(period));
-    return formatted(key, numberSequenceService.nextValue(company, key));
-  }
-
-  public String nextPackagingSlipNumber(Company company) {
-    String key = "%s-PS".formatted(company.getCode());
-    return formatted(key, numberSequenceService.nextValue(company, key));
+    return "%s-FG-%s-%s".formatted(company.getCode(), sku, formatPeriod(period));
   }
 
   private ZoneId resolveZone(Company company) {
