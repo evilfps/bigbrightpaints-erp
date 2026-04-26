@@ -29,6 +29,9 @@ THE-ORCHESTRATOR-FOR-BBP/
 .vscode/
 .cli-proxy-api/
 
+# Generated Factory validation outputs
+.factory/validation/**
+
 # Downloaded JDKs
 .jdk-temurin/
 .jdk-temurin-linux/

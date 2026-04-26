@@ -132,7 +132,14 @@ public class MockDataInitializer {
       @Value("${erp.seed.mock-admin.password:}") String mockAdminPassword) {
     return args -> {
       Company company = createCompany(companyRepository);
-      Map<String, Account> accounts = seedAccounts(company, accountRepository, companyRepository);
+      String previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(company.getCode());
+      Map<String, Account> accounts;
+      try {
+        accounts = seedAccounts(company, accountRepository, companyRepository);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
       UserAccount seededAdmin =
           seedRolesAndUsers(
               roleRepository,
@@ -966,6 +973,10 @@ public class MockDataInitializer {
       String batchCode,
       BigDecimal qty,
       BigDecimal cost) {
+    if (rawMaterial.getId() != null
+        && batchRepository.existsByRawMaterialAndBatchCode(rawMaterial, batchCode)) {
+      return;
+    }
     RawMaterialBatch batch = new RawMaterialBatch();
     batch.setRawMaterial(rawMaterial);
     batch.setBatchCode(batchCode);
@@ -975,6 +986,14 @@ public class MockDataInitializer {
     batchRepository.save(batch);
     rawMaterial.setCurrentStock(rawMaterial.getCurrentStock().add(qty));
     rawMaterialRepository.save(rawMaterial);
+  }
+
+  private static void restoreCompanyContext(String previousCompanyCode) {
+    if (StringUtils.hasText(previousCompanyCode)) {
+      CompanyContextHolder.setCompanyCode(previousCompanyCode);
+    } else {
+      CompanyContextHolder.clear();
+    }
   }
 
   private void seedSalesPurchaseAndCogs(

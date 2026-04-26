@@ -208,13 +208,14 @@ class DealerSettlementService {
         JournalEntry entry =
             journalReplayService.resolveReplayJournalEntry(
                 trimmedIdempotencyKey, existingEntry, existingAllocations);
+        String replayReference = canonicalReplayReference(entry, reference);
         PartnerPaymentEvent paymentEvent =
             resolveDealerSettlementPaymentEvent(
                 company,
                 dealer,
                 totals.totalApplied(),
                 entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
-                reference,
+                replayReference,
                 trimmedIdempotencyKey,
                 memo,
                 sourceRoute);
@@ -248,13 +249,14 @@ class DealerSettlementService {
       JournalEntry entry =
           journalReplayService.resolveReplayJournalEntryFromExistingAllocations(
               company, reference, trimmedIdempotencyKey, existingAllocations);
+      String replayReference = canonicalReplayReference(entry, reference);
       PartnerPaymentEvent paymentEvent =
           resolveDealerSettlementPaymentEvent(
               company,
               dealer,
               totals.totalApplied(),
               entry != null ? entry.getEntryDate() : requestedEffectiveSettlementDate,
-              reference,
+              replayReference,
               trimmedIdempotencyKey,
               memo,
               sourceRoute);
@@ -483,6 +485,13 @@ class DealerSettlementService {
         idempotencyKey,
         memo,
         sourceRoute);
+  }
+
+  private String canonicalReplayReference(JournalEntry entry, String fallbackReference) {
+    if (entry != null && StringUtils.hasText(entry.getReferenceNumber())) {
+      return entry.getReferenceNumber().trim();
+    }
+    return fallbackReference;
   }
 
   private void attachPaymentEventToSettlementRows(

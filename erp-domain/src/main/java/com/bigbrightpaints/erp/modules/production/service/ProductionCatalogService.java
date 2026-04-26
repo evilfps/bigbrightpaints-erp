@@ -568,6 +568,7 @@ public class ProductionCatalogService {
     List<String> productNames = new ArrayList<>();
     List<BulkVariantCandidate> baseCandidates = new ArrayList<>();
     Set<String> seen = new HashSet<>();
+    Set<String> seenSkus = new HashSet<>();
 
     for (BulkVariantCombination combination : combinations) {
       String sku =
@@ -584,6 +585,8 @@ public class ProductionCatalogService {
       String reason = null;
       if (!seen.add(key)) {
         reason = "DUPLICATE_IN_REQUEST";
+      } else if (!seenSkus.add(normalizeSkuKey(sku))) {
+        reason = "DUPLICATE_SKU_IN_REQUEST";
       }
       baseCandidates.add(
           new BulkVariantCandidate(

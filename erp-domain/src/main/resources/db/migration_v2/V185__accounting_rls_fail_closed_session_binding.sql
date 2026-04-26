@@ -18,10 +18,6 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF raw_company_context ~ '^[0-9]+$' THEN
-        RETURN raw_company_context::BIGINT;
-    END IF;
-
     IF raw_company_context !~ '^[A-Za-z0-9_.-]+$' THEN
         RETURN NULL;
     END IF;
@@ -32,7 +28,15 @@ BEGIN
      WHERE lower(c.code) = lower(raw_company_context)
      LIMIT 1;
 
-    RETURN resolved_company_id;
+    IF resolved_company_id IS NOT NULL THEN
+        RETURN resolved_company_id;
+    END IF;
+
+    IF raw_company_context ~ '^[0-9]+$' THEN
+        RETURN raw_company_context::BIGINT;
+    END IF;
+
+    RETURN NULL;
 END;
 $$;
 

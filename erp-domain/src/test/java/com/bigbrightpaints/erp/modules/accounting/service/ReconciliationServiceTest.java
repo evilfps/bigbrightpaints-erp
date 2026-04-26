@@ -289,8 +289,9 @@ class ReconciliationServiceTest {
     inventory.setCode("INV");
     inventory.setBalance(new BigDecimal("500.00"));
 
-    when(accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(
-            company, AccountingPeriodStatus.OPEN))
+    when(accountingPeriodRepository
+            .findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+                eq(company), eq(AccountingPeriodStatus.OPEN), any(LocalDate.class)))
         .thenReturn(Optional.of(openPeriod));
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(receivable, payable));
@@ -391,8 +392,9 @@ class ReconciliationServiceTest {
     AccountingPeriod openPeriod = openPeriod(77L, company, 2026, 3);
     company.setDefaultInventoryAccountId(113L);
 
-    when(accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(
-            company, AccountingPeriodStatus.OPEN))
+    when(accountingPeriodRepository
+            .findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+                eq(company), eq(AccountingPeriodStatus.OPEN), any(LocalDate.class)))
         .thenReturn(Optional.of(openPeriod));
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(receivable, payable));
@@ -489,8 +491,9 @@ class ReconciliationServiceTest {
     Dealer dealer = dealer(51L, "D-5", "Dealer Five", "100.00");
     dealer.setReceivableAccount(receivable);
 
-    when(accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(
-            company, AccountingPeriodStatus.OPEN))
+    when(accountingPeriodRepository
+            .findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+                eq(company), eq(AccountingPeriodStatus.OPEN), any(LocalDate.class)))
         .thenReturn(Optional.empty());
     when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(receivable));
     when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));

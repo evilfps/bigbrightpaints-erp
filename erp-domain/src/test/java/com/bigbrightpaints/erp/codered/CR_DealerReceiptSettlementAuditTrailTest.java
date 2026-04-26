@@ -554,6 +554,27 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             .distinct()
             .toList();
     assertThat(journalIds).as("single settlement journal").hasSize(1);
+    Long journalId = journalIds.getFirst();
+    String journalReference =
+        jdbcTemplate.queryForObject(
+            "select reference_number from journal_entries where id = ?", String.class, journalId);
+    assertThat(journalReference).isNotBlank();
+    assertThat(journalReference).doesNotStartWith("RESERVED-");
+
+    List<String> paymentEventReferences =
+        jdbcTemplate.queryForList(
+            """
+            select reference_number
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            String.class,
+            company.getId(),
+            idempotencyKey);
+    assertThat(paymentEventReferences).containsExactly(journalReference);
   }
 
   @Test

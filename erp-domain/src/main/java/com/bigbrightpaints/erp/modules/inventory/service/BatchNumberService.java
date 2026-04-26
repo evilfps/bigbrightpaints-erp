@@ -51,6 +51,17 @@ public class BatchNumberService {
     return formatted(key, numberSequenceService.previewNextValue(company, key));
   }
 
+  long previewFinishedGoodBatchSequence(FinishedGood finishedGood, LocalDate packedDate) {
+    Company company = finishedGood.getCompany();
+    String key = finishedGoodSequenceKey(finishedGood, packedDate);
+    return numberSequenceService.previewNextValue(company, key);
+  }
+
+  String previewFinishedGoodBatchCodeAt(
+      FinishedGood finishedGood, LocalDate packedDate, long sequenceValue) {
+    return formatted(finishedGoodSequenceKey(finishedGood, packedDate), sequenceValue);
+  }
+
   public String nextPackagingSlipNumber(Company company) {
     String key = "%s-PS".formatted(company.getCode());
     return formatted(key, numberSequenceService.nextValue(company, key));

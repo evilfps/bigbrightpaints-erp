@@ -99,12 +99,13 @@ class ManualJournalService {
     }
     JournalEntryDto created;
     try {
+      String normalizedMemo = normalizeMemo(request.memo());
       created =
           journalPostingService.createJournalEntry(
               new JournalEntryRequest(
                   null,
                   request.entryDate(),
-                  request.memo(),
+                  normalizedMemo,
                   request.dealerId(),
                   request.supplierId(),
                   request.adminOverride(),

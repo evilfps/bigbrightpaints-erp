@@ -215,6 +215,11 @@ class PartnerPaymentEventService {
     if (existing == null) {
       throw replayConflict("Payment event missing for replay", idempotencyKey);
     }
+    if (!equalsIgnoreCaseTrimmed(existing.getIdempotencyKey(), idempotencyKey)) {
+      throw replayConflict(
+              "Payment reference already used with a different idempotency key", idempotencyKey)
+          .withDetail("existingIdempotencyKey", existing.getIdempotencyKey());
+    }
     if (existing.getPartnerType() != PartnerType.DEALER
         || existing.getDealer() == null
         || existing.getDealer().getId() == null
@@ -266,6 +271,11 @@ class PartnerPaymentEventService {
       String idempotencyKey) {
     if (existing == null) {
       throw replayConflict("Payment event missing for replay", idempotencyKey);
+    }
+    if (!equalsIgnoreCaseTrimmed(existing.getIdempotencyKey(), idempotencyKey)) {
+      throw replayConflict(
+              "Payment reference already used with a different idempotency key", idempotencyKey)
+          .withDetail("existingIdempotencyKey", existing.getIdempotencyKey());
     }
     if (existing.getPartnerType() != PartnerType.SUPPLIER
         || existing.getSupplier() == null

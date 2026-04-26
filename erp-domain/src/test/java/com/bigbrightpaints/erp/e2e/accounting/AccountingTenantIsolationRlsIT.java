@@ -410,6 +410,57 @@ class AccountingTenantIsolationRlsIT extends AbstractIntegrationTest {
     assertThat(tenantBForeignVisible).isZero();
   }
 
+  @Test
+  void appDatasourceBinding_resolvesNumericCompanyCodeBeforeNumericIdFallback() {
+    ensureRlsProbeRole();
+
+    String suffix = Long.toString(System.nanoTime(), 36).toUpperCase(Locale.ROOT);
+    Company numericCodeCompany =
+        dataSeeder.ensureCompany("RLSNUMA-" + suffix, "RLS Numeric A " + suffix);
+    Company idCollisionCompany =
+        dataSeeder.ensureCompany("RLSNUMB-" + suffix, "RLS Numeric B " + suffix);
+    String numericCompanyCode = idCollisionCompany.getId().toString();
+    jdbcTemplate.update(
+        "UPDATE companies SET code = ? WHERE id = ?",
+        numericCompanyCode,
+        numericCodeCompany.getId());
+
+    long numericCodeCompanyEntry =
+        insertJournalEntry(
+            numericCodeCompany.getId(),
+            "RLS-NUM-JE-A-" + suffix,
+            "numeric company code tenant row");
+    long idCollisionCompanyEntry =
+        insertJournalEntry(
+            idCollisionCompany.getId(),
+            "RLS-NUM-JE-B-" + suffix,
+            "numeric id collision tenant row");
+
+    CompanyContextHolder.setCompanyCode(numericCompanyCode);
+    long resolvedCompanyId =
+        withProbeRole(
+            connection -> queryForLong(connection, "SELECT public.erp_current_company_id()"));
+    assertThat(resolvedCompanyId).isEqualTo(numericCodeCompany.getId());
+
+    long visibleNumericCodeTenant =
+        withProbeRole(
+            connection ->
+                queryForLong(
+                    connection,
+                    "SELECT COUNT(*) FROM journal_entries WHERE id = ?",
+                    numericCodeCompanyEntry));
+    long visibleIdCollisionTenant =
+        withProbeRole(
+            connection ->
+                queryForLong(
+                    connection,
+                    "SELECT COUNT(*) FROM journal_entries WHERE id = ?",
+                    idCollisionCompanyEntry));
+
+    assertThat(visibleNumericCodeTenant).isEqualTo(1L);
+    assertThat(visibleIdCollisionTenant).isZero();
+  }
+
   private Account ensureAccount(Company company, String code) {
     return accountRepository
         .findByCompanyAndCodeIgnoreCase(company, code)

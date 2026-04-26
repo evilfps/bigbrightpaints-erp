@@ -1635,6 +1635,30 @@ class AccountingPeriodServiceTest {
   }
 
   @Test
+  void updatePeriod_preservesExistingCostingMethodWhenRequestOmitsIt() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod period = openPeriod(company, 2026, 5);
+    period.setCostingMethod(CostingMethod.LIFO);
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndId(company, 77L))
+        .thenReturn(Optional.of(period));
+    when(accountingPeriodRepository.save(period)).thenReturn(period);
+
+    var dto =
+        service.updatePeriod(
+            77L,
+            new AccountingPeriodRequest(
+                2026, 5, LocalDate.of(2026, 5, 2), LocalDate.of(2026, 5, 30), null));
+
+    assertThat(dto.costingMethod()).isEqualTo("LIFO");
+    assertThat(period.getCostingMethod()).isEqualTo(CostingMethod.LIFO);
+    assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 2));
+    assertThat(period.getEndDate()).isEqualTo(LocalDate.of(2026, 5, 30));
+    verify(accountingComplianceAuditService, never())
+        .recordCostingMethodChange(any(), any(), any(), any());
+  }
+
+  @Test
   void updatePeriod_rejectsNullRequest() {
     assertThatThrownBy(() -> service.updatePeriod(77L, null))
         .isInstanceOf(ApplicationException.class)

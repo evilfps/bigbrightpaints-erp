@@ -3,8 +3,10 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -46,6 +48,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
@@ -68,6 +71,7 @@ class JournalEntryMutationServiceTest {
   @Mock private JournalDuplicateGuardService journalDuplicateGuardService;
   @Mock private JournalLinePostingService journalLinePostingService;
   @Mock private AccountingComplianceAuditService accountingComplianceAuditService;
+  @Mock private Query advisoryLockQuery;
 
   private JournalEntryMutationService service;
   private Company company;
@@ -111,6 +115,9 @@ class JournalEntryMutationServiceTest {
     when(journalReferenceService.resolveJournalReference(eq(company), any())).thenReturn("JRN-1");
     when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any()))
         .thenReturn(Optional.empty());
+    when(entityManager.createNativeQuery(anyString())).thenReturn(advisoryLockQuery);
+    when(advisoryLockQuery.setParameter(anyInt(), any())).thenReturn(advisoryLockQuery);
+    when(advisoryLockQuery.getSingleResult()).thenReturn(0);
     when(systemSettingsService.isPeriodLockEnforced()).thenReturn(false);
 
     AccountingPeriod period = new AccountingPeriod();

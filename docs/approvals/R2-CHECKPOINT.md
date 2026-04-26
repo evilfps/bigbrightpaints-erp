@@ -19,6 +19,12 @@ Last reviewed: 2026-04-26
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsService.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java`
+  - `erp-domain/src/main/resources/db/migration_v2/V184__accounting_truth_rls_hard_cut.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V185__accounting_rls_fail_closed_session_binding.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V186__account_code_case_insensitive_uniqueness.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V187__dealer_receipt_payment_event_hard_cut.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V188__supplier_auto_settlement_due_date_support.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V189__reconciliation_discrepancy_resolution_alignment.sql`
   - `scripts/reset_final_validation_runtime.sh`
 - Contract surfaces affected:
   - PUT /api/v1/accounting/default-accounts
@@ -46,7 +52,7 @@ Last reviewed: 2026-04-26
 - Owner: Droid mission orchestrator
 - Rollback method:
   - before merge: revert the packet if default-account update/clear semantics or validation runtime readiness regress
-  - after merge: revert packet and rerun focused default-account, accounting proof, runtime reset, OpenAPI, compile, and enterprise policy gates
+  - after merge: revert packet and rerun focused default-account, accounting proof, runtime reset, OpenAPI, compile, High-Risk Change Control, and PR parity checks
 - Rollback trigger:
   - `clearAccountFields` cannot intentionally clear a requested default-account slot, or it clears unrelated slots
   - omitted/null account ID fields start clearing defaults without explicit clear intent
@@ -65,6 +71,7 @@ Last reviewed: 2026-04-26
   - Runtime baseline: `ValidationSeedDataInitializer` creates company-scoped MOCK/RIVAL inventory, COGS, revenue, discount, and tax defaults; `scripts/reset_final_validation_runtime.sh` now verifies those slots and account types.
   - Auditability: `AccountingComplianceAuditService` records `DEFAULT_ACCOUNTS_CLEARED` / `DEFAULT_ACCOUNTS_UPDATED` business audit events with before/after default-account state.
   - Fail-closed proof: compose-backed curl cleared MOCK `taxAccountId`, observed configuration health fail closed, restored the same tax account, and observed health recover.
+  - Migration governance: Flyway v2 schema changes `V184` through `V189` are covered by the migration and rollback runbooks, and the new PR lane must be validated with high-risk and PR parity checks against the remote default branch.
 - Commands run:
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CompanyDefaultAccountsServiceTest,AccountControllerTest,ValidationSeedDataInitializerTest' test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
@@ -75,7 +82,8 @@ Last reviewed: 2026-04-26
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CriticalAccountingAxesIT,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,ReconciliationControlsIT' test`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/modules/accounting/dto/CompanyDefaultAccountsRequest.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountController.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountResolutionOwnerService.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsService.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java,src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountControllerTest.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsServiceTest.java'`
-  - `ENTERPRISE_DIFF_BASE=HEAD bash ci/check-codex-review-guidelines.sh`
+  - `bash ci/check-high-risk-changes.sh`
+  - `python3 scripts/pr_ci_parity.py --base origin/main --head HEAD`
   - `git diff --check`
 - Result summary:
   - focused default-account/controller/validation-seed tests passed

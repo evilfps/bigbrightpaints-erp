@@ -19,6 +19,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -130,14 +131,28 @@ public class ValidationSeedDataInitializer {
       Role superAdmin =
           ensureRole(roleRepository, "ROLE_SUPER_ADMIN", "Platform super administrator");
 
-      Account mockReceivable =
-          ensureAccount(
-              accountRepository, mockCompany, "AR", "Accounts Receivable", AccountType.ASSET);
-      Account rivalReceivable =
-          ensureAccount(
-              accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
-      ensureValidationDefaultAccounts(companyRepository, accountRepository, mockCompany);
-      ensureValidationDefaultAccounts(companyRepository, accountRepository, rivalCompany);
+      Account mockReceivable;
+      String previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(mockCompany.getCode());
+      try {
+        mockReceivable =
+            ensureAccount(
+                accountRepository, mockCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+        ensureValidationDefaultAccounts(companyRepository, accountRepository, mockCompany);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
+      Account rivalReceivable;
+      previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(rivalCompany.getCode());
+      try {
+        rivalReceivable =
+            ensureAccount(
+                accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+        ensureValidationDefaultAccounts(companyRepository, accountRepository, rivalCompany);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
 
       UserAccount mockAdmin =
           ensureUser(
@@ -481,6 +496,14 @@ public class ValidationSeedDataInitializer {
     company.setGstOutputTaxAccountId(taxOutput.getId());
     company.setGstPayableAccountId(taxPayable.getId());
     companyRepository.save(company);
+  }
+
+  private static void restoreCompanyContext(String previousCompanyCode) {
+    if (previousCompanyCode != null && !previousCompanyCode.isBlank()) {
+      CompanyContextHolder.setCompanyCode(previousCompanyCode);
+    } else {
+      CompanyContextHolder.clear();
+    }
   }
 
   private void attachMainAdmin(

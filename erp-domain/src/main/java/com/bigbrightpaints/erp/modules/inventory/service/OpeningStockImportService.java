@@ -630,6 +630,9 @@ public class OpeningStockImportService {
             fingerprintRow(
                 stockType,
                 movement.getRawMaterial().getSku(),
+                batch != null ? batch.getUnit() : null,
+                movement.getRawMaterial().getUnitType(),
+                batch != null ? batch.getBatchCode() : null,
                 movement.getQuantity(),
                 movement.getUnitCost(),
                 resolveLegacyManufacturedDate(company, record, batch),
@@ -651,6 +654,9 @@ public class OpeningStockImportService {
             fingerprintRow(
                 StockType.FINISHED_GOOD,
                 movement.getFinishedGood().getProductCode(),
+                "UNIT",
+                "UNIT",
+                batch != null ? batch.getBatchCode() : null,
                 movement.getQuantity(),
                 movement.getUnitCost(),
                 resolveLegacyManufacturedDate(company, record, batch),
@@ -721,6 +727,9 @@ public class OpeningStockImportService {
             fingerprintRow(
                 row.type,
                 row.sku,
+                row.unit,
+                row.unitType,
+                row.batchCode,
                 row.quantity,
                 row.unitCost,
                 row.manufacturedDate,
@@ -739,6 +748,9 @@ public class OpeningStockImportService {
   private String fingerprintRow(
       StockType stockType,
       String sku,
+      String unit,
+      String unitType,
+      String batchCode,
       BigDecimal quantity,
       BigDecimal unitCost,
       LocalDate manufacturedDate,
@@ -748,6 +760,9 @@ public class OpeningStockImportService {
         "|",
         stockType.name(),
         normalizedSku == null ? "" : normalizedSku,
+        normalizeToken(unit),
+        normalizeToken(unitType),
+        normalizeToken(batchCode),
         normalizeDecimal(quantity),
         normalizeDecimal(unitCost),
         normalizeDate(manufacturedDate),
@@ -763,6 +778,10 @@ public class OpeningStockImportService {
       normalized = normalized.setScale(0);
     }
     return normalized.toPlainString();
+  }
+
+  private String normalizeToken(String value) {
+    return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "";
   }
 
   private String normalizeDate(LocalDate value) {
@@ -1080,13 +1099,7 @@ public class OpeningStockImportService {
             ? row.manufacturedDate.atStartOfDay(resolveZone(company)).toInstant()
             : null;
     String batchCode =
-        StringUtils.hasText(row.batchCode)
-            ? row.batchCode.trim()
-            : preview
-                ? batchNumberService.previewFinishedGoodBatchCode(
-                    finishedGood, row.manufacturedDate)
-                : batchNumberService.nextFinishedGoodBatchCode(finishedGood, row.manufacturedDate);
-    ensureFinishedGoodBatchCodeUnique(finishedGood, batchCode);
+        resolveFinishedGoodBatchCode(finishedGood, row.batchCode, preview, row.manufacturedDate);
 
     if (preview) {
       return new OpeningMovementResult(
@@ -1179,6 +1192,57 @@ public class OpeningStockImportService {
       }
       candidate =
           batchNumberService.previewRawMaterialBatchCodeAt(material, nextSequence + attempts);
+    }
+    return candidate;
+  }
+
+  private String resolveFinishedGoodBatchCode(
+      FinishedGood finishedGood, String requested, boolean preview, LocalDate manufacturedDate) {
+    if (StringUtils.hasText(requested)) {
+      String trimmed = requested.trim();
+      ensureFinishedGoodBatchCodeUnique(finishedGood, trimmed);
+      return trimmed;
+    }
+    return nextUniqueFinishedGoodBatchCode(finishedGood, manufacturedDate, preview);
+  }
+
+  private String nextUniqueFinishedGoodBatchCode(
+      FinishedGood finishedGood, LocalDate manufacturedDate, boolean preview) {
+    if (preview) {
+      return nextUniquePreviewFinishedGoodBatchCode(finishedGood, manufacturedDate);
+    }
+    int attempts = 0;
+    String candidate = batchNumberService.nextFinishedGoodBatchCode(finishedGood, manufacturedDate);
+    while (finishedGoodBatchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(
+        finishedGood, candidate)) {
+      if (attempts++ > 10) {
+        throw ValidationUtils.invalidState(
+            "Unable to allocate unique batch code for finished good "
+                + finishedGood.getProductCode());
+      }
+      candidate = batchNumberService.nextFinishedGoodBatchCode(finishedGood, manufacturedDate);
+    }
+    return candidate;
+  }
+
+  private String nextUniquePreviewFinishedGoodBatchCode(
+      FinishedGood finishedGood, LocalDate manufacturedDate) {
+    long nextSequence =
+        batchNumberService.previewFinishedGoodBatchSequence(finishedGood, manufacturedDate);
+    int attempts = 0;
+    String candidate =
+        batchNumberService.previewFinishedGoodBatchCodeAt(
+            finishedGood, manufacturedDate, nextSequence);
+    while (finishedGoodBatchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(
+        finishedGood, candidate)) {
+      if (attempts++ > 10) {
+        throw ValidationUtils.invalidState(
+            "Unable to allocate unique batch code for finished good "
+                + finishedGood.getProductCode());
+      }
+      candidate =
+          batchNumberService.previewFinishedGoodBatchCodeAt(
+              finishedGood, manufacturedDate, nextSequence + attempts);
     }
     return candidate;
   }

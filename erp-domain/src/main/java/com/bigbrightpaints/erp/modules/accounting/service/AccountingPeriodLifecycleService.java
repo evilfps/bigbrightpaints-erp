@@ -129,7 +129,9 @@ final class AccountingPeriodLifecycleService {
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setStartDate(startDate);
     period.setEndDate(endDate);
-    period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
+    if (request.costingMethod() != null) {
+      period.setCostingMethod(request.costingMethod());
+    }
     AccountingPeriod saved = accountingPeriodRepository.save(period);
     if (auditService != null && beforeCostingMethod != saved.getCostingMethod()) {
       auditService.recordCostingMethodChange(

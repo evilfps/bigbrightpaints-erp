@@ -1,5 +1,9 @@
 package com.bigbrightpaints.erp.core.config;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -62,13 +66,27 @@ public class TenantSessionBindingDataSourceConfig {
       if (!isPostgreSql(connection)) {
         return connection;
       }
+      String appliedCompanyCode = applyCurrentCompanyContext(connection);
+      return contextBindingConnection(connection, appliedCompanyCode);
+    }
+
+    private Connection contextBindingConnection(Connection connection, String appliedCompanyCode) {
+      return (Connection)
+          Proxy.newProxyInstance(
+              connection.getClass().getClassLoader(),
+              new Class<?>[] {Connection.class},
+              new ContextBindingConnectionHandler(connection, appliedCompanyCode));
+    }
+
+    private String applyCurrentCompanyContext(Connection connection) throws SQLException {
       String companyCode = normalizeCompanyCode(CompanyContextHolder.getCompanyCode());
       if (!StringUtils.hasText(companyCode)) {
         clearCompanyContext(connection);
-        return connection;
+        return null;
+      } else {
+        applyCompanyContext(connection, companyCode);
+        return companyCode;
       }
-      applyCompanyContext(connection, companyCode);
-      return connection;
     }
 
     private boolean isPostgreSql(Connection connection) throws SQLException {
@@ -98,6 +116,62 @@ public class TenantSessionBindingDataSourceConfig {
         return null;
       }
       return companyCode.trim();
+    }
+
+    private final class ContextBindingConnectionHandler implements InvocationHandler {
+
+      private final Connection target;
+      private String appliedCompanyCode;
+
+      private ContextBindingConnectionHandler(Connection target, String appliedCompanyCode) {
+        this.target = target;
+        this.appliedCompanyCode = appliedCompanyCode;
+      }
+
+      @Override
+      public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if ("unwrap".equals(method.getName())
+            && args != null
+            && args.length == 1
+            && args[0] == Connection.class) {
+          return target;
+        }
+        if ("isWrapperFor".equals(method.getName())
+            && args != null
+            && args.length == 1
+            && args[0] == Connection.class) {
+          return true;
+        }
+        if (shouldBindBefore(method.getName())) {
+          rebindIfCompanyContextChanged();
+        }
+        try {
+          return method.invoke(target, args);
+        } catch (InvocationTargetException ex) {
+          throw ex.getCause();
+        }
+      }
+
+      private boolean shouldBindBefore(String methodName) {
+        return "prepareStatement".equals(methodName)
+            || "prepareCall".equals(methodName)
+            || "createStatement".equals(methodName);
+      }
+
+      private void rebindIfCompanyContextChanged() throws SQLException {
+        String companyCode = normalizeCompanyCode(CompanyContextHolder.getCompanyCode());
+        if (StringUtils.hasText(companyCode)) {
+          if (!companyCode.equals(appliedCompanyCode)) {
+            applyCompanyContext(target, companyCode);
+            appliedCompanyCode = companyCode;
+          }
+          return;
+        }
+        if (appliedCompanyCode != null) {
+          clearCompanyContext(target);
+          appliedCompanyCode = null;
+        }
+      }
     }
   }
 }

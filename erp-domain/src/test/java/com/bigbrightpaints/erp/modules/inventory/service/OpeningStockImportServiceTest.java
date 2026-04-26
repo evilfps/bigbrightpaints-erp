@@ -901,7 +901,8 @@ class OpeningStockImportServiceTest {
     finishedGood.setCurrentStock(BigDecimal.ZERO);
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-GEN"))
         .thenReturn(Optional.of(finishedGood));
-    when(batchNumberService.previewFinishedGoodBatchCode(finishedGood, null))
+    when(batchNumberService.previewFinishedGoodBatchSequence(finishedGood, null)).thenReturn(1L);
+    when(batchNumberService.previewFinishedGoodBatchCodeAt(finishedGood, null, 1L))
         .thenReturn("FG-GEN-PREVIEW-001");
     when(finishedGoodBatchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(
             finishedGood, "FG-GEN-PREVIEW-001"))
@@ -916,7 +917,8 @@ class OpeningStockImportServiceTest {
         .containsExactly("RM-GEN-PREVIEW-001", "FG-GEN-PREVIEW-001");
     verify(batchNumberService).previewRawMaterialBatchSequence(rawMaterial);
     verify(batchNumberService).previewRawMaterialBatchCodeAt(rawMaterial, 1L);
-    verify(batchNumberService).previewFinishedGoodBatchCode(finishedGood, null);
+    verify(batchNumberService).previewFinishedGoodBatchSequence(finishedGood, null);
+    verify(batchNumberService).previewFinishedGoodBatchCodeAt(finishedGood, null, 1L);
     verify(batchNumberService, never()).nextRawMaterialBatchCode(any());
     verify(batchNumberService, never()).nextFinishedGoodBatchCode(any(), any());
     verify(rawMaterialBatchRepository, never()).save(any(RawMaterialBatch.class));
@@ -1778,10 +1780,13 @@ class OpeningStockImportServiceTest {
     RawMaterial rawMaterial = new RawMaterial();
     rawMaterial.setCompany(company);
     rawMaterial.setSku("RM-1");
+    rawMaterial.setUnitType("KG");
     rawMaterial.setMaterialType(MaterialType.PRODUCTION);
 
     RawMaterialBatch rawBatch = new RawMaterialBatch();
     rawBatch.setRawMaterial(rawMaterial);
+    rawBatch.setBatchCode("RM-B1");
+    rawBatch.setUnit("KG");
     rawBatch.setManufacturedAt(Instant.parse("2026-02-03T12:00:00Z"));
 
     RawMaterialMovement rawMovement = new RawMaterialMovement();
@@ -2275,10 +2280,13 @@ class OpeningStockImportServiceTest {
     RawMaterial packaging = new RawMaterial();
     packaging.setCompany(company);
     packaging.setSku("PK-1");
+    packaging.setUnitType("KG");
     packaging.setMaterialType(MaterialType.PACKAGING);
 
     RawMaterialBatch packagingBatch = new RawMaterialBatch();
     packagingBatch.setRawMaterial(packaging);
+    packagingBatch.setBatchCode("PK-B1");
+    packagingBatch.setUnit("KG");
     packagingBatch.setManufacturedAt(Instant.parse("2026-02-01T08:15:00Z"));
     packagingBatch.setExpiryDate(LocalDate.of(2026, 7, 1));
 
@@ -2294,6 +2302,7 @@ class OpeningStockImportServiceTest {
 
     FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
     finishedBatch.setFinishedGood(finishedGood);
+    finishedBatch.setBatchCode("FG-B1");
     finishedBatch.setManufacturedAt(Instant.parse("2026-02-03T12:03:00Z"));
     finishedBatch.setExpiryDate(LocalDate.of(2026, 8, 15));
 
@@ -2368,10 +2377,13 @@ class OpeningStockImportServiceTest {
     RawMaterial rawMaterial = new RawMaterial();
     rawMaterial.setCompany(company);
     rawMaterial.setSku("RM-2");
+    rawMaterial.setUnitType("KG");
     rawMaterial.setMaterialType(MaterialType.PRODUCTION);
 
     RawMaterialBatch rawBatch = new RawMaterialBatch();
     rawBatch.setRawMaterial(rawMaterial);
+    rawBatch.setBatchCode("RM-B2");
+    rawBatch.setUnit("KG");
 
     RawMaterialMovement ignoredMovement = new RawMaterialMovement();
 
@@ -2426,7 +2438,8 @@ class OpeningStockImportServiceTest {
         com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
             service, "parseFingerprintRows", normalizedPayload);
 
-    assertThat(parsedRows).containsExactly("FINISHED_GOOD|FG-1|1000|12|2026-02-01|2026-08-01");
+    assertThat(parsedRows)
+        .containsExactly("FINISHED_GOOD|FG-1|UNIT|UNIT|FG-B1|1000|12|2026-02-01|2026-08-01");
     assertThat(
             (String)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
