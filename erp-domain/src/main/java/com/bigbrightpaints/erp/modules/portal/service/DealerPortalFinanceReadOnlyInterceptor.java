@@ -38,6 +38,7 @@ public class DealerPortalFinanceReadOnlyInterceptor implements HandlerIntercepto
   public boolean preHandle(
       HttpServletRequest request, HttpServletResponse response, Object handler) {
     String path = normalizePath(request != null ? request.getRequestURI() : null);
+    String method = request != null ? request.getMethod() : null;
     if (!isDealerPortalPath(path)) {
       return true;
     }
@@ -58,7 +59,7 @@ public class DealerPortalFinanceReadOnlyInterceptor implements HandlerIntercepto
     if (!dealerPortalService.isFinanceReadOnlyDealer(dealer)) {
       return true;
     }
-    if (isFinanceReadOnlyPath(path, request.getMethod())) {
+    if (isFinanceReadOnlyPath(path, method)) {
       return true;
     }
     throw new AccessDeniedException(
@@ -98,10 +99,13 @@ public class DealerPortalFinanceReadOnlyInterceptor implements HandlerIntercepto
   }
 
   private String normalizePath(String path) {
-    if (!StringUtils.hasText(path)) {
+    if (path == null) {
       return null;
     }
     String normalized = path.trim();
+    if (normalized.isEmpty()) {
+      return null;
+    }
     while (normalized.endsWith("/") && normalized.length() > 1) {
       normalized = normalized.substring(0, normalized.length() - 1);
     }

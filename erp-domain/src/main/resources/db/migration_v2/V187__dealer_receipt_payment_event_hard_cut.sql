@@ -48,7 +48,7 @@ ALTER TABLE ONLY public.partner_payment_events
     ADD CONSTRAINT partner_payment_events_public_id_key UNIQUE (public_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_partner_payment_events_company_flow_reference
-    ON public.partner_payment_events USING btree (company_id, payment_flow, reference_number);
+    ON public.partner_payment_events USING btree (company_id, payment_flow, lower(reference_number));
 
 CREATE INDEX IF NOT EXISTS idx_partner_payment_events_company
     ON public.partner_payment_events USING btree (company_id);

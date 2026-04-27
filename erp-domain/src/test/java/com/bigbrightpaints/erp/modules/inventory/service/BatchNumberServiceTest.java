@@ -67,7 +67,7 @@ class BatchNumberServiceTest {
   }
 
   @Test
-  void previewFinishedGoodBatchCodeDoesNotConsumeSequence() {
+  void previewFinishedGoodBatchCodeAtFormatsProvidedSequenceWithoutConsumingSequence() {
     Company company = new Company();
     company.setCode("ACME");
     company.setTimezone("UTC");
@@ -76,10 +76,14 @@ class BatchNumberServiceTest {
     finishedGood.setProductCode("fg- 01");
     when(numberSequenceService.previewNextValue(any(), any())).thenReturn(7L);
 
+    long sequence =
+        batchNumberService.previewFinishedGoodBatchSequence(
+            finishedGood, LocalDate.of(2025, 1, 15));
     String code =
-        batchNumberService.previewFinishedGoodBatchCode(finishedGood, LocalDate.of(2025, 1, 15));
+        batchNumberService.previewFinishedGoodBatchCodeAt(
+            finishedGood, LocalDate.of(2025, 1, 15), sequence + 2);
 
-    assertThat(code).isEqualTo("ACME-FG-01-202501-007");
+    assertThat(code).isEqualTo("ACME-FG-01-202501-009");
     verify(numberSequenceService).previewNextValue(eq(company), eq("ACME-FG-01-202501"));
     verify(numberSequenceService, never()).nextValue(any(), any());
   }

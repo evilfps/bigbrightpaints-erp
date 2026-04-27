@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -65,6 +66,7 @@ final class AccountingPeriodLifecycleService {
     LocalDate startDate = requirePeriodDate(request.startDate(), "startDate");
     LocalDate endDate = requirePeriodDate(request.endDate(), "endDate");
     ValidationUtils.validateDateRange(startDate, endDate, "startDate", "endDate");
+    validatePeriodWindow(year, month, startDate, endDate);
     Company company = companyContextService.requireCurrentCompany();
     accountingPeriodRepository
         .lockByCompanyAndYearAndMonth(company, year, month)
@@ -126,6 +128,7 @@ final class AccountingPeriodLifecycleService {
           .withDetail("periodId", periodId)
           .withDetail("status", period.getStatus() != null ? period.getStatus().name() : null);
     }
+    validatePeriodWindow(period.getYear(), period.getMonth(), startDate, endDate);
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setStartDate(startDate);
     period.setEndDate(endDate);
@@ -334,6 +337,19 @@ final class AccountingPeriodLifecycleService {
           ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period " + fieldName + " is required");
     }
     return date;
+  }
+
+  private void validatePeriodWindow(int year, int month, LocalDate startDate, LocalDate endDate) {
+    YearMonth declaredPeriod = YearMonth.of(year, month);
+    if (!YearMonth.from(startDate).equals(declaredPeriod)
+        || !YearMonth.from(endDate).equals(declaredPeriod)) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_DATE,
+              "Accounting period dates must stay within the declared year and month")
+          .withDetail("period", declaredPeriod.toString())
+          .withDetail("startDate", startDate)
+          .withDetail("endDate", endDate);
+    }
   }
 
   private AccountingPeriod saveCreatedPeriodWithDuplicateGuard(

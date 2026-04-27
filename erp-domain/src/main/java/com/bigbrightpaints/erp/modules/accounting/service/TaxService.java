@@ -71,22 +71,6 @@ public class TaxService {
       return buildGstReturn(target, start, end, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
-    GstReportAggregation aggregation = aggregateGstReport(company, start, end);
-    if (aggregation.hasTaxableDocuments() || company.getId() != null) {
-      GstReconciliationDto.GstComponentSummary collectedSummary =
-          componentSummary(
-              aggregation.collected().cgst,
-              aggregation.collected().sgst,
-              aggregation.collected().igst);
-      GstReconciliationDto.GstComponentSummary inputTaxCreditSummary =
-          componentSummary(
-              aggregation.inputTaxCredit().cgst,
-              aggregation.inputTaxCredit().sgst,
-              aggregation.inputTaxCredit().igst);
-      return buildGstReturn(
-          target, start, end, collectedSummary.getTotal(), inputTaxCreditSummary.getTotal());
-    }
-
     var taxConfig = companyAccountingSettingsService.requireTaxAccounts();
 
     BigDecimal outputTaxBalance = sumTax(company, taxConfig.outputTaxAccountId(), start, end, true);

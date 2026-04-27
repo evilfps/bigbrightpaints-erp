@@ -138,24 +138,50 @@ class TaxServiceTest {
   }
 
   @Test
-  void generateGstReturn_prefersDocumentSemanticsForPersistedCompanies() {
+  void generateGstReturn_usesTaxAccountsWhenPeriodHasNoTaxableDocuments() {
     YearMonth period = YearMonth.of(2024, 4);
     LocalDate start = period.atDay(1);
     LocalDate end = period.atEndOfMonth();
-    ReflectionFieldAccess.setField(company, "id", 99L);
 
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(company, start, end))
-        .thenReturn(List.of());
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, start, end))
-        .thenReturn(List.of());
+    when(companyAccountingSettingsService.requireTaxAccounts())
+        .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(1L, 2L, 3L));
+    when(journalLineRepository.findLinesForAccountBetween(company, 2L, start, end))
+        .thenReturn(List.of(line(BigDecimal.ZERO, new BigDecimal("75.00"))));
+    when(journalLineRepository.findLinesForAccountBetween(company, 1L, start, end))
+        .thenReturn(List.of(line(new BigDecimal("25.00"), BigDecimal.ZERO)));
 
     GstReturnDto dto = taxService.generateGstReturn(period);
 
-    assertThat(dto.getOutputTax()).isEqualByComparingTo("0.00");
-    assertThat(dto.getInputTax()).isEqualByComparingTo("0.00");
-    assertThat(dto.getNetPayable()).isEqualByComparingTo("0.00");
-    verifyNoInteractions(companyAccountingSettingsService, journalLineRepository);
+    assertThat(dto.getOutputTax()).isEqualByComparingTo("75.00");
+    assertThat(dto.getInputTax()).isEqualByComparingTo("25.00");
+    assertThat(dto.getNetPayable()).isEqualByComparingTo("50.00");
+  }
+
+  @Test
+  void generateGstReturn_usesTaxAccountsAsCanonicalReturnTotals() {
+    YearMonth period = YearMonth.of(2024, 9);
+    LocalDate start = period.atDay(1);
+    LocalDate end = period.atEndOfMonth();
+
+    when(companyAccountingSettingsService.requireTaxAccounts())
+        .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(1L, 2L, 3L));
+    when(journalLineRepository.findLinesForAccountBetween(company, 2L, start, end))
+        .thenReturn(
+            List.of(
+                line(BigDecimal.ZERO, new BigDecimal("18.00")),
+                line(BigDecimal.ZERO, new BigDecimal("7.00"))));
+    when(journalLineRepository.findLinesForAccountBetween(company, 1L, start, end))
+        .thenReturn(
+            List.of(
+                line(new BigDecimal("12.00"), BigDecimal.ZERO),
+                line(new BigDecimal("3.00"), BigDecimal.ZERO)));
+
+    GstReturnDto dto = taxService.generateGstReturn(period);
+
+    assertThat(dto.getOutputTax()).isEqualByComparingTo("25.00");
+    assertThat(dto.getInputTax()).isEqualByComparingTo("15.00");
+    assertThat(dto.getNetPayable()).isEqualByComparingTo("10.00");
+    verifyNoInteractions(invoiceRepository, rawMaterialPurchaseRepository);
   }
 
   @Test

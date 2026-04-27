@@ -125,6 +125,10 @@ public class AgingReportService {
 
     List<DealerLedgerEntry> unpaid = dealerLedgerRepository.findUnpaidByDealer(company, dealer);
     LocalDate today = companyClock.today(company);
+    AgingSummaryResponse summary =
+        statementService.dealerAging(dealer, today, REPORT_AGING_BUCKETS);
+    AgingBuckets buckets = toAgingBuckets(summary);
+    BigDecimal totalOutstanding = requireAmount(summary.totalOutstanding(), "totalOutstanding");
 
     List<AgingLineItem> lineItems =
         unpaid.stream()
@@ -141,7 +145,6 @@ public class AgingReportService {
                         getAgingBucket(e.getDueDate(), today)))
             .collect(Collectors.toList());
 
-    AgingBuckets buckets = calculateBuckets(unpaid, today);
     Double avgDSO = dealerLedgerRepository.calculateAverageDSO(company.getId(), dealer.getId());
 
     return new DealerAgingDetailedReport(
@@ -150,7 +153,7 @@ public class AgingReportService {
         dealer.getName(),
         lineItems,
         buckets,
-        buckets.total(),
+        totalOutstanding,
         avgDSO != null ? avgDSO : 0.0);
   }
 
@@ -258,36 +261,6 @@ public class AgingReportService {
                 + bucket.toDays());
       }
     }
-    return new AgingBuckets(current, days1to30, days31to60, days61to90, over90);
-  }
-
-  private AgingBuckets calculateBuckets(List<DealerLedgerEntry> entries, LocalDate asOfDate) {
-    BigDecimal current = BigDecimal.ZERO;
-    BigDecimal days1to30 = BigDecimal.ZERO;
-    BigDecimal days31to60 = BigDecimal.ZERO;
-    BigDecimal days61to90 = BigDecimal.ZERO;
-    BigDecimal over90 = BigDecimal.ZERO;
-
-    for (DealerLedgerEntry entry : entries) {
-      BigDecimal amount = entry.getOutstandingAmount();
-      LocalDate dueDate = entry.getDueDate();
-
-      if (dueDate == null || !asOfDate.isAfter(dueDate)) {
-        current = current.add(amount);
-      } else {
-        long daysOverdue = calculateDaysOverdue(dueDate, asOfDate);
-        if (daysOverdue <= 30) {
-          days1to30 = days1to30.add(amount);
-        } else if (daysOverdue <= 60) {
-          days31to60 = days31to60.add(amount);
-        } else if (daysOverdue <= 90) {
-          days61to90 = days61to90.add(amount);
-        } else {
-          over90 = over90.add(amount);
-        }
-      }
-    }
-
     return new AgingBuckets(current, days1to30, days31to60, days61to90, over90);
   }
 

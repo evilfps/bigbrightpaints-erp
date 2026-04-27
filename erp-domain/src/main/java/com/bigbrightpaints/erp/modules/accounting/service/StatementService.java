@@ -256,7 +256,7 @@ public class StatementService {
     BigDecimal[] bucketTotals = initializeBucketTotals(buckets.size());
     BigDecimal totalOutstanding = BigDecimal.ZERO;
     List<DealerOverdueInvoiceLine> invoiceLines =
-        buildDealerInvoiceLinesFromAsOfLedgerTruth(dealer, ref);
+        buildDealerInvoiceLines(dealer, ref, DealerInvoiceAmountMode.AS_OF_LEDGER_DELTA);
     for (DealerOverdueInvoiceLine line : invoiceLines) {
       if (!withinWindow(line.issueDate(), entryDateStart, entryDateEnd)
           || line.outstandingAmount().compareTo(BigDecimal.ZERO) <= 0) {
@@ -280,60 +280,6 @@ public class StatementService {
     }
     return new AgingSummaryResponse(
         dealer.getId(), dealer.getName(), totalOutstanding, buildBucketDtos(buckets, bucketTotals));
-  }
-
-  private List<DealerOverdueInvoiceLine> buildDealerInvoiceLinesFromAsOfLedgerTruth(
-      Dealer dealer, LocalDate ref) {
-    Company company = companyContextService.requireCurrentCompany();
-    List<DealerLedgerEntry> entries =
-        dealerLedgerRepository
-            .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
-                company, dealer, ref);
-    List<DealerOverdueInvoiceLine> invoiceLines = new ArrayList<>();
-    BigDecimal creditPool = BigDecimal.ZERO;
-    long sequence = 0L;
-    for (DealerLedgerEntry entry : entries) {
-      long entrySequence = sequence++;
-      LocalDate entryDate = entry.getEntryDate();
-      if (entryDate == null || entryDate.isAfter(ref)) {
-        continue;
-      }
-      BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
-      if (delta.compareTo(BigDecimal.ZERO) < 0) {
-        creditPool = creditPool.add(delta.abs());
-        continue;
-      }
-      if (!StringUtils.hasText(entry.getInvoiceNumber()) || delta.compareTo(BigDecimal.ZERO) <= 0) {
-        continue;
-      }
-      LocalDate dueDate = entry.getDueDate();
-      boolean overdue = dueDate != null && ref.isAfter(dueDate);
-      long daysOverdue = overdue ? java.time.temporal.ChronoUnit.DAYS.between(dueDate, ref) : 0L;
-      invoiceLines.add(
-          new DealerOverdueInvoiceLine(
-              entry.getInvoiceNumber(),
-              entryDate,
-              dueDate,
-              resolveAgingDate(entry),
-              daysOverdue,
-              overdue,
-              delta,
-              entrySequence));
-    }
-    if (creditPool.compareTo(BigDecimal.ZERO) > 0) {
-      invoiceLines.sort(
-          Comparator.comparing(
-                  DealerOverdueInvoiceLine::agingDate,
-                  Comparator.nullsLast(Comparator.naturalOrder()))
-              .thenComparing(DealerOverdueInvoiceLine::sequence));
-      for (int i = 0; i < invoiceLines.size() && creditPool.compareTo(BigDecimal.ZERO) > 0; i++) {
-        DealerOverdueInvoiceLine line = invoiceLines.get(i);
-        BigDecimal applied = creditPool.min(line.outstandingAmount());
-        invoiceLines.set(i, line.withOutstandingAmount(line.outstandingAmount().subtract(applied)));
-        creditPool = creditPool.subtract(applied);
-      }
-    }
-    return invoiceLines;
   }
 
   public List<OverdueInvoiceDto> dealerOverdueInvoices(Dealer dealer, LocalDate asOf) {
@@ -368,6 +314,11 @@ public class StatementService {
   }
 
   private List<DealerOverdueInvoiceLine> buildDealerInvoiceLines(Dealer dealer, LocalDate ref) {
+    return buildDealerInvoiceLines(dealer, ref, DealerInvoiceAmountMode.CURRENT_OUTSTANDING);
+  }
+
+  private List<DealerOverdueInvoiceLine> buildDealerInvoiceLines(
+      Dealer dealer, LocalDate ref, DealerInvoiceAmountMode amountMode) {
     Company company = companyContextService.requireCurrentCompany();
     List<DealerLedgerEntry> entries =
         dealerLedgerRepository
@@ -380,7 +331,8 @@ public class StatementService {
     Set<Long> consumedNegativeJournals = new HashSet<>();
     long sequence = 0L;
     for (DealerLedgerEntry entry : entries) {
-      if (entry.getEntryDate().isAfter(ref)) {
+      LocalDate entryDate = entry.getEntryDate();
+      if (entryDate == null || entryDate.isAfter(ref)) {
         continue;
       }
       BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
@@ -395,7 +347,7 @@ public class StatementService {
                   unappliedCreditPoolByJournalEntry.getOrDefault(journalEntryId, BigDecimal.ZERO));
         }
       }
-      BigDecimal outstandingAmount = entry.getOutstandingAmount();
+      BigDecimal outstandingAmount = dealerInvoiceOutstandingAmount(amountMode, entry, delta);
       if (!StringUtils.hasText(entry.getInvoiceNumber())
           || outstandingAmount.compareTo(BigDecimal.ZERO) <= 0) {
         sequence++;
@@ -404,11 +356,11 @@ public class StatementService {
       invoiceLines.add(
           new DealerOverdueInvoiceLine(
               entry.getInvoiceNumber(),
-              entry.getEntryDate(),
+              entryDate,
               entry.getDueDate(),
               resolveAgingDate(entry),
-              entry.getDaysOverdue(ref),
-              entry.isOverdue(ref),
+              dealerInvoiceDaysOverdue(amountMode, entry, ref),
+              dealerInvoiceOverdue(amountMode, entry, ref),
               outstandingAmount,
               sequence++));
     }
@@ -426,6 +378,37 @@ public class StatementService {
       }
     }
     return invoiceLines;
+  }
+
+  private enum DealerInvoiceAmountMode {
+    CURRENT_OUTSTANDING,
+    AS_OF_LEDGER_DELTA
+  }
+
+  private BigDecimal dealerInvoiceOutstandingAmount(
+      DealerInvoiceAmountMode amountMode, DealerLedgerEntry entry, BigDecimal delta) {
+    return amountMode == DealerInvoiceAmountMode.AS_OF_LEDGER_DELTA
+        ? delta
+        : entry.getOutstandingAmount();
+  }
+
+  private boolean dealerInvoiceOverdue(
+      DealerInvoiceAmountMode amountMode, DealerLedgerEntry entry, LocalDate ref) {
+    if (amountMode == DealerInvoiceAmountMode.CURRENT_OUTSTANDING) {
+      return entry.isOverdue(ref);
+    }
+    LocalDate dueDate = entry.getDueDate();
+    return dueDate != null && ref.isAfter(dueDate);
+  }
+
+  private long dealerInvoiceDaysOverdue(
+      DealerInvoiceAmountMode amountMode, DealerLedgerEntry entry, LocalDate ref) {
+    if (!dealerInvoiceOverdue(amountMode, entry, ref)) {
+      return 0L;
+    }
+    return amountMode == DealerInvoiceAmountMode.CURRENT_OUTSTANDING
+        ? entry.getDaysOverdue(ref)
+        : java.time.temporal.ChronoUnit.DAYS.between(entry.getDueDate(), ref);
   }
 
   private Map<Long, BigDecimal> loadUnappliedDealerCreditByJournalEntry(

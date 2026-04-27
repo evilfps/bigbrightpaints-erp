@@ -1569,6 +1569,21 @@ class AccountingPeriodServiceTest {
   }
 
   @Test
+  void createOrUpdatePeriod_rejectsDatesOutsideDeclaredYearMonth() {
+    assertThatThrownBy(
+            () ->
+                service.createOrUpdatePeriod(
+                    new AccountingPeriodRequest(
+                        2026, 6, LocalDate.of(2026, 5, 31), LocalDate.of(2026, 6, 30), null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("dates must stay within the declared year and month")
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.VALIDATION_INVALID_DATE));
+  }
+
+  @Test
   void createOrUpdatePeriod_rejectsDuplicateCompanyYearMonth() {
     Company company = company(1L, "ACME");
     AccountingPeriod existing = openPeriod(company, 2026, 6);
@@ -1673,6 +1688,32 @@ class AccountingPeriodServiceTest {
                     77L, new AccountingPeriodRequest(null, null, null, LocalDate.now(), null)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("startDate is required");
+  }
+
+  @Test
+  void updatePeriod_rejectsDatesOutsideExistingPeriodYearMonth() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod period = openPeriod(company, 2026, 5);
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndId(company, 77L))
+        .thenReturn(Optional.of(period));
+
+    assertThatThrownBy(
+            () ->
+                service.updatePeriod(
+                    77L,
+                    new AccountingPeriodRequest(
+                        2026,
+                        5,
+                        LocalDate.of(2026, 5, 1),
+                        LocalDate.of(2026, 6, 1),
+                        CostingMethod.FIFO)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("dates must stay within the declared year and month")
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.VALIDATION_INVALID_DATE));
   }
 
   @Test

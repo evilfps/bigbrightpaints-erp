@@ -45,12 +45,6 @@ public class BatchNumberService {
     return formatted(key, numberSequenceService.nextValue(company, key));
   }
 
-  String previewFinishedGoodBatchCode(FinishedGood finishedGood, LocalDate packedDate) {
-    Company company = finishedGood.getCompany();
-    String key = finishedGoodSequenceKey(finishedGood, packedDate);
-    return formatted(key, numberSequenceService.previewNextValue(company, key));
-  }
-
   long previewFinishedGoodBatchSequence(FinishedGood finishedGood, LocalDate packedDate) {
     Company company = finishedGood.getCompany();
     String key = finishedGoodSequenceKey(finishedGood, packedDate);
