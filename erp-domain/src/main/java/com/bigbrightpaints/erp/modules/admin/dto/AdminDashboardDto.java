@@ -21,9 +21,11 @@ public record AdminDashboardDto(
       long periodClosePending,
       long exportPending) {}
 
-  public record UserSummary(long totalUsers, long enabledUsers, long disabledUsers, long mfaEnabledUsers) {}
+  public record UserSummary(
+      long totalUsers, long enabledUsers, long disabledUsers, long mfaEnabledUsers) {}
 
   public record SupportSummary(long open, long inProgress, long resolved, long closed) {}
 
-  public record SecuritySummary(long distinctSessions, long apiActivityCount, long apiFailureCount) {}
+  public record SecuritySummary(
+      long distinctSessions, long apiActivityCount, long apiFailureCount) {}
 }

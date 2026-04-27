@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,7 +46,7 @@ final class AccountingPeriodStatusWorkflow {
   private final JournalLineRepository journalLineRepository;
   private final AccountRepository accountRepository;
   private final CompanyClock companyClock;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final ObjectProvider<JournalEntryService> journalEntryServiceProvider;
   private final PeriodCloseHook periodCloseHook;
   private final AccountingPeriodSnapshotService snapshotService;
   private final AccountingPeriodLifecycleService lifecycleService;
@@ -58,7 +59,7 @@ final class AccountingPeriodStatusWorkflow {
       JournalLineRepository journalLineRepository,
       AccountRepository accountRepository,
       CompanyClock companyClock,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider,
       PeriodCloseHook periodCloseHook,
       AccountingPeriodSnapshotService snapshotService,
       AccountingPeriodLifecycleService lifecycleService,
@@ -69,7 +70,7 @@ final class AccountingPeriodStatusWorkflow {
     this.journalLineRepository = journalLineRepository;
     this.accountRepository = accountRepository;
     this.companyClock = companyClock;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.journalEntryServiceProvider = journalEntryServiceProvider;
     this.periodCloseHook = periodCloseHook;
     this.snapshotService = snapshotService;
     this.lifecycleService = lifecycleService;
@@ -148,8 +149,9 @@ final class AccountingPeriodStatusWorkflow {
           note,
           false);
     }
-    lifecycleService.ensurePeriod(
-        company, period.getEndDate().plusDays(1), accountingComplianceAuditService);
+    java.time.LocalDate nextPeriodStart =
+        YearMonth.of(period.getYear(), period.getMonth()).plusMonths(1).atDay(1);
+    lifecycleService.ensurePeriod(company, nextPeriodStart, accountingComplianceAuditService);
     return lifecycleService.toDto(saved);
   }
 
@@ -261,22 +263,23 @@ final class AccountingPeriodStatusWorkflow {
     if (entryDate.isAfter(today)) {
       entryDate = today;
     }
-    AccountingFacade accountingFacade = accountingFacadeProvider.getObject();
     JournalEntryDto posted =
-        accountingFacade.createStandardJournal(
-            new JournalCreationRequest(
-                amount,
-                debitAccountId,
-                creditAccountId,
-                memo,
-                "ACCOUNTING_PERIOD",
-                reference,
-                null,
-                null,
-                entryDate,
-                null,
-                null,
-                Boolean.TRUE));
+        journalEntryServiceProvider
+            .getObject()
+            .createStandardJournal(
+                new JournalCreationRequest(
+                    amount,
+                    debitAccountId,
+                    creditAccountId,
+                    memo,
+                    "ACCOUNTING_PERIOD",
+                    reference,
+                    null,
+                    null,
+                    entryDate,
+                    null,
+                    null,
+                    Boolean.TRUE));
     return journalEntryRepository
         .findByCompanyAndId(company, posted.id())
         .orElseThrow(
@@ -296,7 +299,7 @@ final class AccountingPeriodStatusWorkflow {
         || closing.getReversalEntry() != null) {
       return;
     }
-    accountingFacadeProvider
+    journalEntryServiceProvider
         .getObject()
         .reverseClosingEntryForPeriodReopen(closing, period, reason);
   }

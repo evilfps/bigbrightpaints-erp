@@ -5,7 +5,7 @@
 Last reviewed: 2026-04-16
 
 Source: `openapi.json`
-Updated: 2026-04-16
+Updated: 2026-04-26
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -19,9 +19,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `a859f0fa6104cc92b42805adc6071042d5705c93324cbdb0227d51d7ad3cbfcb`)
-- OpenAPI total paths: `276`
-- OpenAPI total operations: `330`
+- OpenAPI snapshot: `openapi.json` (sha256 `2dd244fa956c02b25605f1fac443b4996dccccefe5ad5082426d7bf22323a075`)
+- OpenAPI total paths: `280`
+- OpenAPI total operations: `335`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 - Hard-cut contract reminder: retired surfaces such as `/api/v1/auth/profile`, `/api/v1/accounting/journals/manual`, `/api/v1/accounting/journals/{entryId}/reverse`, and direct `/api/v1/accounting/periods/{periodId}/close` are intentionally absent from this inventory and must not be reintroduced in frontend or review docs.
 
@@ -33,7 +33,7 @@ Portal scope guardrail:
 | `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/approvals/{originType}/{id}/decisions, /api/v1/admin/audit/events |
 | `audit` | 1 | /api/v1/audit/ml-events |
 | `auth` | 10 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
+| `catalog` | 6 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
 | `companies` | 1 | /api/v1/companies |
 | `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/limit-requests/{id}/reject |
@@ -54,9 +54,9 @@ Portal scope guardrail:
 | `portal` | 8 | /api/v1/portal/dashboard, /api/v1/portal/finance/aging, /api/v1/portal/finance/invoices |
 | `purchasing` | 12 | /api/v1/purchasing/goods-receipts, /api/v1/purchasing/goods-receipts/{id}, /api/v1/purchasing/purchase-orders |
 | `raw-materials` | 3 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
-| `reports` | 19 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/receivables |
+| `reports` | 20 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/receivables |
 | `sales` | 15 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
-| `superadmin` | 19 | /api/v1/superadmin/audit/platform-events, /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id} |
+| `superadmin` | 21 | /api/v1/superadmin/audit/platform-events, /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id} |
 | `suppliers` | 6 | /api/v1/suppliers, /api/v1/suppliers/import, /api/v1/suppliers/{id} |
 
 ## `accounting`
@@ -160,6 +160,7 @@ Portal scope guardrail:
 - `GET, PUT, DELETE` `/api/v1/catalog/brands/{brandId}`
 - `POST` `/api/v1/catalog/import`
 - `GET, POST` `/api/v1/catalog/items`
+- `POST` `/api/v1/catalog/items/bulk-variants`
 - `GET, PUT, DELETE` `/api/v1/catalog/items/{itemId}`
 
 ## `changelog`
@@ -279,6 +280,7 @@ Portal scope guardrail:
 - `GET` `/api/v1/inventory/batches/expiring-soon`
 - `GET` `/api/v1/inventory/batches/{id}/movements`
 - `GET, POST` `/api/v1/inventory/opening-stock`
+- `POST` `/api/v1/inventory/opening-stock/preview`
 - `POST` `/api/v1/inventory/raw-materials/adjustments`
 
 ## `invoices`
@@ -372,6 +374,7 @@ Portal scope guardrail:
 - `GET` `/api/v1/reports/reconciliation-dashboard`
 - `GET` `/api/v1/reports/trial-balance`
 - `GET` `/api/v1/reports/wastage`
+- `GET` `/api/v1/reports/workflow-shortcuts`
 
 ## `sales`
 
@@ -409,6 +412,7 @@ Portal scope guardrail:
 - `PUT` `/api/v1/superadmin/tenants/{id}/lifecycle`
 - `PUT` `/api/v1/superadmin/tenants/{id}/limits`
 - `PUT` `/api/v1/superadmin/tenants/{id}/modules`
+- `GET, PUT` `/api/v1/superadmin/tenants/{id}/review-intelligence`
 - `POST` `/api/v1/superadmin/tenants/{id}/support/admin-password-reset`
 - `PUT` `/api/v1/superadmin/tenants/{id}/support/context`
 - `POST` `/api/v1/superadmin/tenants/{id}/support/warnings`

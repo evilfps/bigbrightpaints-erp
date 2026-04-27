@@ -127,7 +127,11 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
         AND p.supplier = :supplier
         AND p.outstandingAmount > 0
         AND (p.status IS NULL OR p.status NOT IN ('VOID', 'DRAFT', 'REVERSED'))
-      ORDER BY CASE WHEN p.invoiceDate IS NULL THEN 1 ELSE 0 END, p.invoiceDate, p.id
+      ORDER BY CASE WHEN p.dueDate IS NULL THEN 1 ELSE 0 END,
+               p.dueDate,
+               CASE WHEN p.invoiceDate IS NULL THEN 1 ELSE 0 END,
+               p.invoiceDate,
+               p.id
       """)
   List<RawMaterialPurchase> lockOpenPurchasesForSettlement(
       @Param("company") Company company, @Param("supplier") Supplier supplier);

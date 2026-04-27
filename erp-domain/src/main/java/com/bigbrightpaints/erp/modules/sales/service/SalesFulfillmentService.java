@@ -216,7 +216,8 @@ public class SalesFulfillmentService {
     return options;
   }
 
-  private DispatchConfirmRequest buildDispatchConfirmRequest(SalesOrder order, Long requestedSlipId) {
+  private DispatchConfirmRequest buildDispatchConfirmRequest(
+      SalesOrder order, Long requestedSlipId) {
     PackagingSlip slip = resolveDispatchSlip(order, requestedSlipId);
     List<DispatchConfirmRequest.DispatchLine> lines =
         slip != null ? buildFullDispatchLines(slip) : null;
@@ -231,7 +232,9 @@ public class SalesFulfillmentService {
       return null;
     }
     if (requestedSlipId != null) {
-      return packagingSlipRepository.findByIdAndCompany(requestedSlipId, order.getCompany()).orElse(null);
+      return packagingSlipRepository
+          .findByIdAndCompany(requestedSlipId, order.getCompany())
+          .orElse(null);
     }
     List<PackagingSlip> orderSlips =
         packagingSlipRepository.findAllByCompanyAndSalesOrderId(order.getCompany(), order.getId());
@@ -251,7 +254,9 @@ public class SalesFulfillmentService {
             line ->
                 new DispatchConfirmRequest.DispatchLine(
                     line.getId(),
-                    line.getFinishedGoodBatch() != null ? line.getFinishedGoodBatch().getId() : null,
+                    line.getFinishedGoodBatch() != null
+                        ? line.getFinishedGoodBatch().getId()
+                        : null,
                     resolveFullDispatchQuantity(line),
                     null,
                     null,

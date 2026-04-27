@@ -14,10 +14,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -73,6 +75,7 @@ public class ValidationSeedDataInitializer {
   private static final Instant LOCKED_UNTIL_PLACEHOLDER = Instant.parse("2099-01-01T00:00:00Z");
 
   @Bean
+  @Order(10)
   CommandLineRunner seedValidationActors(
       CompanyRepository companyRepository,
       RoleRepository roleRepository,
@@ -128,12 +131,28 @@ public class ValidationSeedDataInitializer {
       Role superAdmin =
           ensureRole(roleRepository, "ROLE_SUPER_ADMIN", "Platform super administrator");
 
-      Account mockReceivable =
-          ensureAccount(
-              accountRepository, mockCompany, "AR", "Accounts Receivable", AccountType.ASSET);
-      Account rivalReceivable =
-          ensureAccount(
-              accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+      Account mockReceivable;
+      String previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(mockCompany.getCode());
+      try {
+        mockReceivable =
+            ensureAccount(
+                accountRepository, mockCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+        ensureValidationDefaultAccounts(companyRepository, accountRepository, mockCompany);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
+      Account rivalReceivable;
+      previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(rivalCompany.getCode());
+      try {
+        rivalReceivable =
+            ensureAccount(
+                accountRepository, rivalCompany, "AR", "Accounts Receivable", AccountType.ASSET);
+        ensureValidationDefaultAccounts(companyRepository, accountRepository, rivalCompany);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
 
       UserAccount mockAdmin =
           ensureUser(
@@ -321,6 +340,17 @@ public class ValidationSeedDataInitializer {
           quotaCompany.getCode(),
           List.of(quotaCompany),
           List.of(admin));
+      UserAccount tenantReopenSuperAdmin =
+          ensureUser(
+              userAccountRepository,
+              passwordEncoder,
+              cryptoService,
+              "validation.tenant.superadmin@example.com",
+              "Validation Tenant Super Admin",
+              validatedPassword,
+              mockCompany.getCode(),
+              List.of(mockCompany),
+              List.of(superAdmin));
       UserAccount superAdminUser =
           ensureUser(
               userAccountRepository,
@@ -341,8 +371,9 @@ public class ValidationSeedDataInitializer {
 
       log.info(
           "Validation seed logins ready: admin={}, mustChange={}, locked={}, accounting={},"
-              + " sales={}, factory={}, mfaAdmin={}, dealer={}, superadmin={} (password from"
-              + " erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD)",
+              + " sales={}, factory={}, mfaAdmin={}, dealer={}, tenantReopenSuperAdmin={},"
+              + " superadmin={} (password from erp.validation-seed.password /"
+              + " ERP_VALIDATION_SEED_PASSWORD)",
           mockAdmin.getEmail(),
           "validation.mustchange.admin@example.com",
           "validation.locked.admin@example.com",
@@ -351,6 +382,7 @@ public class ValidationSeedDataInitializer {
           "validation.factory@example.com",
           "validation.mfa.admin@example.com",
           "validation.dealer@example.com",
+          tenantReopenSuperAdmin.getEmail(),
           superAdminUser.getEmail());
       log.info(
           "Validation state companies ready: hold={} blocked={} quota={} with admin actors"
@@ -435,6 +467,43 @@ public class ValidationSeedDataInitializer {
               account.setBalance(BigDecimal.ZERO);
               return accountRepository.save(account);
             });
+  }
+
+  private void ensureValidationDefaultAccounts(
+      CompanyRepository companyRepository, AccountRepository accountRepository, Company company) {
+    Account inventory =
+        ensureAccount(accountRepository, company, "INV", "Inventory", AccountType.ASSET);
+    Account cogs =
+        ensureAccount(accountRepository, company, "COGS", "Cost of Goods Sold", AccountType.COGS);
+    Account revenue =
+        ensureAccount(accountRepository, company, "REV", "Revenue", AccountType.REVENUE);
+    Account discount =
+        ensureAccount(accountRepository, company, "DISC", "Discounts", AccountType.EXPENSE);
+    Account taxOutput =
+        ensureAccount(
+            accountRepository, company, "GST-OUT", "GST Output Tax", AccountType.LIABILITY);
+    Account taxInput =
+        ensureAccount(accountRepository, company, "GST-IN", "GST Input Tax", AccountType.ASSET);
+    Account taxPayable =
+        ensureAccount(accountRepository, company, "GST-PAY", "GST Payable", AccountType.LIABILITY);
+
+    company.setDefaultInventoryAccountId(inventory.getId());
+    company.setDefaultCogsAccountId(cogs.getId());
+    company.setDefaultRevenueAccountId(revenue.getId());
+    company.setDefaultDiscountAccountId(discount.getId());
+    company.setDefaultTaxAccountId(taxOutput.getId());
+    company.setGstInputTaxAccountId(taxInput.getId());
+    company.setGstOutputTaxAccountId(taxOutput.getId());
+    company.setGstPayableAccountId(taxPayable.getId());
+    companyRepository.save(company);
+  }
+
+  private static void restoreCompanyContext(String previousCompanyCode) {
+    if (previousCompanyCode != null && !previousCompanyCode.isBlank()) {
+      CompanyContextHolder.setCompanyCode(previousCompanyCode);
+    } else {
+      CompanyContextHolder.clear();
+    }
   }
 
   private void attachMainAdmin(

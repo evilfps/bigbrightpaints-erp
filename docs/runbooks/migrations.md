@@ -2,6 +2,24 @@
 
 Last reviewed: 2026-04-16
 
+## 2026-04-26 — `accounting-centralization-v2-schema-hard-cut`
+
+- **Purpose:** add the Flyway v2 schema contract for the accounting centralization hard cut:
+  - `V184__accounting_truth_rls_hard_cut.sql` enables forced RLS for accounting truth tables and child-line tables.
+  - `V185__accounting_rls_fail_closed_session_binding.sql` tightens tenant session binding so missing, malformed, or unmapped accounting context fails closed.
+  - `V186__account_code_case_insensitive_uniqueness.sql` enforces company-scoped case-insensitive account-code uniqueness.
+  - `V187__dealer_receipt_payment_event_hard_cut.sql` creates partner payment events, links settlement allocations to payment events, and applies accounting RLS to the new event table.
+  - `V188__supplier_auto_settlement_due_date_support.sql` adds and backfills supplier purchase due dates from supplier payment terms.
+  - `V189__reconciliation_discrepancy_resolution_alignment.sql` aligns reconciliation discrepancy resolution values with the canonical runtime vocabulary.
+- **Release-guard posture:** this is a high-risk accounting/schema hard cut on the active Flyway v2 track. Runtime code and schema must move together; do not deploy pre-cut accounting code after these migrations have run.
+- **Forward plan:** apply `V184` through `V189` in order with the accounting centralization backend packet, then verify tenant-isolated accounting reads/writes, account-code conflict behavior, dealer/supplier settlement posting, purchase due-date behavior, and reconciliation resolution handling.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='AccountingTenantIsolationRlsIT,CrossModuleAccountingTenantFailClosedIT,AccountCodeCaseInsensitiveUniquenessIT,CR_DealerReceiptSettlementAuditTrailTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='OpenApiSnapshotIT,AccountingEndpointContractTest,CriticalAccountingAxesIT,SettlementControllerIdempotencyHeaderParityTest' test`
+  - `bash ci/check-high-risk-changes.sh`
+  - `python3 scripts/pr_ci_parity.py --base origin/main --head HEAD`
+- **Rollback strategy:** treat this migration set as a coordinated app-and-schema cut. If rollout must be abandoned after execution, keep an accounting-centralization-compatible backend live or restore the affected database from a snapshot/PITR taken before `V184`. Do not hand-drop RLS policies, payment-event tables, uniqueness indexes, due-date data, or reconciliation constraints under mixed runtime behavior.
+
 ## 2026-04-16 — `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql`
 
 - **Purpose:** add expression indexes for normalized pending-status predicates (`upper(trim(status))`) used by tenant-admin approval inbox/dashboard summary queries so behavior-compatible matching remains performant under polling load.

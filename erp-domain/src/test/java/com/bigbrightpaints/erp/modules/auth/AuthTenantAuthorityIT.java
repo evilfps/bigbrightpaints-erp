@@ -980,9 +980,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
-                    "name", oversizedRoleName,
-                    "description", "Oversized payload role mutation attempt",
-                    "permissions", factoryRolePermissionCodes()),
+                    "name",
+                    oversizedRoleName,
+                    "description",
+                    "Oversized payload role mutation attempt",
+                    "permissions",
+                    factoryRolePermissionCodes()),
                 jsonHeaders(salesToken, TENANT_A)),
             Map.class);
 
@@ -1027,7 +1030,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(null, TENANT_A))),
             retiredHostProbe(
-                "/api/v1/admin/roles", HttpMethod.GET, new HttpEntity<>(jsonHeaders(null, TENANT_A))),
+                "/api/v1/admin/roles",
+                HttpMethod.GET,
+                new HttpEntity<>(jsonHeaders(null, TENANT_A))),
             retiredHostProbe(
                 "/api/v1/admin/settings",
                 HttpMethod.GET,
@@ -1077,19 +1082,37 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 "/api/v1/admin/notify",
                 HttpMethod.POST,
                 new HttpEntity<>(
-                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    Map.of(
+                        "to",
+                        "legacy-admin-notify@bbp.com",
+                        "subject",
+                        "Legacy",
+                        "body",
+                        "retired"),
                     jsonHeaders(adminToken, TENANT_A))),
             retiredHostProbe(
                 "/api/v1/admin/notify",
                 HttpMethod.POST,
                 new HttpEntity<>(
-                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    Map.of(
+                        "to",
+                        "legacy-admin-notify@bbp.com",
+                        "subject",
+                        "Legacy",
+                        "body",
+                        "retired"),
                     jsonHeaders(superAdminToken, PLATFORM_SCOPE))),
             retiredHostProbe(
                 "/api/v1/admin/notify",
                 HttpMethod.POST,
                 new HttpEntity<>(
-                    Map.of("to", "legacy-admin-notify@bbp.com", "subject", "Legacy", "body", "retired"),
+                    Map.of(
+                        "to",
+                        "legacy-admin-notify@bbp.com",
+                        "subject",
+                        "Legacy",
+                        "body",
+                        "retired"),
                     jsonHeaders(null, TENANT_A))));
 
     probes.forEach(this::assertRetiredHostNotFound);

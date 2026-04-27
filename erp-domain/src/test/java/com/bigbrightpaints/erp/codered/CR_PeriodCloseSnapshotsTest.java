@@ -33,6 +33,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -200,6 +201,46 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
       assertThat(after.metadata().snapshotId()).isNotNull();
       assertThat(live.metadata().source()).isEqualTo(ReportSource.LIVE);
       assertThat(live.totalAssets()).isEqualByComparingTo(new BigDecimal("30.00"));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+  }
+
+  @Test
+  void profitLossClosedPeriod_remainsLiveAndPreservesPreCloseNetIncome() {
+    String companyCode = "CR-SNAP-PL-" + System.nanoTime();
+    Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      LocalDate today = CompanyTime.today(company);
+      LocalDate periodDate = today.minusMonths(1);
+      AccountingPeriod period = accountingPeriodService.ensurePeriod(company, periodDate);
+      Account cash = ensureAccount(company, "CASH-SNAP-PL", "Cash", AccountType.ASSET);
+      Account revenue = ensureAccount(company, "REV-SNAP-PL", "Revenue", AccountType.REVENUE);
+      Account expense = ensureAccount(company, "EXP-SNAP-PL", "Expense", AccountType.EXPENSE);
+
+      postJournal(
+          period.getEndDate().minusDays(1),
+          List.of(
+              line(cash.getId(), new BigDecimal("100.00"), BigDecimal.ZERO),
+              line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))));
+      postJournal(
+          period.getEndDate().minusDays(1),
+          List.of(
+              line(expense.getId(), new BigDecimal("40.00"), BigDecimal.ZERO),
+              line(cash.getId(), BigDecimal.ZERO, new BigDecimal("40.00"))));
+
+      forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
+
+      ProfitLossDto closedPeriodProfitLoss =
+          reportService.profitLoss(
+              ReportQueryRequestBuilder.fromPeriodAndRange(
+                  period.getId(), null, null, null, null, null, null));
+
+      assertThat(closedPeriodProfitLoss.netIncome()).isEqualByComparingTo(new BigDecimal("60.00"));
+      assertThat(closedPeriodProfitLoss.metadata().source()).isEqualTo(ReportSource.LIVE);
+      assertThat(closedPeriodProfitLoss.metadata().snapshotId()).isNull();
+      assertThat(closedPeriodProfitLoss.metadata().accountingPeriodId()).isEqualTo(period.getId());
     } finally {
       CompanyContextHolder.clear();
     }

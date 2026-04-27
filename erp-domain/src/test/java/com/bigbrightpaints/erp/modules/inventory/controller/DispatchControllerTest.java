@@ -252,7 +252,8 @@ class DispatchControllerTest {
             "MH12AB1717",
             "LR-1717");
     when(finishedGoodsService.getPackagingSlip(17L))
-        .thenReturn(packagingSlip(17L, "PS-17", "READY", 17L, 18L, List.of(), null, null, null, null));
+        .thenReturn(
+            packagingSlip(17L, "PS-17", "READY", 17L, 18L, List.of(), null, null, null, null));
 
     ApplicationException rejection =
         new ApplicationException(

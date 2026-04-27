@@ -58,6 +58,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           controlRoute(
               "POST", "^/api/v1/superadmin/tenants/([^/]+)/support/admin-password-reset$", false),
           controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/support/context$", false),
+          controlRoute("GET", "^/api/v1/superadmin/tenants/([^/]+)/review-intelligence$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/review-intelligence$", false),
           controlRoute("POST", "^/api/v1/superadmin/tenants/([^/]+)/force-logout$", false),
           controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/admins/main$", false),
           controlRoute(
@@ -217,8 +219,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           && isSuperadminPlatformScopeOnlyHostPath(runtimePath)
           && !superAdminPlatformScope) {
         auditSuperAdminPlatformOnlyDenied(request, runtimePath);
-        writeAccessDenied(
-            response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
+        writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
         return;
       }
       if (superAdminPlatformScope) {

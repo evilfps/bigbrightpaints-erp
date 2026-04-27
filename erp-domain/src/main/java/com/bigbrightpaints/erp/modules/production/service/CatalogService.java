@@ -36,6 +36,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
@@ -151,6 +153,11 @@ public class CatalogService {
   public CatalogItemDto createItem(CatalogItemRequest request) {
     var created = productionCatalogService.createCatalogItem(toCreateCommand(request));
     return getItem(created.id(), true, true, true);
+  }
+
+  @Transactional
+  public BulkVariantResponse createBulkVariants(BulkVariantRequest request, boolean dryRun) {
+    return productionCatalogService.createBulkVariants(request, dryRun);
   }
 
   @Transactional(readOnly = true)
@@ -578,6 +585,8 @@ public class CatalogService {
         product.getBrand().getId(),
         product.getBrand().getName(),
         product.getBrand().getCode(),
+        product.getVariantGroupId(),
+        product.getProductFamilyName(),
         product.getProductName(),
         product.getSkuCode(),
         itemClass,

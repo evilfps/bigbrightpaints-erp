@@ -408,7 +408,8 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
     String email = "reset-audit-" + suffix + "@bbp.com";
     String password = "Passw0rd!1";
     UserAccount user =
-        dataSeeder.ensureUser(email, password, "Reset Audit User", companyCode, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(
+            email, password, "Reset Audit User", companyCode, List.of("ROLE_ADMIN"));
 
     List<String> deliveredTokens = Collections.synchronizedList(new ArrayList<>());
     doAnswer(
@@ -429,20 +430,24 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
     assertThat(forgotResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(deliveredTokens).hasSize(1);
     AuditLog forgotAudit =
-        awaitAuditEvent(AuditEvent.PASSWORD_RESET_REQUESTED, email, "forgot_password", forgotStartedAt);
+        awaitAuditEvent(
+            AuditEvent.PASSWORD_RESET_REQUESTED, email, "forgot_password", forgotStartedAt);
     assertThat(forgotAudit.getUserId()).isEqualTo(email);
     assertThat(forgotAudit.getUserId()).isNotEqualTo(user.getPublicId().toString());
-    assertThat(forgotAudit.getMetadata()).containsEntry("subjectPublicId", user.getPublicId().toString());
+    assertThat(forgotAudit.getMetadata())
+        .containsEntry("subjectPublicId", user.getPublicId().toString());
     assertThat(forgotAudit.getMetadata()).doesNotContainKey("actorPublicId");
 
     LocalDateTime resetStartedAt = LocalDateTime.now().minusSeconds(1);
     ResponseEntity<Map> resetResponse = postReset(deliveredTokens.getFirst(), "Passw0rd!2");
     assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     AuditLog resetAudit =
-        awaitAuditEvent(AuditEvent.PASSWORD_RESET_COMPLETED, email, "reset_password", resetStartedAt);
+        awaitAuditEvent(
+            AuditEvent.PASSWORD_RESET_COMPLETED, email, "reset_password", resetStartedAt);
     assertThat(resetAudit.getUserId()).isEqualTo(email);
     assertThat(resetAudit.getUserId()).isNotEqualTo(user.getPublicId().toString());
-    assertThat(resetAudit.getMetadata()).containsEntry("subjectPublicId", user.getPublicId().toString());
+    assertThat(resetAudit.getMetadata())
+        .containsEntry("subjectPublicId", user.getPublicId().toString());
     assertThat(resetAudit.getMetadata()).doesNotContainKey("actorPublicId");
   }
 
@@ -501,7 +506,8 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
       AuditEvent eventType, String username, String operation, LocalDateTime notBefore)
       throws InterruptedException {
     for (int i = 0; i < 40; i++) {
-      List<AuditLog> logs = auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(eventType);
+      List<AuditLog> logs =
+          auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(eventType);
       for (AuditLog log : logs) {
         if (log.getTimestamp() == null || log.getTimestamp().isBefore(notBefore)) {
           continue;

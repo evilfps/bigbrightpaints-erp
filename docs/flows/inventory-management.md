@@ -62,6 +62,7 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
 | Import opening stock | POST | `/api/v1/inventory/opening-stock` | Admin/Accounting/Factory | Import CSV for initial stock |
+| Preview opening stock | POST | `/api/v1/inventory/opening-stock/preview` | Admin/Accounting/Factory | Validate CSV and show calculated row results without writing stock or journals |
 | Import history | GET | `/api/v1/inventory/opening-stock` | Admin/Accounting/Factory | List import history |
 
 ### Dispatch Endpoints
@@ -97,8 +98,8 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 ### Opening Stock Import Preconditions
 
-1. **Valid CSV format** — Proper headers (SKU, quantity, batchCode, manufacturedAt, expiryDate, etc.)
-2. **Valid items** — Items exist in catalog, valid quantities
+1. **Valid CSV format** — Proper headers (SKU, quantity or boxes/pieces_per_box, batchCode, manufacturedAt, expiryDate, etc.)
+2. **Valid variant SKUs** — Opening stock is entered against the concrete sellable SKU, not the parent product family
 3. **Readiness gating** — FG items must have accounts configured before import succeeds
 
 ### Dispatch Preconditions
@@ -163,14 +164,17 @@ Post accounting journal → Return adjustment → [End: Adjustment complete]
 ### 4.5 Opening Stock Import Lifecycle
 
 ```
-[Start] → Validate CSV format → For each row: 
-  → Resolve SKU → Validate accounts (FG only) → Create batch → 
-  → Post opening-stock journal → [End: Import complete]
+[Start] → Preview CSV → For each row:
+  → Resolve concrete SKU → Validate readiness and batch key → Calculate unit/box quantity →
+  → [If import: create batch and movement] → Post opening-stock journal → [End: Import complete]
 ```
 
 **Key behaviors:**
 - Creates both FG and RM batches
 - For FG: readiness gating requires accounts before import succeeds
+- Parent product search is a UI convenience only; stock changes are applied per variant SKU
+- Box entry calculates canonical SKU quantity as `boxes * pieces_per_box`
+- Preview returns the same row result shape as import with `preview=true`, rejects duplicate file replays, and uses read-only candidate batch codes when `batch_code` is omitted
 - Journal: DR inventory / CR `OPEN-BAL` (opening balance) account
 - Returns summary with rows processed, batches created, errors
 

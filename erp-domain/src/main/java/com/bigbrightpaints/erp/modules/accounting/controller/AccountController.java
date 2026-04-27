@@ -21,7 +21,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CompanyDefaultAccountsRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CompanyDefaultAccountsResponse;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountResolutionOwnerService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
@@ -31,30 +31,23 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/v1/accounting")
 public class AccountController {
 
-  private final AccountingService accountingService;
-  private final CompanyDefaultAccountsService companyDefaultAccountsService;
-  private final AccountHierarchyService accountHierarchyService;
+  private final AccountResolutionOwnerService accountResolutionOwnerService;
 
-  public AccountController(
-      AccountingService accountingService,
-      CompanyDefaultAccountsService companyDefaultAccountsService,
-      AccountHierarchyService accountHierarchyService) {
-    this.accountingService = accountingService;
-    this.companyDefaultAccountsService = companyDefaultAccountsService;
-    this.accountHierarchyService = accountHierarchyService;
+  public AccountController(AccountResolutionOwnerService accountResolutionOwnerService) {
+    this.accountResolutionOwnerService = accountResolutionOwnerService;
   }
 
   @GetMapping("/accounts")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<List<AccountDto>>> accounts() {
-    return ResponseEntity.ok(ApiResponse.success(accountingService.listAccounts()));
+    return ResponseEntity.ok(ApiResponse.success(accountResolutionOwnerService.listAccounts()));
   }
 
   @GetMapping("/default-accounts")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<CompanyDefaultAccountsResponse>> defaultAccounts() {
     return ResponseEntity.ok(
-        ApiResponse.success(toResponse(companyDefaultAccountsService.getDefaults())));
+        ApiResponse.success(toResponse(accountResolutionOwnerService.getDefaultAccounts())));
   }
 
   @PutMapping("/default-accounts")
@@ -62,13 +55,14 @@ public class AccountController {
   public ResponseEntity<ApiResponse<CompanyDefaultAccountsResponse>> updateDefaultAccounts(
       @Valid @RequestBody CompanyDefaultAccountsRequest request) {
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        companyDefaultAccountsService.updateDefaults(
+        accountResolutionOwnerService.updateDefaultAccounts(
             request.inventoryAccountId(),
             request.cogsAccountId(),
             request.revenueAccountId(),
             request.discountAccountId(),
             request.fgDiscountAccountId(),
-            request.taxAccountId());
+            request.taxAccountId(),
+            request.clearAccountFields());
     return ResponseEntity.ok(ApiResponse.success("Default accounts updated", toResponse(defaults)));
   }
 
@@ -77,7 +71,8 @@ public class AccountController {
   public ResponseEntity<ApiResponse<AccountDto>> createAccount(
       @Valid @RequestBody AccountRequest request) {
     return ResponseEntity.ok(
-        ApiResponse.success("Account created", accountingService.createAccount(request)));
+        ApiResponse.success(
+            "Account created", accountResolutionOwnerService.createAccount(request)));
   }
 
   @GetMapping("/accounts/tree")
@@ -86,7 +81,7 @@ public class AccountController {
       getChartOfAccountsTree() {
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Chart of accounts hierarchy", accountHierarchyService.getChartOfAccountsTree()));
+            "Chart of accounts hierarchy", accountResolutionOwnerService.getChartOfAccountsTree()));
   }
 
   @GetMapping("/accounts/tree/{type}")
@@ -96,13 +91,13 @@ public class AccountController {
     AccountType accountType = parseAccountType(type);
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Account hierarchy for " + type, accountHierarchyService.getTreeByType(accountType)));
+            "Account hierarchy for " + type,
+            accountResolutionOwnerService.getTreeByType(accountType)));
   }
 
   private AccountType parseAccountType(String type) {
     if (type == null || type.isBlank()) {
-      throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_INPUT, "Account type is required")
+      throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Account type is required")
           .withDetail("type", type);
     }
     try {

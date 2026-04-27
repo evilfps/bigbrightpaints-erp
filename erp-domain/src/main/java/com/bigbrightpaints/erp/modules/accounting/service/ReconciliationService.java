@@ -30,7 +30,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
-import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 @Service
@@ -52,8 +52,8 @@ public class ReconciliationService {
       ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
-      ReportService reportService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
+      InventoryValuationQueryService inventoryValuationQueryService,
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.operations =
         new ReconciliationOperations(
             companyContextService,
@@ -69,8 +69,8 @@ public class ReconciliationService {
             reconciliationDiscrepancyRepository,
             accountingPeriodRepository,
             taxService,
-            reportService,
-            accountingFacadeProvider);
+            inventoryValuationQueryService,
+            journalEntryServiceProvider);
   }
 
   @Transactional(readOnly = true)

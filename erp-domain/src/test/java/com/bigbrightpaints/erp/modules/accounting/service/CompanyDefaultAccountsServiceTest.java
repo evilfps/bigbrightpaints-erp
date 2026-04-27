@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -294,11 +295,65 @@ class CompanyDefaultAccountsServiceTest {
   }
 
   @Test
+  void updateDefaults_explicitClearFieldsClearOnlyRequestedDefaults() {
+    company.setDefaultInventoryAccountId(1L);
+    company.setDefaultCogsAccountId(2L);
+    company.setDefaultRevenueAccountId(3L);
+    company.setDefaultDiscountAccountId(4L);
+    company.setDefaultTaxAccountId(5L);
+    company.setGstInputTaxAccountId(6L);
+    company.setGstOutputTaxAccountId(7L);
+    company.setGstPayableAccountId(8L);
+
+    CompanyDefaultAccountsService.DefaultAccounts defaults =
+        service.updateDefaults(
+            null, null, null, null, null, null, List.of("inventoryAccountId", "taxAccountId"));
+
+    assertThat(defaults.inventoryAccountId()).isNull();
+    assertThat(defaults.cogsAccountId()).isEqualTo(2L);
+    assertThat(defaults.revenueAccountId()).isEqualTo(3L);
+    assertThat(defaults.discountAccountId()).isEqualTo(4L);
+    assertThat(defaults.taxAccountId()).isNull();
+    assertThat(company.getGstInputTaxAccountId()).isEqualTo(6L);
+    assertThat(company.getGstOutputTaxAccountId()).isNull();
+    assertThat(company.getGstPayableAccountId()).isNull();
+    verify(companyRepository).save(company);
+  }
+
+  @Test
+  void updateDefaults_rejectsClearAndSetForSameSlot() {
+    assertThatThrownBy(
+            () ->
+                service.updateDefaults(
+                    11L, null, null, null, null, null, List.of("inventoryAccountId")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("cannot be set and cleared");
+
+    assertThatThrownBy(
+            () ->
+                service.updateDefaults(
+                    null, null, null, null, 44L, null, List.of("fgDiscountAccountId")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("cannot be set and cleared");
+  }
+
+  @Test
+  void updateDefaults_rejectsUnknownClearField() {
+    assertThatThrownBy(
+            () ->
+                service.updateDefaults(
+                    null, null, null, null, null, null, List.of("payrollCashAccountId")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Unsupported default account clear field");
+  }
+
+  @Test
   void resolveAutoSettlementCashAccountId_requiresExplicitCashAccountId() {
     company.setPayrollCashAccount(account(88L, AccountType.ASSET, "PAYROLL-CASH"));
 
     assertThatThrownBy(
-            () -> service.resolveAutoSettlementCashAccountId(company, null, "dealer auto-settlement"))
+            () ->
+                service.resolveAutoSettlementCashAccountId(company, null, "dealer auto-settlement"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("cashAccountId is required for dealer auto-settlement");
   }

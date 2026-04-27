@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService.ConfigurationHealthReport;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 @RestController
@@ -15,23 +15,16 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
 public class AccountingConfigurationController {
 
-  private final ConfigurationHealthService configurationHealthService;
-  private final CompanyContextService companyContextService;
+  private final AccountingService accountingService;
 
-  public AccountingConfigurationController(
-      ConfigurationHealthService configurationHealthService,
-      CompanyContextService companyContextService) {
-    this.configurationHealthService = configurationHealthService;
-    this.companyContextService = companyContextService;
+  public AccountingConfigurationController(AccountingService accountingService) {
+    this.accountingService = accountingService;
   }
 
   @GetMapping("/health")
-  public ResponseEntity<ApiResponse<ConfigurationHealthService.ConfigurationHealthReport>>
-      health() {
+  public ResponseEntity<ApiResponse<ConfigurationHealthReport>> health() {
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Configuration health report",
-            configurationHealthService.evaluateCompany(
-                companyContextService.requireCurrentCompany())));
+            "Configuration health report", accountingService.getConfigurationHealthReport()));
   }
 }

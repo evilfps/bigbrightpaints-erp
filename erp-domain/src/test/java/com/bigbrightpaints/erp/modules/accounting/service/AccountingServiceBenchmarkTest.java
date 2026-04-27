@@ -16,24 +16,30 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceBenchmarkTest {
 
   private static final LocalDate TODAY = LocalDate.of(2025, 12, 15);
 
-  @Mock private AccountCatalogService accountCatalogService;
+  @Mock private AccountResolutionOwnerService accountResolutionOwnerService;
   @Mock private JournalEntryService journalEntryService;
   @Mock private DealerReceiptService dealerReceiptService;
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  @Mock private TaxService taxService;
+  @Mock private TemporalBalanceService temporalBalanceService;
+  @Mock private ConfigurationHealthService configurationHealthService;
+  @Mock private CompanyContextService companyContextService;
+  @Mock private CompanyClock companyClock;
 
   private AccountingService accountingService;
 
@@ -41,13 +47,17 @@ class AccountingServiceBenchmarkTest {
   void setup() {
     accountingService =
         new AccountingService(
-            accountCatalogService,
+            accountResolutionOwnerService,
             journalEntryService,
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
             inventoryAccountingService,
-            accountingFacadeProvider);
+            taxService,
+            temporalBalanceService,
+            configurationHealthService,
+            companyContextService,
+            companyClock);
 
     AtomicLong ids = new AtomicLong(1);
     when(journalEntryService.createJournalEntry(any()))

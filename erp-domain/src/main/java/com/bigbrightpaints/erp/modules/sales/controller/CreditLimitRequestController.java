@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDecisionRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDto;
@@ -48,7 +50,13 @@ public class CreditLimitRequestController {
       @Valid @RequestBody CreditLimitRequestCreateRequest request) {
     CreditLimitRequestDto response;
     if (dealerPortalService.isDealerUser()) {
-      Long dealerId = dealerPortalService.getCurrentDealer().getId();
+      Dealer dealer = dealerPortalService.getCurrentDealer();
+      if (dealerPortalService.isFinanceReadOnlyDealer(dealer)) {
+        throw new AccessDeniedException(
+            "Dealer portal access is limited to finance read-only endpoints for non-active"
+                + " dealers");
+      }
+      Long dealerId = dealer.getId();
       DealerPortalService.RequesterIdentity requesterIdentity =
           dealerPortalService.getCurrentRequesterIdentity();
       response =

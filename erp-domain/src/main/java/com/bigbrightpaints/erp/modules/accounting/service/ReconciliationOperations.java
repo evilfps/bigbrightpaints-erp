@@ -66,9 +66,8 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
-import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
-import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
@@ -94,8 +93,8 @@ final class ReconciliationOperations {
   private final ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   private final AccountingPeriodRepository accountingPeriodRepository;
   private final TaxService taxService;
-  private final ReportService reportService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final InventoryValuationQueryService inventoryValuationQueryService;
+  private final ObjectProvider<JournalEntryService> journalEntryServiceProvider;
 
   ReconciliationOperations(
       CompanyContextService companyContextService,
@@ -111,8 +110,8 @@ final class ReconciliationOperations {
       ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
       AccountingPeriodRepository accountingPeriodRepository,
       TaxService taxService,
-      ReportService reportService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
+      InventoryValuationQueryService inventoryValuationQueryService,
+      ObjectProvider<JournalEntryService> journalEntryServiceProvider) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
     this.accountRepository = accountRepository;
@@ -126,8 +125,8 @@ final class ReconciliationOperations {
     this.reconciliationDiscrepancyRepository = reconciliationDiscrepancyRepository;
     this.accountingPeriodRepository = accountingPeriodRepository;
     this.taxService = taxService;
-    this.reportService = reportService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.inventoryValuationQueryService = inventoryValuationQueryService;
+    this.journalEntryServiceProvider = journalEntryServiceProvider;
   }
 
   /**
@@ -927,8 +926,8 @@ final class ReconciliationOperations {
                 : null,
             Boolean.FALSE);
 
-    AccountingFacade facade = accountingFacadeProvider.getObject();
-    JournalEntryDto created = facade.createStandardJournal(request);
+    JournalEntryDto created =
+        journalEntryServiceProvider.getObject().createStandardJournal(request);
     if (created == null || created.id() == null) {
       throw new ApplicationException(
           ErrorCode.SYSTEM_INTERNAL_ERROR, "Failed to create discrepancy resolution journal");
@@ -1188,37 +1187,33 @@ final class ReconciliationOperations {
   }
 
   private void syncCurrentOpenPeriodDiscrepancies(Company company) {
+    LocalDate today = CompanyTime.today(company);
     Optional<AccountingPeriod> maybeOpenPeriod =
-        accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(
-            company, AccountingPeriodStatus.OPEN);
+        accountingPeriodRepository
+            .findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+                company, AccountingPeriodStatus.OPEN, today);
     if (maybeOpenPeriod.isEmpty()) {
       log.debug(
-          "Skipping reconciliation discrepancy sync because no open period exists for company {}",
-          company != null ? company.getCode() : "UNKNOWN");
+          "Skipping reconciliation discrepancy sync because no non-future open period exists for"
+              + " company {} on {}",
+          company != null ? company.getCode() : "UNKNOWN",
+          today);
       return;
     }
 
     AccountingPeriod period = maybeOpenPeriod.get();
     PeriodReconciliationResult base =
         reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate());
-    ReconciliationSummaryDto inventorySummary = null;
-    GstReconciliationDto gstSummary = null;
-    try {
-      inventorySummary = buildInventorySummary(company, period);
-    } catch (Exception ex) {
-      log.warn("Inventory reconciliation summary unavailable during discrepancy sync", ex);
-    }
-    try {
-      gstSummary = taxService.generateGstReconciliation(YearMonth.from(period.getStartDate()));
-    } catch (Exception ex) {
-      log.warn("GST reconciliation summary unavailable during discrepancy sync", ex);
-    }
+    ReconciliationSummaryDto inventorySummary = buildInventorySummary(company, period);
+    GstReconciliationDto gstSummary =
+        taxService.generateGstReconciliation(YearMonth.from(period.getStartDate()));
 
     syncPeriodDiscrepancies(company, period, base, inventorySummary, gstSummary);
   }
 
   private ReconciliationSummaryDto buildInventorySummary(Company company, AccountingPeriod period) {
-    InventoryValuationDto valuation = reportService.inventoryValuationAsOf(period.getEndDate());
+    InventoryValuationQueryService.InventorySnapshot valuation =
+        inventoryValuationQueryService.snapshotAsOf(company, period.getEndDate());
     BigDecimal physicalValue = safe(valuation != null ? valuation.totalValue() : null);
 
     BigDecimal ledgerValue = BigDecimal.ZERO;

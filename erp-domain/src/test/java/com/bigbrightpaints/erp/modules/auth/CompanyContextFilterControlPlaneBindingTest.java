@@ -128,6 +128,29 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
+  void canonicalReviewIntelligenceToggleRequest_bindsPathTargetCompany_andBypassesRuntimeAdmission()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenReturn(CompanyLifecycleState.ACTIVE);
+
+    MockHttpServletRequest request =
+        request("PUT", "/api/v1/superadmin/tenants/42/review-intelligence");
+    request.setAttribute("jwtClaims", claimsFor("ROOT"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(200);
+    verify(companyService).resolveCompanyCodeById(42L);
+    verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
   void canonicalLimitsRequest_tracksPrivilegedRuntimeAdmissionForSuperAdmin()
       throws ServletException, IOException {
     authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
@@ -386,9 +409,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(
             (Boolean)
                 com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-                    filter,
-                    "isSuperadminPlatformScopeOnlyHostPath",
-                    "/api/v1/superadmin/notify"))
+                    filter, "isSuperadminPlatformScopeOnlyHostPath", "/api/v1/superadmin/notify"))
         .isTrue();
     assertThat(
             (Boolean)
@@ -488,6 +509,8 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(extractCompanyId("/api/v1/superadmin/tenants/42")).isEqualTo(42L);
     assertThat(extractCompanyId("/api/v1/superadmin/tenants/42/limits")).isEqualTo(42L);
     assertThat(extractCompanyId("/api/v1/superadmin/tenants/42/support/admin-password-reset"))
+        .isEqualTo(42L);
+    assertThat(extractCompanyId("/api/v1/superadmin/tenants/42/review-intelligence"))
         .isEqualTo(42L);
   }
 

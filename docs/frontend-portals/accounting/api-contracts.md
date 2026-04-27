@@ -194,6 +194,7 @@ Rules:
 - `GET /api/v1/accounting/statements/suppliers/{supplierId}`
 - `GET /api/v1/accounting/aging/suppliers/{supplierId}`
 - `GET /api/v1/reports/**`
+- `GET /api/v1/reports/workflow-shortcuts`
 - `POST /api/v1/exports/request`
 - `GET /api/v1/exports/{requestId}/download`
 
@@ -224,9 +225,86 @@ Rules:
   - closed-period settlement attempt
   - missing dealer or supplier allocations
 
+### Report reads and workflow shortcuts
+
+`ReportController` and `WorkflowShortcutController` are guarded for
+`ROLE_ADMIN` or `ROLE_ACCOUNTING`. All report responses use the shared
+`ApiResponse<T>` envelope except export download, which returns file bytes.
+
+| Route | Method | Main filters | Response semantics |
+| --- | --- | --- | --- |
+| `/api/v1/reports/trial-balance` | GET | `date`, `periodId`, `startDate`, `endDate`, comparative filters, `exportFormat` | `TrialBalanceDto`; closed periods use snapshot source where a snapshot exists, open/as-of windows use live/as-of journal summaries. |
+| `/api/v1/reports/profit-loss` | GET | Same financial report filters as trial balance | `ProfitLossDto`; reads live journal summaries for period/range requests and reports `metadata.source=LIVE` unless the request is an explicit as-of window. |
+| `/api/v1/reports/balance-sheet` | GET | Same financial report filters as trial balance | `BalanceSheetDto`; supports snapshot/live/as-of source metadata. |
+| `/api/v1/reports/balance-sheet/hierarchy` | GET | none | Hierarchical balance sheet grouped by account tree. |
+| `/api/v1/reports/income-statement/hierarchy` | GET | none | Hierarchical income statement grouped by account tree. |
+| `/api/v1/reports/cash-flow` | GET | none | `CashFlowDto`; sensitive live finance disclosure. |
+| `/api/v1/reports/gst-return` | GET | `periodId` | `GstReturnReportDto` with output, input-credit, and net-liability components. |
+| `/api/v1/reports/account-statement` | GET | required `accountId`, optional `from`, `to` | `AccountStatementReportDto` with account code/name, opening balance, chronological entries, running balances, and closing balance. |
+| `/api/v1/reports/aged-debtors` | GET | `periodId`, `startDate`, `endDate`, `exportFormat` | Dealer aging rollup list. |
+| `/api/v1/reports/aging/receivables` | GET | `asOfDate` | AR aging read model. |
+| `/api/v1/reports/inventory-valuation` | GET | optional `date` | Current or as-of inventory valuation. |
+| `/api/v1/reports/inventory-reconciliation` | GET | none | Inventory valuation compared to GL. |
+| `/api/v1/reports/product-costing` | GET | required `itemId` | Per-unit cost breakdown. |
+| `/api/v1/reports/cost-allocation` | GET | none | Factory cost allocation history. |
+| `/api/v1/reports/wastage` | GET | none | Production wastage rows. |
+| `/api/v1/reports/production-logs/{id}/cost-breakdown` | GET | path `id` | Production-log cost breakdown. |
+| `/api/v1/reports/monthly-production-costs` | GET | optional `year` and `month` together | With `year` + `month`, returns a period aggregate; without them, returns monthly cost rows. |
+| `/api/v1/reports/reconciliation-dashboard` | GET | optional `bankAccountId`, `statementBalance` | Bank reconciliation dashboard. |
+| `/api/v1/reports/balance-warnings` | GET | none | Balance anomaly warnings. |
+| `/api/v1/reports/workflow-shortcuts` | GET | none | `WorkflowShortcutCatalogDto` with connected workflow step lists for order-to-invoice, procure-to-pay, and period-close/reconciliation. |
+
+### Export request, approval, and download
+
+Export request creation uses `POST /api/v1/exports/request` from the accounting
+report screen. The request body is `ExportRequestCreateRequest`:
+`reportType` is required, while `format` and serialized `parameters` are
+optional. The create response is `ApiResponse<ExportRequestDto>` with `id`,
+`reportType`, `parameters`, `status`, requester fields, and approval/rejection
+metadata.
+
+Tenant-admin review uses only:
+
+- `GET /api/v1/admin/approvals`
+- `POST /api/v1/admin/approvals/{originType}/{id}/decisions`
+
+For export rows, `originType=EXPORT_REQUEST`, `ownerType=REPORTS`, and the
+decision payload is `AdminApprovalDecisionRequest` with `decision=APPROVE` or
+`REJECT`; `reason` is optional for exports. There is no export-specific pending
+list, direct export approve/reject route, or standalone export status route.
+
+`GET /api/v1/exports/{requestId}/download` returns the file body with
+`Content-Disposition` when allowed. If the requester does not own the export,
+the approval gate blocks it, or the request is otherwise invalid, the backend
+returns the normal error envelope/status instead of a `downloadUrl`.
+
+### Dealer finance and supplier PDF boundaries
+
+Dealer finance reads are route-limited:
+
+- Internal admin/accounting reads use `/api/v1/portal/finance/ledger`,
+  `/api/v1/portal/finance/invoices`, and `/api/v1/portal/finance/aging` with a
+  required `dealerId` query parameter.
+- Dealer self-service reads use `/api/v1/dealer-portal/dashboard`,
+  `/api/v1/dealer-portal/ledger`, `/api/v1/dealer-portal/invoices`,
+  `/api/v1/dealer-portal/aging`, `/api/v1/dealer-portal/orders`, and
+  `/api/v1/dealer-portal/invoices/{invoiceId}/pdf`.
+- Dealer statement/aging PDF aliases under
+  `/api/v1/accounting/statements/dealers/**` or
+  `/api/v1/accounting/aging/dealers/**` are not shipped backend routes.
+
+Supplier statement and supplier aging PDFs do exist, and both require
+`ROLE_ADMIN`:
+
+- `GET /api/v1/accounting/statements/suppliers/{supplierId}/pdf`
+- `GET /api/v1/accounting/aging/suppliers/{supplierId}/pdf`
+
 ## Forbidden Public Routes
 
 - Do not use `/api/v1/accounting/journals/manual`.
 - Do not use `/api/v1/accounting/journals/{entryId}/reverse`.
 - Do not use `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse`.
 - Do not use `/api/v1/accounting/periods/{periodId}/close`.
+- Do not use export status routes such as `/api/v1/exports/{requestId}/status`.
+- Do not use export-specific approve/reject routes; use
+  `/api/v1/admin/approvals/{originType}/{id}/decisions`.

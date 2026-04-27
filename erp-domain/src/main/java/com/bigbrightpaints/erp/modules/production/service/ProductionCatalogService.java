@@ -72,6 +72,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
@@ -465,6 +467,283 @@ public class ProductionCatalogService {
     return createCatalogItem(request, null, null);
   }
 
+  @Transactional
+  public BulkVariantResponse createBulkVariants(BulkVariantRequest request, boolean dryRun) {
+    Company company = companyContextService.requireCurrentCompany();
+    if (request == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Bulk variant request is required");
+    }
+    if (request.brandId() == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "brandId is required");
+    }
+    if (StringUtils.hasText(request.brandName()) || StringUtils.hasText(request.brandCode())) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Bulk variant creation requires a pre-resolved active brandId; brandName and brandCode"
+              + " are not supported");
+    }
+
+    String itemClass = normalizeVariantItemClass(request.category());
+    assertCanonicalSkuPrefix(request.skuPrefix(), itemClass);
+    ProductionBrand brand = requireActiveBrand(company, request.brandId());
+    String productFamilyName = requireCanonicalToken(request.baseProductName(), "baseProductName");
+    validateCanonicalPersistedTextLength(
+        productFamilyName,
+        "productFamilyName",
+        MAX_PRODUCT_FAMILY_NAME_LENGTH,
+        "shorten baseProductName");
+    String productFamilyCode =
+        requireCanonicalSkuFragment("baseProductName", productFamilyName, 40);
+    UUID variantGroupId = deterministicVariantGroupId(company, brand, productFamilyName);
+
+    List<BulkVariantCandidate> candidates =
+        planBulkVariantCandidates(
+            company, brand, itemClass, productFamilyName, productFamilyCode, request);
+    List<BulkVariantResponse.VariantItem> generated =
+        candidates.stream()
+            .filter(candidate -> !"DUPLICATE_IN_REQUEST".equals(candidate.reason()))
+            .map(BulkVariantCandidate::variantItem)
+            .toList();
+    List<BulkVariantResponse.VariantItem> conflicts =
+        candidates.stream()
+            .filter(candidate -> candidate.reason() != null)
+            .map(BulkVariantCandidate::variantItem)
+            .toList();
+    List<BulkVariantCandidate> creatable =
+        candidates.stream().filter(candidate -> candidate.reason() == null).toList();
+    List<BulkVariantResponse.VariantItem> wouldCreate =
+        creatable.stream().map(BulkVariantCandidate::variantItem).toList();
+
+    if (dryRun) {
+      return new BulkVariantResponse(generated, conflicts, wouldCreate, List.of());
+    }
+
+    List<BulkVariantResponse.VariantItem> created = new ArrayList<>();
+    for (BulkVariantCandidate candidate : creatable) {
+      if (productRepository.findByCompanyAndSkuCode(company, candidate.sku()).isPresent()
+          || productRepository
+              .findByBrandAndProductNameIgnoreCase(brand, candidate.productName())
+              .isPresent()) {
+        conflicts =
+            appendVariantItem(
+                conflicts, candidate.withReason("ALREADY_EXISTS_DURING_COMMIT").variantItem());
+        continue;
+      }
+      CatalogItemCreateCommand command =
+          new CatalogItemCreateCommand(
+              brand.getId(),
+              null,
+              null,
+              productFamilyName,
+              null,
+              itemClass,
+              candidate.color(),
+              candidate.size(),
+              request.unitOfMeasure(),
+              request.hsnCode(),
+              candidate.sku(),
+              validateCanonicalMoney(request.basePrice(), "basePrice"),
+              validateCanonicalPercent(request.gstRate(), "gstRate", false),
+              validateCanonicalPercent(request.minDiscountPercent(), "minDiscountPercent", false),
+              validateCanonicalMoney(request.minSellingPrice(), "minSellingPrice"),
+              metadataForBulkVariant(request, candidate),
+              true);
+      createCatalogItem(command, variantGroupId, productFamilyName);
+      created.add(candidate.variantItem());
+    }
+
+    return new BulkVariantResponse(generated, conflicts, wouldCreate, created);
+  }
+
+  private List<BulkVariantCandidate> planBulkVariantCandidates(
+      Company company,
+      ProductionBrand brand,
+      String itemClass,
+      String productFamilyName,
+      String productFamilyCode,
+      BulkVariantRequest request) {
+    List<BulkVariantCombination> combinations = resolveBulkVariantCombinations(request);
+    List<String> skus = new ArrayList<>();
+    List<String> productNames = new ArrayList<>();
+    List<BulkVariantCandidate> baseCandidates = new ArrayList<>();
+    Set<String> seen = new HashSet<>();
+    Set<String> seenSkus = new HashSet<>();
+
+    for (BulkVariantCombination combination : combinations) {
+      String sku =
+          buildDeterministicSku(
+              itemClass,
+              brand.getCode(),
+              productFamilyCode,
+              combination.color(),
+              combination.size());
+      String productName =
+          composeItemDisplayName(
+              itemClass, productFamilyName, combination.color(), combination.size());
+      String key = normalizeSkuKey(combination.color()) + "|" + normalizeSkuKey(combination.size());
+      String reason = null;
+      if (!seen.add(key)) {
+        reason = "DUPLICATE_IN_REQUEST";
+      } else if (!seenSkus.add(normalizeSkuKey(sku))) {
+        reason = "DUPLICATE_SKU_IN_REQUEST";
+      }
+      baseCandidates.add(
+          new BulkVariantCandidate(
+              sku,
+              productName,
+              combination.color(),
+              combination.size(),
+              reason,
+              packagingOverrideFor(request, combination.color(), combination.size())));
+      skus.add(sku);
+      productNames.add(productName.toLowerCase(Locale.ROOT));
+    }
+
+    Set<String> existingSkus =
+        productRepository.findByCompanyAndSkuCodeIn(company, skus).stream()
+            .map(ProductionProduct::getSkuCode)
+            .map(ProductionCatalogService::normalizeSkuKey)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    Set<String> existingNames =
+        productRepository
+            .findByBrandInAndProductNameInIgnoreCase(List.of(brand), productNames)
+            .stream()
+            .map(ProductionProduct::getProductName)
+            .filter(StringUtils::hasText)
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
+    List<BulkVariantCandidate> candidates = new ArrayList<>();
+    for (BulkVariantCandidate candidate : baseCandidates) {
+      if (candidate.reason() != null) {
+        candidates.add(candidate);
+      } else if (existingSkus.contains(normalizeSkuKey(candidate.sku()))) {
+        candidates.add(candidate.withReason("SKU_ALREADY_EXISTS"));
+      } else if (existingNames.contains(candidate.productName().toLowerCase(Locale.ROOT))) {
+        candidates.add(candidate.withReason("PRODUCT_NAME_ALREADY_EXISTS"));
+      } else {
+        candidates.add(candidate);
+      }
+    }
+    return List.copyOf(candidates);
+  }
+
+  private List<BulkVariantCombination> resolveBulkVariantCombinations(BulkVariantRequest request) {
+    List<BulkVariantCombination> combinations = new ArrayList<>();
+    if (request.colorSizeMatrix() != null && !request.colorSizeMatrix().isEmpty()) {
+      for (BulkVariantRequest.ColorSizeMatrixEntry entry : request.colorSizeMatrix()) {
+        String color = requireCanonicalToken(entry.color(), "colorSizeMatrix.color");
+        for (String size : normalizeCanonicalTokens(entry.sizes(), "colorSizeMatrix.sizes")) {
+          combinations.add(new BulkVariantCombination(color, size));
+        }
+      }
+      return List.copyOf(combinations);
+    }
+    List<String> colors = normalizeCanonicalTokens(request.colors(), "colors");
+    List<String> sizes = normalizeCanonicalTokens(request.sizes(), "sizes");
+    for (String color : colors) {
+      for (String size : sizes) {
+        combinations.add(new BulkVariantCombination(color, size));
+      }
+    }
+    return List.copyOf(combinations);
+  }
+
+  private Map<String, Object> metadataForBulkVariant(
+      BulkVariantRequest request, BulkVariantCandidate candidate) {
+    Map<String, Object> metadata = normalizeMetadata(request.metadata());
+    Map<String, Object> defaultPackaging = packagingMetadataMap(request.packagingDefaults());
+    Map<String, Object> overridePackaging =
+        packagingMetadataMap(
+            candidate.packagingOverride() != null
+                ? candidate.packagingOverride().packaging()
+                : null);
+    if (!defaultPackaging.isEmpty()) {
+      metadata.put("packagingDefault", defaultPackaging);
+    }
+    if (!overridePackaging.isEmpty()) {
+      metadata.put("packagingOverride", overridePackaging);
+    }
+    if (!overridePackaging.isEmpty() || !defaultPackaging.isEmpty()) {
+      metadata.put(
+          "packagingEffective", overridePackaging.isEmpty() ? defaultPackaging : overridePackaging);
+    }
+    return metadata;
+  }
+
+  private Map<String, Object> packagingMetadataMap(
+      BulkVariantRequest.PackagingMetadata packagingMetadata) {
+    if (packagingMetadata == null) {
+      return Map.of();
+    }
+    LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+    putPositiveInteger(values, "piecesPerCarton", packagingMetadata.piecesPerCarton());
+    putPositiveInteger(values, "piecesPerBox", packagingMetadata.piecesPerBox());
+    if (packagingMetadata.defaultPackQuantity() != null) {
+      BigDecimal quantity =
+          validateCanonicalMoney(packagingMetadata.defaultPackQuantity(), "defaultPackQuantity");
+      if (quantity.compareTo(BigDecimal.ZERO) > 0) {
+        values.put("defaultPackQuantity", quantity);
+      }
+    }
+    return values.isEmpty() ? Map.of() : values;
+  }
+
+  private void putPositiveInteger(Map<String, Object> values, String fieldName, Integer value) {
+    if (value == null) {
+      return;
+    }
+    if (value <= 0) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          fieldName + " must be greater than zero");
+    }
+    values.put(fieldName, value);
+  }
+
+  private BulkVariantRequest.VariantPackagingOverride packagingOverrideFor(
+      BulkVariantRequest request, String color, String size) {
+    if (request.packagingOverrides() == null || request.packagingOverrides().isEmpty()) {
+      return null;
+    }
+    String colorKey = normalizeSkuKey(color);
+    String sizeKey = normalizeSkuKey(size);
+    BulkVariantRequest.VariantPackagingOverride match = null;
+    for (BulkVariantRequest.VariantPackagingOverride override : request.packagingOverrides()) {
+      String overrideColor = requireCanonicalToken(override.color(), "packagingOverrides.color");
+      String overrideSize = requireCanonicalToken(override.size(), "packagingOverrides.size");
+      if (Objects.equals(colorKey, normalizeSkuKey(overrideColor))
+          && Objects.equals(sizeKey, normalizeSkuKey(overrideSize))) {
+        if (match != null) {
+          throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+              "Duplicate packaging override for color " + color + " and size " + size);
+        }
+        match = override;
+      }
+    }
+    return match;
+  }
+
+  private void assertCanonicalSkuPrefix(String requestedPrefix, String itemClass) {
+    if (!StringUtils.hasText(requestedPrefix)) {
+      return;
+    }
+    String expected = itemClassSkuPrefix(itemClass);
+    String actual = sanitizeSkuFragment(requestedPrefix);
+    if (!expected.equals(actual)) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "skuPrefix must match canonical " + expected + " prefix for " + itemClass);
+    }
+  }
+
+  private List<BulkVariantResponse.VariantItem> appendVariantItem(
+      List<BulkVariantResponse.VariantItem> items, BulkVariantResponse.VariantItem item) {
+    List<BulkVariantResponse.VariantItem> copy = new ArrayList<>(items);
+    copy.add(item);
+    return List.copyOf(copy);
+  }
+
   private ProductionProductDto createCatalogItem(
       CatalogItemCreateCommand request, UUID variantGroupId, String productFamilyName) {
     Company company = companyContextService.requireCurrentCompany();
@@ -513,9 +792,12 @@ public class ProductionCatalogService {
     product.setUnitOfMeasure(cleanValue(request.unitOfMeasure()));
     product.setHsnCode(cleanValue(request.hsnCode()));
     product.setSkuCode(sku);
-    product.setVariantGroupId(variantGroupId);
-    product.setProductFamilyName(
-        cleanValue(productFamilyName != null ? productFamilyName : baseName));
+    String familyName = cleanValue(productFamilyName != null ? productFamilyName : baseName);
+    product.setVariantGroupId(
+        variantGroupId != null
+            ? variantGroupId
+            : deterministicVariantGroupId(company, brand, familyName));
+    product.setProductFamilyName(familyName);
     product.setActive(request.active() == null || request.active());
     product.setBasePrice(money(request.basePrice()));
     product.setGstRate(percent(request.gstRate()));
@@ -523,7 +805,7 @@ public class ProductionCatalogService {
     product.setMinSellingPrice(money(request.minSellingPrice()));
     Map<String, Object> metadata = normalizeMetadata(request.metadata());
     if (!isRawMaterialCategory(normalizedCategory)) {
-      metadata = ensureFinishedGoodAccounts(company, sku, metadata);
+      metadata = ensureFinishedGoodAccounts(company, sku, metadata, null, false);
     }
     product.setMetadata(metadata);
     ProductionProduct saved = productRepository.save(product);
@@ -830,7 +1112,7 @@ public class ProductionCatalogService {
     if (request.metadata() != null) {
       Map<String, Object> metadata = normalizeMetadata(request.metadata());
       if (!isRawMaterialCategory(effectiveCategory)) {
-        metadata = ensureFinishedGoodAccounts(company, product.getSkuCode(), metadata);
+        metadata = ensureFinishedGoodAccounts(company, product.getSkuCode(), metadata, null, false);
       }
       product.setMetadata(metadata);
     } else if (!isRawMaterialCategory(effectiveCategory)) {
@@ -838,7 +1120,9 @@ public class ProductionCatalogService {
           ensureFinishedGoodAccounts(
               company,
               product.getSkuCode(),
-              new HashMap<>(Optional.ofNullable(product.getMetadata()).orElseGet(HashMap::new))));
+              new HashMap<>(Optional.ofNullable(product.getMetadata()).orElseGet(HashMap::new)),
+              null,
+              false));
     }
     if (request.active() != null) {
       product.setActive(request.active());
@@ -1104,6 +1388,13 @@ public class ProductionCatalogService {
     }
     product.setProductName(productName);
     product.setCategory(category);
+    if (!StringUtils.hasText(product.getProductFamilyName())) {
+      product.setProductFamilyName(productName);
+    }
+    if (product.getVariantGroupId() == null) {
+      product.setVariantGroupId(
+          deterministicVariantGroupId(company, brand, product.getProductFamilyName()));
+    }
     product.setDefaultColour(cleanValue(row.defaultColour()));
     product.setSizeLabel(cleanValue(sizeLabel));
     product.setUnitOfMeasure(cleanValue(row.unitOfMeasure()));
@@ -1131,7 +1422,7 @@ public class ProductionCatalogService {
     if (!isRawMaterialCategory(category)) {
       metadata =
           ensureFinishedGoodAccounts(
-              company, product.getSkuCode(), metadata, validatedFinishedGoodAccounts);
+              company, product.getSkuCode(), metadata, validatedFinishedGoodAccounts, false);
     }
     product.setMetadata(metadata);
   }
@@ -1506,10 +1797,10 @@ public class ProductionCatalogService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Production product SKU is required to map finished goods");
     }
-    Long valuationAccountId = requiredMetadataLong(product, "fgValuationAccountId");
-    Long cogsAccountId = requiredMetadataLong(product, "fgCogsAccountId");
-    Long revenueAccountId = requiredMetadataLong(product, "fgRevenueAccountId");
-    Long taxAccountId = requiredMetadataLong(product, "fgTaxAccountId");
+    Long valuationAccountId = metadataLong(product, "fgValuationAccountId");
+    Long cogsAccountId = metadataLong(product, "fgCogsAccountId");
+    Long revenueAccountId = metadataLong(product, "fgRevenueAccountId");
+    Long taxAccountId = metadataLong(product, "fgTaxAccountId");
     Long discountAccountId = metadataLong(product, "fgDiscountAccountId");
 
     FinishedGood finishedGood =
@@ -1742,8 +2033,7 @@ public class ProductionCatalogService {
   }
 
   private com.bigbrightpaints.erp.modules.inventory.domain.MaterialType
-      resolveRawMaterialMaterialType(
-          RawMaterial material, String itemClassHint) {
+      resolveRawMaterialMaterialType(RawMaterial material, String itemClassHint) {
     if (StringUtils.hasText(itemClassHint)) {
       return ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(normalizeItemClass(itemClassHint))
           ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING
@@ -1958,6 +2248,22 @@ public class ProductionCatalogService {
       return null;
     }
     return value.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private UUID deterministicVariantGroupId(
+      Company company, ProductionBrand brand, String productFamilyName) {
+    String tenantKey =
+        company != null && company.getId() != null
+            ? "company:" + company.getId()
+            : "company:" + (company != null ? normalizeKey(company.getCode()) : "unknown");
+    String brandKey =
+        brand != null && brand.getId() != null
+            ? "brand:" + brand.getId()
+            : "brand:" + (brand != null ? normalizeKey(brand.getCode()) : "unknown");
+    String familyKey = normalizeKey(productFamilyName);
+    String fingerprint =
+        String.join("|", tenantKey, brandKey, "family:" + (familyKey != null ? familyKey : ""));
+    return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
   }
 
   private static String normalizeSkuKey(String value) {
@@ -2212,6 +2518,24 @@ public class ProductionCatalogService {
   }
 
   private record BrandResolution(ProductionBrand brand, boolean created) {}
+
+  private record BulkVariantCombination(String color, String size) {}
+
+  private record BulkVariantCandidate(
+      String sku,
+      String productName,
+      String color,
+      String size,
+      String reason,
+      BulkVariantRequest.VariantPackagingOverride packagingOverride) {
+    BulkVariantCandidate withReason(String nextReason) {
+      return new BulkVariantCandidate(sku, productName, color, size, nextReason, packagingOverride);
+    }
+
+    BulkVariantResponse.VariantItem variantItem() {
+      return new BulkVariantResponse.VariantItem(sku, reason, productName, color, size);
+    }
+  }
 
   private record ProcessOutcome(
       boolean brandCreated, boolean productCreated, boolean rawMaterialSeeded) {}

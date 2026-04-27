@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.TenantReviewIntelligenceToggleService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -40,16 +42,24 @@ public class AccountingComplianceAuditService {
   private static final String ENTITY_PERIOD = "ACCOUNTING_PERIOD";
   private static final String ENTITY_PERIOD_CLOSE_REQUEST = "PERIOD_CLOSE_REQUEST";
   private static final String ENTITY_ACCOUNT = "ACCOUNT";
+  private static final String ACTION_REVIEW_INTELLIGENCE_WARNING = "REVIEW_INTELLIGENCE_WARNING";
+  private static final String REVIEW_RULE_MANUAL_HIGH_VALUE_JOURNAL = "MANUAL_HIGH_VALUE_JOURNAL";
+  private static final String REVIEW_QUEUE_ACCOUNTING_AUDIT_EVENTS = "ACCOUNTING_AUDIT_EVENTS";
+  private static final BigDecimal REVIEW_WARNING_THRESHOLD = new BigDecimal("100000.00");
   private static final String METADATA_BEFORE_STATE = "beforeState";
   private static final String METADATA_AFTER_STATE = "afterState";
   private static final String METADATA_SENSITIVE_OPERATION = "sensitiveOperation";
 
   private final EnterpriseAuditTrailService enterpriseAuditTrailService;
+  private final TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService;
   private final ObjectMapper objectMapper;
 
   public AccountingComplianceAuditService(
-      EnterpriseAuditTrailService enterpriseAuditTrailService, ObjectMapper objectMapper) {
+      EnterpriseAuditTrailService enterpriseAuditTrailService,
+      TenantReviewIntelligenceToggleService tenantReviewIntelligenceToggleService,
+      ObjectMapper objectMapper) {
     this.enterpriseAuditTrailService = enterpriseAuditTrailService;
+    this.tenantReviewIntelligenceToggleService = tenantReviewIntelligenceToggleService;
     this.objectMapper = objectMapper;
   }
 
@@ -111,6 +121,7 @@ public class AccountingComplianceAuditService {
         totalDebit,
         entry.getCurrency(),
         metadata);
+    recordReviewIntelligenceWarningIfEligible(company, entry, totalDebit, manualJournal);
   }
 
   public void recordJournalReversal(
@@ -217,6 +228,43 @@ public class AccountingComplianceAuditService {
         ENTITY_PERIOD,
         stringifyId(period.getId()),
         period.getLabel(),
+        null,
+        company.getBaseCurrency(),
+        metadata);
+  }
+
+  public void recordDefaultAccountsChange(
+      Company company,
+      CompanyDefaultAccountsService.DefaultAccounts beforeDefaults,
+      CompanyDefaultAccountsService.DefaultAccounts afterDefaults,
+      Set<CompanyDefaultAccountsService.DefaultAccountSlot> clearedSlots) {
+    if (company == null || beforeDefaults == null || afterDefaults == null) {
+      return;
+    }
+    Map<String, String> metadata =
+        baseMetadata(
+            company,
+            defaultAccountsState(beforeDefaults),
+            defaultAccountsState(afterDefaults),
+            true);
+    if (clearedSlots != null && !clearedSlots.isEmpty()) {
+      metadata.put(
+          "clearedSlots",
+          clearedSlots.stream()
+              .map(CompanyDefaultAccountsService.DefaultAccountSlot::name)
+              .sorted()
+              .reduce((left, right) -> left + "," + right)
+              .orElse(""));
+    }
+
+    record(
+        company,
+        clearedSlots == null || clearedSlots.isEmpty()
+            ? "DEFAULT_ACCOUNTS_UPDATED"
+            : "DEFAULT_ACCOUNTS_CLEARED",
+        "COMPANY_DEFAULT_ACCOUNTS",
+        stringifyId(company.getId()),
+        company.getCode(),
         null,
         company.getBaseCurrency(),
         metadata);
@@ -441,6 +489,18 @@ public class AccountingComplianceAuditService {
     return state;
   }
 
+  private Map<String, Object> defaultAccountsState(
+      CompanyDefaultAccountsService.DefaultAccounts defaults) {
+    Map<String, Object> state = new LinkedHashMap<>();
+    state.put("inventoryAccountId", defaults.inventoryAccountId());
+    state.put("cogsAccountId", defaults.cogsAccountId());
+    state.put("revenueAccountId", defaults.revenueAccountId());
+    state.put("discountAccountId", defaults.discountAccountId());
+    state.put("fgDiscountAccountId", defaults.fgDiscountAccountId());
+    state.put("taxAccountId", defaults.taxAccountId());
+    return state;
+  }
+
   private boolean isSettlementReference(String referenceNumber) {
     if (!StringUtils.hasText(referenceNumber)) {
       return false;
@@ -450,6 +510,59 @@ public class AccountingComplianceAuditService {
         || normalized.startsWith("RCPT")
         || normalized.startsWith("SUP")
         || normalized.contains("SETTLEMENT");
+  }
+
+  private void recordReviewIntelligenceWarningIfEligible(
+      Company company, JournalEntry entry, BigDecimal totalDebit, boolean manualJournal) {
+    if (!qualifiesForReviewWarning(manualJournal, totalDebit)
+        || !tenantReviewIntelligenceToggleService.isEnabledForCompany(
+            company == null ? null : company.getId())) {
+      return;
+    }
+    Map<String, Object> beforeState = new LinkedHashMap<>();
+    beforeState.put("reviewStatus", "NOT_FLAGGED");
+
+    Map<String, Object> afterState = new LinkedHashMap<>();
+    afterState.put("reviewStatus", "FLAGGED");
+    afterState.put("reviewRule", REVIEW_RULE_MANUAL_HIGH_VALUE_JOURNAL);
+    afterState.put("reviewQueue", REVIEW_QUEUE_ACCOUNTING_AUDIT_EVENTS);
+    afterState.put("warnOnly", true);
+    afterState.put("thresholdAmount", REVIEW_WARNING_THRESHOLD);
+    afterState.put("observedAmount", totalDebit);
+    afterState.put("journalEntryId", entry.getId());
+    afterState.put("referenceNumber", entry.getReferenceNumber());
+
+    Map<String, String> metadata = baseMetadata(company, beforeState, afterState, false);
+    metadata.put("reviewRule", REVIEW_RULE_MANUAL_HIGH_VALUE_JOURNAL);
+    metadata.put("reviewQueue", REVIEW_QUEUE_ACCOUNTING_AUDIT_EVENTS);
+    metadata.put("reviewSeverity", "WARN");
+    metadata.put("reviewStatus", "OPEN");
+    metadata.put("warnOnly", "true");
+    metadata.put("thresholdAmount", toPlainAmount(REVIEW_WARNING_THRESHOLD));
+    metadata.put("observedAmount", toPlainAmount(totalDebit));
+
+    record(
+        company,
+        ACTION_REVIEW_INTELLIGENCE_WARNING,
+        ENTITY_JOURNAL,
+        stringifyId(entry.getId()),
+        entry.getReferenceNumber(),
+        totalDebit,
+        entry.getCurrency(),
+        metadata);
+  }
+
+  private boolean qualifiesForReviewWarning(boolean manualJournal, BigDecimal totalDebit) {
+    return manualJournal
+        && totalDebit != null
+        && totalDebit.compareTo(REVIEW_WARNING_THRESHOLD) >= 0;
+  }
+
+  private String toPlainAmount(BigDecimal amount) {
+    if (amount == null) {
+      return "0";
+    }
+    return amount.stripTrailingZeros().toPlainString();
   }
 
   private String toJson(Map<String, Object> state) {

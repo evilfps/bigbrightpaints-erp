@@ -120,6 +120,15 @@ public class SecurityConfig {
                     .permitAll();
               }
               registry
+                  .requestMatchers(
+                      HttpMethod.POST,
+                      "/api/v1/accounting/receipts/dealer",
+                      "/api/v1/accounting/receipts/dealer/hybrid",
+                      "/api/v1/accounting/settlements/dealers",
+                      "/api/v1/accounting/dealers/*/auto-settle",
+                      "/api/v1/accounting/settlements/suppliers",
+                      "/api/v1/accounting/suppliers/*/auto-settle")
+                  .hasAnyAuthority("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SUPER_ADMIN")
                   .requestMatchers("/actuator/health", "/actuator/health/**")
                   .permitAll()
                   .anyRequest()

@@ -161,7 +161,8 @@ class OrderIntegrationCoordinator {
               .ifPresent(
                   orderId -> {
                     IntegrationCoordinator.AutoApprovalResult result =
-                        autoApproveOrder(String.valueOf(orderId), companyId, traceId, idempotencyKey);
+                        autoApproveOrder(
+                            String.valueOf(orderId), companyId, traceId, idempotencyKey);
                     log.info(
                         "Resumed auto-approval for order {} after plan completion; status={},"
                             + " awaitingProduction={}{}",
@@ -203,8 +204,7 @@ class OrderIntegrationCoordinator {
               salesService.cancelOrder(id, "Cancelled");
               yield new IntegrationCoordinator.AutoApprovalResult("CANCELLED", false);
             }
-            case "READY_TO_SHIP" ->
-                autoApproveOrder(orderId, companyId, traceId, idempotencyKey);
+            case "READY_TO_SHIP" -> autoApproveOrder(orderId, companyId, traceId, idempotencyKey);
             case "SHIPPED", "DISPATCHED", "FULFILLED", "COMPLETED" ->
                 throw new ApplicationException(
                         ErrorCode.BUSINESS_INVALID_STATE,

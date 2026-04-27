@@ -21,16 +21,24 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
     BigDecimal getTotalCredit();
   }
 
+  interface AccountTypeLineTotals {
+    AccountType getAccountType();
+
+    BigDecimal getTotalDebit();
+
+    BigDecimal getTotalCredit();
+  }
+
   @Query(
       """
-      select line from JournalLine line
-      join fetch line.journalEntry entry
-      where entry.company = :company
-        and line.account.id = :accountId
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and entry.entryDate between :start and :end
-      order by entry.entryDate asc, entry.referenceNumber asc, line.id asc
-      """)
+select line from JournalLine line
+join fetch line.journalEntry entry
+where entry.company = :company
+  and line.account.id = :accountId
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate between :start and :end
+order by entry.entryDate asc, entry.referenceNumber asc, line.id asc
+""")
   List<JournalLine> findLinesForAccountBetween(
       @Param("company") Company company,
       @Param("accountId") Long accountId,
@@ -39,14 +47,14 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
 
   @Query(
       """
-      select line from JournalLine line
-      join fetch line.journalEntry entry
-      where entry.company = :company
-        and entry.id in :journalEntryIds
-        and line.account.id = :accountId
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-      order by entry.entryDate asc, line.id asc
-      """)
+select line from JournalLine line
+join fetch line.journalEntry entry
+where entry.company = :company
+  and entry.id in :journalEntryIds
+  and line.account.id = :accountId
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+order by entry.entryDate asc, line.id asc
+""")
   List<JournalLine> findPostedLinesForAccountByJournalEntryIds(
       @Param("company") Company company,
       @Param("journalEntryIds") Collection<Long> journalEntryIds,
@@ -54,14 +62,16 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
 
   @Query(
       """
-      select line.account.type, sum(line.debit), sum(line.credit)
-      from JournalLine line
-      join line.journalEntry entry
-      where entry.company = :company
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and entry.entryDate between :start and :end
-      group by line.account.type
-      """)
+select line.account.type as accountType,
+       coalesce(sum(line.debit), 0) as totalDebit,
+       coalesce(sum(line.credit), 0) as totalCredit
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate between :start and :end
+group by line.account.type
+""")
   List<Object[]> summarizeByAccountType(
       @Param("company") Company company,
       @Param("start") LocalDate start,
@@ -69,14 +79,34 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
 
   @Query(
       """
-      select line.account.id, sum(line.debit), sum(line.credit)
-      from JournalLine line
-      join line.journalEntry entry
-      where entry.company = :company
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and entry.entryDate between :start and :end
-      group by line.account.id
-      """)
+select line.account.type as accountType,
+       coalesce(sum(line.debit), 0) as totalDebit,
+       coalesce(sum(line.credit), 0) as totalCredit
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate between :start and :end
+  and entry.sourceModule = 'ACCOUNTING_PERIOD'
+  and entry.referenceNumber like 'PERIOD-CLOSE-%'
+  and entry.sourceReference = entry.referenceNumber
+group by line.account.type
+""")
+  List<AccountTypeLineTotals> summarizePostedPeriodCloseSystemJournalsByAccountTypeWithin(
+      @Param("company") Company company,
+      @Param("start") LocalDate start,
+      @Param("end") LocalDate end);
+
+  @Query(
+      """
+select line.account.id, sum(line.debit), sum(line.credit)
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate between :start and :end
+group by line.account.id
+""")
   List<Object[]> summarizeByAccountWithin(
       @Param("company") Company company,
       @Param("start") LocalDate start,
@@ -84,17 +114,17 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
 
   @Query(
       """
-      select line.account.id, sum(line.debit), sum(line.credit)
-      from JournalLine line
-      join line.journalEntry entry
-      where entry.company = :company
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and entry.entryDate between :start and :end
-        and entry.sourceModule = 'ACCOUNTING_PERIOD'
-        and entry.referenceNumber like 'PERIOD-CLOSE-%'
-        and entry.sourceReference = entry.referenceNumber
-      group by line.account.id
-      """)
+select line.account.id, sum(line.debit), sum(line.credit)
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate between :start and :end
+  and entry.sourceModule = 'ACCOUNTING_PERIOD'
+  and entry.referenceNumber like 'PERIOD-CLOSE-%'
+  and entry.sourceReference = entry.referenceNumber
+group by line.account.id
+""")
   List<Object[]> summarizePostedPeriodCloseSystemJournalsByAccountWithin(
       @Param("company") Company company,
       @Param("start") LocalDate start,
@@ -102,27 +132,27 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, Long> 
 
   @Query(
       """
-      select line.account.id, sum(line.debit), sum(line.credit)
-      from JournalLine line
-      join line.journalEntry entry
-      where entry.company = :company
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and entry.entryDate <= :end
-      group by line.account.id
-      """)
+select line.account.id, sum(line.debit), sum(line.credit)
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and entry.entryDate <= :end
+group by line.account.id
+""")
   List<Object[]> summarizeByAccountUpTo(
       @Param("company") Company company, @Param("end") LocalDate end);
 
   @Query(
       """
-      select coalesce(sum(line.debit), 0) - coalesce(sum(line.credit), 0)
-      from JournalLine line
-      join line.journalEntry entry
-      where entry.company = :company
-        and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
-        and line.account.id = :accountId
-        and entry.entryDate <= :end
-      """)
+select coalesce(sum(line.debit), 0) - coalesce(sum(line.credit), 0)
+from JournalLine line
+join line.journalEntry entry
+where entry.company = :company
+  and entry.status = com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus.POSTED
+  and line.account.id = :accountId
+  and entry.entryDate <= :end
+""")
   BigDecimal netBalanceUpTo(
       @Param("company") Company company,
       @Param("accountId") Long accountId,

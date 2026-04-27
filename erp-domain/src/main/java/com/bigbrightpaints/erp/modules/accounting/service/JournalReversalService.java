@@ -115,25 +115,8 @@ class JournalReversalService {
             ? request.reversalDate()
             : journalPostingService.currentDate(company);
     boolean overrideRequested = request != null && Boolean.TRUE.equals(request.adminOverride());
-    boolean systemEntryDateOverrideActive = journalPostingService.hasEntryDateOverrideAuthority();
-    boolean overrideAuthorized = systemEntryDateOverrideActive || overrideRequested;
-    AccountingPeriod postingPeriod;
-    if (systemSettingsService.isPeriodLockEnforced()) {
-      journalPostingService.validateEntryDate(
-          company, reversalDate, overrideRequested, overrideAuthorized);
-      postingPeriod =
-          accountingPeriodService.requirePostablePeriod(
-              company,
-              reversalDate,
-              journalPostingService.resolvePostingDocumentType(entry),
-              journalPostingService.resolvePostingDocumentReference(entry),
-              request != null ? request.reason() : null,
-              overrideAuthorized);
-    } else {
-      journalPostingService.validateEntryDate(
-          company, reversalDate, overrideRequested, overrideAuthorized);
-      postingPeriod = accountingPeriodService.ensurePeriod(company, reversalDate);
-    }
+    boolean overrideAuthorityAvailable = journalPostingService.hasEntryDateOverrideAuthority();
+    boolean overrideAuthorized = overrideRequested && overrideAuthorityAvailable;
     AccountingPeriod originalPeriod = entry.getAccountingPeriod();
     if (originalPeriod != null) {
       if (originalPeriod.getStatus() == AccountingPeriodStatus.LOCKED) {
@@ -150,6 +133,23 @@ class JournalReversalService {
             ErrorCode.BUSINESS_INVALID_STATE,
             "Entry belongs to CLOSED period. Administrator override with audit approval required.");
       }
+    }
+    AccountingPeriod postingPeriod;
+    if (systemSettingsService.isPeriodLockEnforced()) {
+      journalPostingService.validateEntryDate(
+          company, reversalDate, overrideRequested, overrideAuthorized);
+      postingPeriod =
+          accountingPeriodService.requirePostablePeriod(
+              company,
+              reversalDate,
+              journalPostingService.resolvePostingDocumentType(entry),
+              journalPostingService.resolvePostingDocumentReference(entry),
+              request != null ? request.reason() : null,
+              overrideAuthorized);
+    } else {
+      journalPostingService.validateEntryDate(
+          company, reversalDate, overrideRequested, overrideAuthorized);
+      postingPeriod = accountingPeriodService.ensurePeriod(company, reversalDate);
     }
 
     String sanitizedReason = buildAuditReason(request, entry);
@@ -193,8 +193,7 @@ class JournalReversalService {
     if (request != null && request.voidOnly()) {
       Instant now = CompanyTime.now(company);
       JournalEntryDto reversalDto =
-          journalPostingService.createJournalEntryForReversal(
-              payload, systemEntryDateOverrideActive);
+          journalPostingService.createJournalEntryForReversal(payload, overrideAuthorized);
       JournalEntry reversalEntry =
           accountingLookupService.requireJournalEntry(company, reversalDto.id());
       reversalEntry.setReversalOf(entry);
@@ -246,7 +245,7 @@ class JournalReversalService {
       return journalPostingService.toDto(reversalEntry);
     }
     JournalEntryDto reversalDto =
-        journalPostingService.createJournalEntryForReversal(payload, systemEntryDateOverrideActive);
+        journalPostingService.createJournalEntryForReversal(payload, overrideAuthorized);
     JournalEntry reversalEntry =
         accountingLookupService.requireJournalEntry(company, reversalDto.id());
     reversalEntry.setReversalOf(entry);

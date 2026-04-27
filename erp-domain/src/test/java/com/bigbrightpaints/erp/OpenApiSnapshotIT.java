@@ -529,6 +529,14 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ApiResponseCatalogItemDto");
     assertOperationContract(
         root,
+        "/api/v1/catalog/items/bulk-variants",
+        "post",
+        "#/components/schemas/BulkVariantRequest",
+        "200",
+        "#/components/schemas/ApiResponseBulkVariantResponse");
+    assertQueryParameter(root, "/api/v1/catalog/items/bulk-variants", "post", "dryRun");
+    assertOperationContract(
+        root,
         "/api/v1/catalog/items/{itemId}",
         "get",
         null,
@@ -733,6 +741,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/invoices", "get");
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/aging", "get");
     assertOperationMissing(root, "/api/v1/dealers/{dealerId}/credit-utilization", "get");
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}", "delete");
     assertOperationMissing(root, "/api/v1/invoices/dealers/{dealerId}", "get");
     assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}", "get");
     assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}/pdf", "get");

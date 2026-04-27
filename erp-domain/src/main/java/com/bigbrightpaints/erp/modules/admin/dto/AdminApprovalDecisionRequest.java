@@ -2,8 +2,8 @@ package com.bigbrightpaints.erp.modules.admin.dto;
 
 import java.time.Instant;
 
-import jakarta.validation.constraints.NotNull;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 
 public record AdminApprovalDecisionRequest(
     @NotNull

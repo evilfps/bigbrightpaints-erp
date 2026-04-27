@@ -52,7 +52,7 @@ public class JournalReferenceResolver {
         journalReferenceMappingRepository.findAllByCompanyAndCanonicalReferenceIgnoreCase(
             company, trimmed);
     Optional<JournalEntry> canonicalEntry =
-        findEntryByMappings(company, canonicalMappings, false, "canonical", trimmed);
+        findEntryByMappings(company, canonicalMappings, true, "canonical", trimmed);
     if (canonicalEntry.isPresent()) {
       return canonicalEntry;
     }
@@ -87,7 +87,7 @@ public class JournalReferenceResolver {
     for (JournalReferenceMapping mapping : ordered) {
       String candidate =
           useCanonicalReference ? mapping.getCanonicalReference() : mapping.getLegacyReference();
-      if (!StringUtils.hasText(candidate) || candidate.equalsIgnoreCase(reference)) {
+      if (!StringUtils.hasText(candidate)) {
         continue;
       }
       Optional<JournalEntry> entry =

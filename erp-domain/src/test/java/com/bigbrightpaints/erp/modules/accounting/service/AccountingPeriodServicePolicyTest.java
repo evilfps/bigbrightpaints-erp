@@ -71,8 +71,8 @@ class AccountingPeriodServicePolicyTest {
   @Mock private PayrollRunRepository payrollRunRepository;
   @Mock private ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   @Mock private PeriodCloseRequestRepository periodCloseRequestRepository;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private AccountingFacade accountingFacade;
+  @Mock private ObjectProvider<JournalEntryService> journalEntryServiceProvider;
+  @Mock private JournalEntryService journalEntryService;
   @Mock private PeriodCloseHook periodCloseHook;
   @Mock private AccountingPeriodSnapshotService snapshotService;
 
@@ -97,7 +97,7 @@ class AccountingPeriodServicePolicyTest {
             payrollRunRepository,
             reconciliationDiscrepancyRepository,
             periodCloseRequestRepository,
-            accountingFacadeProvider,
+            journalEntryServiceProvider,
             periodCloseHook,
             snapshotService);
     SecurityContextHolder.clearContext();
@@ -476,7 +476,7 @@ class AccountingPeriodServicePolicyTest {
         .thenReturn(Optional.of(period));
     when(journalEntryRepository.findByCompanyAndId(company, 900L)).thenReturn(Optional.of(closing));
     when(accountingPeriodRepository.save(period)).thenReturn(period);
-    when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+    when(journalEntryServiceProvider.getObject()).thenReturn(journalEntryService);
     authenticate("policy.superadmin", "ROLE_SUPER_ADMIN");
 
     assertThat(
@@ -486,7 +486,7 @@ class AccountingPeriodServicePolicyTest {
         .isEqualTo("OPEN");
     assertThat(period.getReopenReason()).isEqualTo("reopen adjustment");
     assertThat(period.getClosingJournalEntryId()).isNull();
-    verify(accountingFacade)
+    verify(journalEntryService)
         .reverseClosingEntryForPeriodReopen(closing, period, "reopen adjustment");
   }
 

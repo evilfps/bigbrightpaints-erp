@@ -3,7 +3,11 @@ package com.bigbrightpaints.erp.e2e.accounting;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
+import com.bigbrightpaints.erp.codered.support.CoderedRetry;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -25,11 +31,25 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+
+import jakarta.persistence.EntityManager;
 
 @DisplayName("E2E: Landed cost, revaluation, audit digest")
 public class LandedCostRevaluationIT extends AbstractIntegrationTest {
@@ -44,6 +64,12 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
   @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private SupplierRepository supplierRepository;
   @Autowired private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+  @Autowired private RawMaterialRepository rawMaterialRepository;
+  @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
+  @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
+  @Autowired private FinishedGoodRepository finishedGoodRepository;
+  @Autowired private FinishedGoodBatchRepository finishedGoodBatchRepository;
+  @Autowired private EntityManager entityManager;
 
   private HttpHeaders headers;
   private Company company;
@@ -140,6 +166,299 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     assertThat(body).isNotNull();
   }
 
+  @Test
+  void landedCostReplay_doesNotReapplyBatchAndMovementCosts() {
+    LandedCostFixture fixture = ensurePurchaseWithReceiptLine();
+    String replayKey = "LC-REPLAY-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "rawMaterialPurchaseId",
+            fixture.purchaseId(),
+            "amount",
+            new BigDecimal("100.00"),
+            "inventoryAccountId",
+            inventory.getId(),
+            "offsetAccountId",
+            offset.getId(),
+            "memo",
+            "Replay-safe landed cost",
+            "idempotencyKey",
+            replayKey);
+
+    ResponseEntity<Map> first =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/landed-cost",
+            new org.springframework.http.HttpEntity<>(request, headers),
+            Map.class);
+    assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Long firstJournalId = asLong(data(first).get("id"));
+    assertThat(firstJournalId).isNotNull();
+
+    RawMaterialPurchaseLine lineAfterFirst = findPurchaseLine(fixture.lineId());
+    BigDecimal lineUnitCostAfterFirst = lineAfterFirst.getCostPerUnit();
+    BigDecimal lineTotalAfterFirst = lineAfterFirst.getLineTotal();
+    BigDecimal batchCostAfterFirst =
+        rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit();
+    BigDecimal movementCostAfterFirst =
+        rawMaterialMovementRepository.findById(fixture.movementId()).orElseThrow().getUnitCost();
+
+    ResponseEntity<Map> replay =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/landed-cost",
+            new org.springframework.http.HttpEntity<>(request, headers),
+            Map.class);
+    assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(asLong(data(replay).get("id"))).isEqualTo(firstJournalId);
+
+    RawMaterialPurchaseLine lineAfterReplay = findPurchaseLine(fixture.lineId());
+    assertThat(lineAfterReplay.getCostPerUnit()).isEqualByComparingTo(lineUnitCostAfterFirst);
+    assertThat(lineAfterReplay.getLineTotal()).isEqualByComparingTo(lineTotalAfterFirst);
+    assertThat(
+            rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit())
+        .isEqualByComparingTo(batchCostAfterFirst);
+    assertThat(
+            rawMaterialMovementRepository
+                .findById(fixture.movementId())
+                .orElseThrow()
+                .getUnitCost())
+        .isEqualByComparingTo(movementCostAfterFirst);
+
+    Map<String, Object> mismatchedRequest = new HashMap<>(request);
+    mismatchedRequest.put("amount", new BigDecimal("125.00"));
+    ResponseEntity<Map> mismatched =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/landed-cost",
+            new org.springframework.http.HttpEntity<>(mismatchedRequest, headers),
+            Map.class);
+    assertThat(mismatched.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+  }
+
+  @Test
+  void revaluationReplay_doesNotReapplyBatchDelta() {
+    Account scopedInventory =
+        ensureAccount("INV-RPL-" + UUID.randomUUID(), "Replay inventory", AccountType.ASSET);
+    FinishedGoodBatch firstBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-FG-1-" + UUID.randomUUID(),
+            new BigDecimal("10"),
+            new BigDecimal("20.00"));
+    FinishedGoodBatch secondBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-FG-2-" + UUID.randomUUID(),
+            new BigDecimal("15"),
+            new BigDecimal("30.00"));
+    String replayKey = "REVAL-REPLAY-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "inventoryAccountId",
+            scopedInventory.getId(),
+            "revaluationAccountId",
+            reval.getId(),
+            "deltaAmount",
+            new BigDecimal("12.00"),
+            "memo",
+            "Replay-safe revaluation",
+            "idempotencyKey",
+            replayKey);
+
+    ResponseEntity<Map> first =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/revaluation",
+            new org.springframework.http.HttpEntity<>(request, headers),
+            Map.class);
+    assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Long firstJournalId = asLong(data(first).get("id"));
+    assertThat(firstJournalId).isNotNull();
+
+    BigDecimal firstBatchCostAfterFirst =
+        finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost();
+    BigDecimal secondBatchCostAfterFirst =
+        finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost();
+
+    ResponseEntity<Map> replay =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/revaluation",
+            new org.springframework.http.HttpEntity<>(request, headers),
+            Map.class);
+    assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(asLong(data(replay).get("id"))).isEqualTo(firstJournalId);
+
+    assertThat(finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(firstBatchCostAfterFirst);
+    assertThat(
+            finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(secondBatchCostAfterFirst);
+
+    Map<String, Object> mismatchedRequest = new HashMap<>(request);
+    mismatchedRequest.put("deltaAmount", new BigDecimal("15.00"));
+    ResponseEntity<Map> mismatched =
+        rest.postForEntity(
+            "/api/v1/accounting/inventory/revaluation",
+            new org.springframework.http.HttpEntity<>(mismatchedRequest, headers),
+            Map.class);
+    assertThat(mismatched.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+    assertThat(finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(firstBatchCostAfterFirst);
+    assertThat(
+            finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(secondBatchCostAfterFirst);
+  }
+
+  @Test
+  void landedCostConcurrentReplay_returnsSingleJournal_andAppliesValuationOnce() {
+    LandedCostFixture fixture = ensurePurchaseWithReceiptLine();
+    String replayKey = "LC-CONCURRENT-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "rawMaterialPurchaseId",
+            fixture.purchaseId(),
+            "amount",
+            new BigDecimal("100.00"),
+            "inventoryAccountId",
+            inventory.getId(),
+            "offsetAccountId",
+            offset.getId(),
+            "memo",
+            "Concurrent replay-safe landed cost",
+            "idempotencyKey",
+            replayKey);
+
+    RawMaterialPurchaseLine lineBefore = findPurchaseLine(fixture.lineId());
+    BigDecimal lineUnitCostBefore = lineBefore.getCostPerUnit();
+    BigDecimal lineTotalBefore = lineBefore.getLineTotal();
+    BigDecimal batchCostBefore =
+        rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit();
+    BigDecimal movementCostBefore =
+        rawMaterialMovementRepository.findById(fixture.movementId()).orElseThrow().getUnitCost();
+
+    List<ResponseEntity<Map>> responses =
+        runConcurrentPosts("/api/v1/accounting/inventory/landed-cost", request, 4);
+    assertThat(responses).allMatch(response -> response.getStatusCode() == HttpStatus.OK);
+
+    List<Long> journalIds =
+        responses.stream().map(this::data).map(data -> asLong(data.get("id"))).distinct().toList();
+    assertThat(journalIds).hasSize(1);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+
+    RawMaterialPurchaseLine lineAfter = findPurchaseLine(fixture.lineId());
+    BigDecimal expectedDeltaPerUnit = new BigDecimal("2.000000");
+    BigDecimal expectedAllocation = new BigDecimal("100.0000");
+    assertThat(lineAfter.getCostPerUnit())
+        .isEqualByComparingTo(lineUnitCostBefore.add(expectedDeltaPerUnit));
+    assertThat(lineAfter.getLineTotal())
+        .isEqualByComparingTo(lineTotalBefore.add(expectedAllocation));
+    assertThat(
+            rawMaterialBatchRepository.findById(fixture.batchId()).orElseThrow().getCostPerUnit())
+        .isEqualByComparingTo(batchCostBefore.add(expectedDeltaPerUnit));
+    assertThat(
+            rawMaterialMovementRepository
+                .findById(fixture.movementId())
+                .orElseThrow()
+                .getUnitCost())
+        .isEqualByComparingTo(movementCostBefore.add(expectedDeltaPerUnit));
+  }
+
+  @Test
+  void revaluationConcurrentReplay_returnsSingleJournal_andAppliesBatchDeltaOnce() {
+    Account scopedInventory =
+        ensureAccount(
+            "INV-CONC-" + UUID.randomUUID(), "Concurrent replay inventory", AccountType.ASSET);
+    FinishedGoodBatch firstBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-CONC-1-" + UUID.randomUUID(),
+            new BigDecimal("10"),
+            new BigDecimal("20.00"));
+    FinishedGoodBatch secondBatch =
+        ensureFinishedGoodBatch(
+            scopedInventory,
+            "RPL-CONC-2-" + UUID.randomUUID(),
+            new BigDecimal("15"),
+            new BigDecimal("30.00"));
+    String replayKey = "REVAL-CONCURRENT-" + UUID.randomUUID();
+
+    Map<String, Object> request =
+        Map.of(
+            "inventoryAccountId",
+            scopedInventory.getId(),
+            "revaluationAccountId",
+            reval.getId(),
+            "deltaAmount",
+            new BigDecimal("12.00"),
+            "memo",
+            "Concurrent replay-safe revaluation",
+            "idempotencyKey",
+            replayKey);
+
+    BigDecimal firstBatchCostBefore =
+        finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost();
+    BigDecimal secondBatchCostBefore =
+        finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost();
+
+    List<ResponseEntity<Map>> responses =
+        runConcurrentPosts("/api/v1/accounting/inventory/revaluation", request, 4);
+    assertThat(responses).allMatch(response -> response.getStatusCode() == HttpStatus.OK);
+
+    List<Long> journalIds =
+        responses.stream().map(this::data).map(data -> asLong(data.get("id"))).distinct().toList();
+    assertThat(journalIds).hasSize(1);
+    assertThat(
+            journalEntryRepository.findByCompanyAndReferenceNumber(company, replayKey).stream()
+                .count())
+        .isEqualTo(1L);
+
+    BigDecimal expectedDeltaPerUnit = new BigDecimal("0.480000");
+    assertThat(finishedGoodBatchRepository.findById(firstBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(firstBatchCostBefore.add(expectedDeltaPerUnit));
+    assertThat(
+            finishedGoodBatchRepository.findById(secondBatch.getId()).orElseThrow().getUnitCost())
+        .isEqualByComparingTo(secondBatchCostBefore.add(expectedDeltaPerUnit));
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<ResponseEntity<Map>> runConcurrentPosts(
+      String path, Map<String, Object> request, int threads) {
+    CoderedConcurrencyHarness.RunResult<ResponseEntity<Map>> result =
+        CoderedConcurrencyHarness.run(
+            threads,
+            3,
+            Duration.ofSeconds(30),
+            idx ->
+                () -> {
+                  HttpHeaders requestHeaders = new HttpHeaders();
+                  requestHeaders.putAll(headers);
+                  return rest.postForEntity(
+                      path,
+                      new org.springframework.http.HttpEntity<>(request, requestHeaders),
+                      Map.class);
+                },
+            CoderedRetry::isRetryable);
+
+    assertThat(result.outcomes())
+        .allMatch(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>);
+    return result.outcomes().stream()
+        .map(
+            outcome ->
+                ((CoderedConcurrencyHarness.Outcome.Success<ResponseEntity<Map>>) outcome).value())
+        .toList();
+  }
+
   private RawMaterialPurchase ensurePurchase() {
     Supplier supplier =
         supplierRepository
@@ -162,6 +481,119 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     purchase.setTotalAmount(new BigDecimal("1000"));
     purchase.setStatus("POSTED");
     return rawMaterialPurchaseRepository.save(purchase);
+  }
+
+  private LandedCostFixture ensurePurchaseWithReceiptLine() {
+    Supplier supplier =
+        supplierRepository
+            .findByCompanyAndCodeIgnoreCase(company, "VSUP")
+            .orElseGet(
+                () -> {
+                  Supplier s = new Supplier();
+                  s.setCompany(company);
+                  s.setName("Val Supplier");
+                  s.setCode("VSUP");
+                  s.setEmail("val-supplier@bbp.com");
+                  s.setPayableAccount(payable);
+                  return supplierRepository.save(s);
+                });
+    String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+    RawMaterial rawMaterial = new RawMaterial();
+    rawMaterial.setCompany(company);
+    rawMaterial.setSku("RM-" + suffix);
+    rawMaterial.setName("Raw material " + suffix);
+    rawMaterial.setUnitType("KG");
+    rawMaterial.setMaterialType(MaterialType.PRODUCTION);
+    rawMaterial.setInventoryAccountId(inventory.getId());
+    rawMaterial.setCurrentStock(new BigDecimal("50"));
+    RawMaterial savedMaterial = rawMaterialRepository.save(rawMaterial);
+
+    RawMaterialBatch batch = new RawMaterialBatch();
+    batch.setRawMaterial(savedMaterial);
+    batch.setBatchCode("BATCH-" + suffix);
+    batch.setQuantity(new BigDecimal("50"));
+    batch.setUnit("KG");
+    batch.setCostPerUnit(new BigDecimal("10.00"));
+    RawMaterialBatch savedBatch = rawMaterialBatchRepository.save(batch);
+
+    RawMaterialPurchase purchase = new RawMaterialPurchase();
+    purchase.setCompany(company);
+    purchase.setSupplier(supplier);
+    purchase.setInvoiceNumber("VAL-LINE-" + suffix);
+    purchase.setInvoiceDate(LocalDate.now());
+    purchase.setTotalAmount(new BigDecimal("500.00"));
+    purchase.setStatus("POSTED");
+
+    RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
+    line.setPurchase(purchase);
+    line.setRawMaterial(savedMaterial);
+    line.setRawMaterialBatch(savedBatch);
+    line.setBatchCode(savedBatch.getBatchCode());
+    line.setQuantity(new BigDecimal("50"));
+    line.setUnit("KG");
+    line.setCostPerUnit(new BigDecimal("10.00"));
+    line.setLineTotal(new BigDecimal("500.00"));
+    purchase.getLines().add(line);
+    RawMaterialPurchase savedPurchase = rawMaterialPurchaseRepository.saveAndFlush(purchase);
+    Long lineId = savedPurchase.getLines().getFirst().getId();
+
+    RawMaterialMovement movement = new RawMaterialMovement();
+    movement.setRawMaterial(savedMaterial);
+    movement.setRawMaterialBatch(savedBatch);
+    movement.setReferenceType("GOODS_RECEIPT");
+    movement.setReferenceId("GRN-" + suffix);
+    movement.setMovementType("RECEIPT");
+    movement.setQuantity(new BigDecimal("50"));
+    movement.setUnitCost(new BigDecimal("10.00"));
+    RawMaterialMovement savedMovement = rawMaterialMovementRepository.saveAndFlush(movement);
+
+    return new LandedCostFixture(
+        savedPurchase.getId(), lineId, savedBatch.getId(), savedMovement.getId());
+  }
+
+  private FinishedGoodBatch ensureFinishedGoodBatch(
+      Account valuationAccount, String productCode, BigDecimal quantity, BigDecimal unitCost) {
+    FinishedGood finishedGood = new FinishedGood();
+    finishedGood.setCompany(company);
+    finishedGood.setProductCode(productCode);
+    finishedGood.setName("FG " + productCode);
+    finishedGood.setUnit("L");
+    finishedGood.setCurrentStock(quantity);
+    finishedGood.setReservedStock(BigDecimal.ZERO);
+    finishedGood.setValuationAccountId(valuationAccount.getId());
+    FinishedGood savedFinishedGood = finishedGoodRepository.saveAndFlush(finishedGood);
+
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    batch.setFinishedGood(savedFinishedGood);
+    batch.setBatchCode(productCode + "-B1");
+    batch.setQuantityTotal(quantity);
+    batch.setQuantityAvailable(quantity);
+    batch.setUnitCost(unitCost);
+    batch.setManufacturedAt(Instant.now());
+    return finishedGoodBatchRepository.saveAndFlush(batch);
+  }
+
+  private RawMaterialPurchaseLine findPurchaseLine(Long lineId) {
+    RawMaterialPurchaseLine line = entityManager.find(RawMaterialPurchaseLine.class, lineId);
+    assertThat(line).isNotNull();
+    return line;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> data(ResponseEntity<Map> response) {
+    assertThat(response.getBody()).isNotNull();
+    return (Map<String, Object>) response.getBody().get("data");
+  }
+
+  private Long asLong(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof Number number) {
+      return number.longValue();
+    }
+    return Long.parseLong(String.valueOf(value));
   }
 
   private Account ensureAccount(String code, String name, AccountType type) {
@@ -194,4 +626,6 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     h.set("X-Company-Code", COMPANY);
     return h;
   }
+
+  private record LandedCostFixture(Long purchaseId, Long lineId, Long batchId, Long movementId) {}
 }

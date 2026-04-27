@@ -11,6 +11,8 @@ public record CatalogItemDto(
     Long brandId,
     String brandName,
     String brandCode,
+    UUID variantGroupId,
+    String productFamilyName,
     String name,
     String code,
     String itemClass,

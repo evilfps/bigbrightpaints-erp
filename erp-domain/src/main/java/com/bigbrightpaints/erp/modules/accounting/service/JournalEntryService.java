@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
@@ -62,10 +63,16 @@ public class JournalEntryService {
     return journalPostingService.createJournalEntry(request);
   }
 
+  @Transactional
+  JournalEntryMutationOutcome createJournalEntryWithOutcome(JournalEntryRequest request) {
+    return journalPostingService.createJournalEntryWithOutcome(request);
+  }
+
   public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
     return journalPostingService.createStandardJournal(request);
   }
 
+  @Transactional(readOnly = true)
   public PageResponse<JournalListItemDto> listJournals(
       LocalDate fromDate,
       LocalDate toDate,
@@ -75,6 +82,11 @@ public class JournalEntryService {
       int size) {
     return journalQueryService.listJournals(
         fromDate, toDate, journalType, sourceModule, page, size);
+  }
+
+  @Transactional
+  public JournalEntryDto createManualJournal(ManualJournalRequest request) {
+    return journalPostingService.createManualJournal(request);
   }
 
   @Transactional

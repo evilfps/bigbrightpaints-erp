@@ -68,7 +68,7 @@ flowchart LR
 ### `production_products`
 
 - canonical catalog master rows backing item identity
-- supports brand linkage, item-class semantics, and factory-facing selection
+- supports tenant-local brand linkage, stable `variantGroupId` / `productFamilyName` family grouping, item-class semantics, and factory-facing selection
 
 ### `finished_goods`
 
@@ -87,7 +87,7 @@ flowchart LR
 1. UI fetches selectable brands from `GET /api/v1/catalog/brands?active=true`
 2. UI submits `POST /api/v1/catalog/items` with an active `brandId`
 3. `CatalogService` validates the request and persists stock-bearing item truth plus downstream mirrors
-4. `GET /api/v1/catalog/items?includeReadiness=true` returns the created item with readiness context
+4. `GET /api/v1/catalog/items?includeReadiness=true` returns the created item with brand, family/variant linkage, pricing, stock-gated enrichment, and readiness context
 
 ### 2. New-brand item entry
 

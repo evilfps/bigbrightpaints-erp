@@ -46,6 +46,7 @@ import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 @Service
 public class AdminUserService {
   private static final String SUPER_ADMIN_ROLE = SystemRole.SUPER_ADMIN.getRoleName();
+  private static final String DEALER_ROLE = SystemRole.DEALER.getRoleName();
   private static final List<String> TENANT_ASSIGNABLE_ROLE_ORDER =
       List.of(
           SystemRole.ACCOUNTING.getRoleName(),
@@ -132,16 +133,20 @@ public class AdminUserService {
   public UserDto createUser(CreateUserRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     List<String> normalizedRoles = validateAndNormalizeAssignableRoles(request.roles(), company);
-    tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
-    UserAccount user = new UserAccount();
-    attachRoles(user, normalizedRoles);
+    boolean isDealerUser =
+        normalizedRoles.stream().anyMatch(roleName -> DEALER_ROLE.equalsIgnoreCase(roleName));
     UserAccount saved =
-        scopedAccountBootstrapService.provisionTenantAccount(
-            company, request.email(), request.displayName(), user.getRoles());
+        resolveScopedDealerConvergenceAccount(company, request, normalizedRoles, isDealerUser)
+            .orElseGet(
+                () -> {
+                  tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+                  UserAccount user = new UserAccount();
+                  attachRoles(user, normalizedRoles);
+                  return scopedAccountBootstrapService.provisionTenantAccount(
+                      company, request.email(), request.displayName(), user.getRoles());
+                });
 
     // Auto-create Dealer entity if user has ROLE_DEALER
-    boolean isDealerUser =
-        normalizedRoles.stream().anyMatch(roleName -> "ROLE_DEALER".equalsIgnoreCase(roleName));
     if (isDealerUser) {
       createDealerForUser(saved, company);
     }
@@ -154,6 +159,44 @@ public class AdminUserService {
         Map.of("provisioningMode", "CANONICAL_EMAIL_BOOTSTRAP"));
     Instant lastLoginAt = resolveLastLoginAt(saved);
     return toDto(saved, lastLoginAt);
+  }
+
+  private java.util.Optional<UserAccount> resolveScopedDealerConvergenceAccount(
+      Company company,
+      CreateUserRequest request,
+      List<String> normalizedRoles,
+      boolean dealerUserRequested) {
+    if (!dealerUserRequested) {
+      return java.util.Optional.empty();
+    }
+    String requestedEmail = request.email() == null ? null : request.email().trim();
+    return userRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(requestedEmail, company.getCode())
+        .map(
+            existingUser ->
+                assertDealerConvergenceCandidate(existingUser, company, normalizedRoles));
+  }
+
+  private UserAccount assertDealerConvergenceCandidate(
+      UserAccount existingUser, Company company, List<String> normalizedRoles) {
+    if (!isUserWithinCompanyScope(existingUser, company)) {
+      throw duplicateScopedUser(company);
+    }
+    Set<String> existingRoleSet = normalizePersistedRoleSet(existingUser);
+    Set<String> requestedRoleSet = new LinkedHashSet<>(normalizedRoles);
+    if (!existingRoleSet.contains(DEALER_ROLE) || !existingRoleSet.containsAll(requestedRoleSet)) {
+      throw duplicateScopedUser(company);
+    }
+    return existingUser;
+  }
+
+  private RuntimeException duplicateScopedUser(Company company) {
+    String scopeCode =
+        company != null && StringUtils.hasText(company.getCode())
+            ? company.getCode().trim().toUpperCase(Locale.ROOT)
+            : "UNKNOWN";
+    return com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+        "User already exists for scope: " + scopeCode);
   }
 
   private void createDealerForUser(UserAccount user, Company company) {
@@ -182,7 +225,7 @@ public class AdminUserService {
     }
     dealer.setEmail(user.getEmail());
     dealer.setPortalUser(user);
-    dealer.setStatus(DealerProvisioningSupport.ACTIVE_STATUS);
+    dealer.setStatus(DealerProvisioningSupport.resolveStatusForOnboarding(dealer.getStatus()));
     dealer = dealerRepository.save(dealer);
 
     if (dealer.getReceivableAccount() == null) {
@@ -216,7 +259,8 @@ public class AdminUserService {
     Set<String> requestedRoleSet =
         roleUpdateRequested ? new LinkedHashSet<>(normalizedRoleUpdates) : Set.of();
     Set<String> existingRoleSet = roleUpdateRequested ? normalizePersistedRoleSet(user) : Set.of();
-    boolean roleAssignmentChanged = roleUpdateRequested && !existingRoleSet.equals(requestedRoleSet);
+    boolean roleAssignmentChanged =
+        roleUpdateRequested && !existingRoleSet.equals(requestedRoleSet);
     boolean displayNameChanged = !Objects.equals(user.getDisplayName(), request.displayName());
     user.setDisplayName(request.displayName());
     if (roleAssignmentChanged) {
@@ -364,7 +408,10 @@ public class AdminUserService {
             activeCompany,
             denialReason,
             Map.of(
-                "targetUserId", String.valueOf(userId), "targetResolution", "MISSING_OR_OUT_OF_SCOPE"));
+                "targetUserId",
+                String.valueOf(userId),
+                "targetResolution",
+                "MISSING_OR_OUT_OF_SCOPE"));
         throw new AccessDeniedException(OUT_OF_SCOPE_MESSAGE);
       }
       if (!superAdmin && lockTarget) {
@@ -477,7 +524,8 @@ public class AdminUserService {
         .anyMatch(authority -> SUPER_ADMIN_ROLE.equalsIgnoreCase(authority.getAuthority()));
   }
 
-  private List<String> validateAndNormalizeAssignableRoles(List<String> roles, Company actorCompany) {
+  private List<String> validateAndNormalizeAssignableRoles(
+      List<String> roles, Company actorCompany) {
     if (roles == null || roles.isEmpty()) {
       return List.of();
     }

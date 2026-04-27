@@ -351,8 +351,7 @@ public class InvoiceService {
   }
 
   private List<LinkedBusinessReferenceDto> buildLinkedReferences(
-      Invoice invoice,
-      LinkedReferenceContext linkedReferenceContext) {
+      Invoice invoice, LinkedReferenceContext linkedReferenceContext) {
     List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
     SalesOrder salesOrder = invoice.getSalesOrder();
     if (salesOrder != null) {

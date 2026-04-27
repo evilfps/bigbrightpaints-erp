@@ -1,16 +1,21 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
@@ -18,6 +23,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DebitNoteRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -30,48 +37,67 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
 public class AccountingService {
 
-  private final AccountCatalogService accountCatalogService;
+  private final AccountResolutionOwnerService accountResolutionOwnerService;
   private final JournalEntryService journalEntryService;
   private final DealerReceiptService dealerReceiptService;
   private final SettlementService settlementService;
   private final CreditDebitNoteService creditDebitNoteService;
   private final InventoryAccountingService inventoryAccountingService;
-  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final TaxService taxService;
+  private final TemporalBalanceService temporalBalanceService;
+  private final ConfigurationHealthService configurationHealthService;
+  private final CompanyContextService companyContextService;
+  private final CompanyClock companyClock;
 
   @Autowired
   public AccountingService(
-      AccountCatalogService accountCatalogService,
+      AccountResolutionOwnerService accountResolutionOwnerService,
       JournalEntryService journalEntryService,
       DealerReceiptService dealerReceiptService,
       SettlementService settlementService,
       CreditDebitNoteService creditDebitNoteService,
       InventoryAccountingService inventoryAccountingService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
-    this.accountCatalogService = accountCatalogService;
+      TaxService taxService,
+      TemporalBalanceService temporalBalanceService,
+      ConfigurationHealthService configurationHealthService,
+      CompanyContextService companyContextService,
+      CompanyClock companyClock) {
+    this.accountResolutionOwnerService = accountResolutionOwnerService;
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
     this.settlementService = settlementService;
     this.creditDebitNoteService = creditDebitNoteService;
     this.inventoryAccountingService = inventoryAccountingService;
-    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.taxService = taxService;
+    this.temporalBalanceService = temporalBalanceService;
+    this.configurationHealthService = configurationHealthService;
+    this.companyContextService = companyContextService;
+    this.companyClock = companyClock;
   }
 
   public List<AccountDto> listAccounts() {
-    return accountCatalogService.listAccounts();
+    return accountResolutionOwnerService.listAccounts();
   }
 
   public AccountDto createAccount(AccountRequest request) {
-    return accountCatalogService.createAccount(request);
+    return accountResolutionOwnerService.createAccount(request);
   }
 
   public List<JournalEntryDto> listJournalEntries(
       Long dealerId, Long supplierId, int page, int size) {
     return journalEntryService.listJournalEntries(dealerId, supplierId, page, size);
+  }
+
+  public List<JournalEntryDto> listJournalEntries(
+      Long dealerId, Long supplierId, int page, int size, String source) {
+    return journalEntryService.listJournalEntries(dealerId, supplierId, page, size, source);
   }
 
   public List<JournalEntryDto> listJournalEntries(Long dealerId) {
@@ -91,7 +117,7 @@ public class AccountingService {
   }
 
   public JournalEntryDto createManualJournal(ManualJournalRequest request) {
-    return resolveAccountingFacade().createManualJournal(request);
+    return journalEntryService.createManualJournal(request);
   }
 
   public PageResponse<JournalListItemDto> listJournals(
@@ -107,6 +133,49 @@ public class AccountingService {
 
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     return journalEntryService.reverseJournalEntry(entryId, request);
+  }
+
+  public GstReturnDto generateGstReturn(YearMonth period) {
+    return taxService.generateGstReturn(period);
+  }
+
+  public GstReconciliationDto getGstReconciliation(YearMonth period) {
+    return taxService.generateGstReconciliation(period);
+  }
+
+  public BigDecimal getBalanceAsOf(Long accountId, LocalDate date) {
+    return temporalBalanceService.getBalanceAsOfDate(accountId, date);
+  }
+
+  public TemporalBalanceService.TrialBalanceSnapshot getTrialBalanceAsOf(LocalDate date) {
+    return temporalBalanceService.getTrialBalanceAsOf(date);
+  }
+
+  public TemporalBalanceService.AccountActivityReport getAccountActivity(
+      Long accountId, LocalDate startDate, LocalDate endDate) {
+    return temporalBalanceService.getAccountActivity(accountId, startDate, endDate);
+  }
+
+  public TemporalBalanceService.BalanceComparison compareBalances(
+      Long accountId, LocalDate from, LocalDate to) {
+    return temporalBalanceService.compareBalances(accountId, from, to);
+  }
+
+  public AccountingDateContextDto getAccountingDateContext() {
+    Company company = companyContextService.requireCurrentCompany();
+    LocalDate today = companyClock.today(company);
+    Instant now = companyClock.now(company);
+    return new AccountingDateContextDto(
+        company != null ? company.getId() : null,
+        company != null ? company.getCode() : null,
+        company != null ? company.getTimezone() : null,
+        today,
+        now);
+  }
+
+  public ConfigurationHealthService.ConfigurationHealthReport getConfigurationHealthReport() {
+    return configurationHealthService.evaluateCompany(
+        companyContextService.requireCurrentCompany());
   }
 
   JournalEntryDto reverseClosingEntryForPeriodReopen(
@@ -174,14 +243,5 @@ public class AccountingService {
 
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     return inventoryAccountingService.adjustWip(request);
-  }
-
-  private AccountingFacade resolveAccountingFacade() {
-    AccountingFacade facade =
-        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
-    if (facade == null) {
-      throw new IllegalStateException("AccountingFacade is required");
-    }
-    return facade;
   }
 }

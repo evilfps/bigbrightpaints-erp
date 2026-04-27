@@ -196,6 +196,87 @@ class StatementServiceTest {
   }
 
   @Test
+  void dealerAgingWithinEntryWindow_appliesOutOfWindowCreditsBeforeAsOfDate() {
+    Dealer dealer = new Dealer();
+    dealer.setName("Dealer Window Aging");
+    ReflectionFieldAccess.setField(dealer, "id", 212L);
+
+    LocalDate asOf = LocalDate.of(2026, 3, 15);
+    LocalDate startDate = LocalDate.of(2026, 3, 1);
+    LocalDate endDate = LocalDate.of(2026, 3, 15);
+
+    DealerLedgerEntry preWindowCredit = new DealerLedgerEntry();
+    preWindowCredit.setEntryDate(LocalDate.of(2026, 2, 28));
+    preWindowCredit.setReferenceNumber("RCPT-WINDOW-001");
+    preWindowCredit.setDebit(BigDecimal.ZERO);
+    preWindowCredit.setCredit(new BigDecimal("80.00"));
+
+    DealerLedgerEntry inWindowInvoice = new DealerLedgerEntry();
+    inWindowInvoice.setEntryDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setDueDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setReferenceNumber("INV-WINDOW-001");
+    inWindowInvoice.setInvoiceNumber("INV-WINDOW-001");
+    inWindowInvoice.setDebit(new BigDecimal("100.00"));
+    inWindowInvoice.setCredit(BigDecimal.ZERO);
+
+    when(dealerLedgerRepository
+            .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, dealer, asOf))
+        .thenReturn(List.of(preWindowCredit, inWindowInvoice));
+
+    var response =
+        statementService.dealerAgingWithinEntryWindow(
+            dealer, asOf, "0-0,1-30,31-60,61-90,91", startDate, endDate);
+
+    assertThat(response.totalOutstanding()).isEqualByComparingTo("20.00");
+    assertThat(response.buckets()).hasSize(5);
+    assertThat(response.buckets().get(0).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(1).amount()).isEqualByComparingTo("20.00");
+    assertThat(response.buckets().get(2).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(3).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(4).amount()).isEqualByComparingTo("0.00");
+  }
+
+  @Test
+  void dealerAgingWithinEntryWindow_ignoresMutableOutstandingStateFromPostAsOfPayments() {
+    Dealer dealer = new Dealer();
+    dealer.setName("Dealer Historical Window Aging");
+    ReflectionFieldAccess.setField(dealer, "id", 213L);
+
+    LocalDate asOf = LocalDate.of(2026, 3, 15);
+    LocalDate startDate = LocalDate.of(2026, 3, 1);
+    LocalDate endDate = LocalDate.of(2026, 3, 31);
+
+    DealerLedgerEntry inWindowInvoice = new DealerLedgerEntry();
+    inWindowInvoice.setEntryDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setDueDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setReferenceNumber("INV-HIST-001");
+    inWindowInvoice.setInvoiceNumber("INV-HIST-001");
+    inWindowInvoice.setDebit(new BigDecimal("100.00"));
+    inWindowInvoice.setCredit(BigDecimal.ZERO);
+    inWindowInvoice.setAmountPaid(new BigDecimal("100.00"));
+    inWindowInvoice.setPaidDate(LocalDate.of(2026, 3, 20));
+    inWindowInvoice.setPaymentStatus("PAID");
+
+    when(dealerLedgerRepository
+            .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, dealer, asOf))
+        .thenReturn(List.of(inWindowInvoice));
+
+    var response =
+        statementService.dealerAgingWithinEntryWindow(
+            dealer, asOf, "0-0,1-30,31-60,61-90,91", startDate, endDate);
+
+    assertThat(response.totalOutstanding()).isEqualByComparingTo("100.00");
+    assertThat(response.buckets()).hasSize(5);
+    assertThat(response.buckets().get(0).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(1).amount()).isEqualByComparingTo("100.00");
+    assertThat(response.buckets().get(2).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(3).amount()).isEqualByComparingTo("0.00");
+    assertThat(response.buckets().get(4).amount()).isEqualByComparingTo("0.00");
+  }
+
+  @Test
   void dealerStatement_usesAggregateOpeningWithoutLoadingAllPriorRows() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Aggregate");

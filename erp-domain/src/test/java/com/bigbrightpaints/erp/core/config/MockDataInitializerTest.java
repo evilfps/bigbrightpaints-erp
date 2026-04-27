@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.core.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -26,7 +27,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.fixture.E2eFixtureCatalog;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -35,6 +38,10 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
@@ -57,6 +64,9 @@ class MockDataInitializerTest {
   @Mock private ProductionProductRepository productRepository;
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository batchRepository;
+  @Mock private AccountRepository accountRepository;
+  @Mock private RawMaterialRepository rawMaterialRepository;
+  @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;
 
   private MockDataInitializer initializer;
 
@@ -69,24 +79,6 @@ class MockDataInitializerTest {
     lenient()
         .when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, UserAccount.class));
-  }
-
-  @Test
-  void mockInitializer_isLoadedFromTestClasspath() {
-    String classLocation =
-        MockDataInitializer.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-    String testClassLocation =
-        MockDataInitializerTest.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-
-    assertThat(classLocation).isEqualTo(testClassLocation);
   }
 
   @Test
@@ -193,6 +185,53 @@ class MockDataInitializerTest {
             initializer, "createCompany", companyRepository);
 
     assertThat(company.getStateCode()).isEqualTo("MH");
+  }
+
+  @Test
+  void seedMockData_bindsCompanyContextBeforeAccountSeeding() {
+    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(Optional.empty());
+    when(companyRepository.save(any(Company.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
+        .thenAnswer(
+            invocation -> {
+              assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("MOCK");
+              throw new IllegalStateException("stop after account context assertion");
+            });
+
+    var runner =
+        initializer.seedMockData(
+            companyRepository,
+            roleRepository,
+            userRepository,
+            passwordEncoder,
+            accountRepository,
+            null,
+            null,
+            null,
+            productRepository,
+            finishedGoodRepository,
+            batchRepository,
+            rawMaterialRepository,
+            rawMaterialBatchRepository,
+            null,
+            salesOrderCrudService,
+            salesFulfillmentService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "",
+            "");
+
+    assertThatThrownBy(() -> runner.run())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("stop after account context assertion");
+    assertThat(CompanyContextHolder.getCompanyCode()).isNull();
   }
 
   @Test
@@ -376,6 +415,28 @@ class MockDataInitializerTest {
     assertThat(finishedGood.getCurrentStock()).isEqualByComparingTo(new BigDecimal("5"));
   }
 
+  @Test
+  void seedRawBatch_skipsWhenMatchingBatchAlreadyExists() {
+    RawMaterial rawMaterial = rawMaterial(company("MOCK"), 77L, "RM-RESIN");
+    rawMaterial.setCurrentStock(new BigDecimal("25"));
+    when(rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(rawMaterial, "RM-RESIN-B1"))
+        .thenReturn(true);
+
+    com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
+        initializer,
+        "seedRawBatch",
+        rawMaterialBatchRepository,
+        rawMaterialRepository,
+        rawMaterial,
+        "RM-RESIN-B1",
+        new BigDecimal("500"),
+        new BigDecimal("5.50"));
+
+    verify(rawMaterialBatchRepository, never()).save(any(RawMaterialBatch.class));
+    verify(rawMaterialRepository, never()).save(any(RawMaterial.class));
+    assertThat(rawMaterial.getCurrentStock()).isEqualByComparingTo(new BigDecimal("25"));
+  }
+
   private Company company(String code) {
     Company company = new Company();
     company.setCode(code);
@@ -426,5 +487,16 @@ class MockDataInitializerTest {
     finishedGood.setName(code);
     finishedGood.setCurrentStock(BigDecimal.ZERO);
     return finishedGood;
+  }
+
+  private RawMaterial rawMaterial(Company company, Long id, String sku) {
+    RawMaterial rawMaterial = new RawMaterial();
+    ReflectionTestUtils.setField(rawMaterial, "id", id);
+    rawMaterial.setCompany(company);
+    rawMaterial.setSku(sku);
+    rawMaterial.setName(sku);
+    rawMaterial.setUnitType("UNIT");
+    rawMaterial.setCurrentStock(BigDecimal.ZERO);
+    return rawMaterial;
   }
 }

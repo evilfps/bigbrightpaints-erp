@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.mock.web.MockMultipartFile;
 
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventRepository;
@@ -36,6 +38,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservation;
@@ -44,12 +47,17 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLineRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportResponse;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportService;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
+import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
+import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -76,6 +84,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
   @Autowired private PackagingSlipLineRepository packagingSlipLineRepository;
   @Autowired private InventoryMovementRepository inventoryMovementRepository;
   @Autowired private FinishedGoodsService finishedGoodsService;
+  @Autowired private OpeningStockImportService openingStockImportService;
   @Autowired private InvoiceRepository invoiceRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private JournalReferenceResolver journalReferenceResolver;
@@ -84,6 +93,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
   @Autowired private AccountRepository accountRepository;
   @Autowired private ProductionProductRepository productionProductRepository;
   @Autowired private ProductionBrandRepository productionBrandRepository;
+  @Autowired private ProductionCatalogService productionCatalogService;
   @Autowired private AuditActionEventRepository auditActionEventRepository;
 
   private String authToken;
@@ -584,6 +594,135 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
               assertThat(((Map<?, ?>) row).get("correlationId"))
                   .isEqualTo(flowCorrelationId.toString());
             });
+  }
+
+  @Test
+  @DisplayName("Canonical catalog SKU flows through opening stock, sales, dispatch and accounting")
+  void canonicalCatalogSku_reusedAcrossOpeningStockSalesDispatchAndAccounting() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    String token = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    String sku = "FG-CANON-" + token;
+    String batchCode = "FG-CANON-BATCH-" + token;
+    Account canonicalCogs =
+        ensureAccount(company, "COGS-CANON", "Canonical COGS", AccountType.COGS);
+    ensureAccount(company, "OPEN-BAL", "Opening Balance", AccountType.EQUITY);
+    company.setDefaultCogsAccountId(canonicalCogs.getId());
+    companyRepository.save(company);
+
+    ProductionProductDto catalogItem;
+    OpeningStockImportResponse openingStock;
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
+    try {
+      catalogItem =
+          productionCatalogService.createCatalogItem(
+              new CatalogItemCreateCommand(
+                  ensureBrand(company).getId(),
+                  null,
+                  null,
+                  "Canonical Reuse Paint " + token,
+                  "FINISHED_GOOD",
+                  "FINISHED_GOOD",
+                  "WHITE",
+                  "1L",
+                  "LITER",
+                  "320910",
+                  sku,
+                  new BigDecimal("1000.00"),
+                  BigDecimal.ZERO,
+                  null,
+                  null,
+                  Map.of()));
+
+      MockMultipartFile openingStockFile =
+          new MockMultipartFile(
+              "file",
+              "canonical-opening.csv",
+              "text/csv",
+              String.join(
+                      "\n",
+                      "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type,manufactured_at",
+                      "FINISHED_GOOD,%s,Canonical Paint,LITER,LITER,%s,6,100.00,,2026-01-10"
+                          .formatted(catalogItem.skuCode(), batchCode))
+                  .getBytes(StandardCharsets.UTF_8));
+      openingStock =
+          openingStockImportService.importOpeningStock(
+              openingStockFile, "canonical-sku-open-" + token, "canonical-sku-open-batch-" + token);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    assertThat(catalogItem.skuCode()).isEqualTo(sku);
+    FinishedGood finishedGood =
+        finishedGoodRepository.findByCompanyAndProductCode(company, sku).orElseThrow();
+    assertThat(openingStock.errors()).isEmpty();
+    assertThat(openingStock.results())
+        .extracting(OpeningStockImportResponse.ImportRowResult::sku)
+        .containsExactly(sku);
+    InventoryMovement openingMovement =
+        inventoryMovementRepository
+            .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company, InventoryReference.OPENING_STOCK, batchCode)
+            .getFirst();
+    assertThat(openingMovement.getFinishedGood().getId()).isEqualTo(finishedGood.getId());
+    assertThat(openingMovement.getJournalEntryId()).isNotNull();
+    List<Long> canonicalBatchIds =
+        finishedGoodBatchRepository
+            .findByFinishedGoodOrderByManufacturedAtAsc(finishedGood)
+            .stream()
+            .map(FinishedGoodBatch::getId)
+            .toList();
+    assertThat(canonicalBatchIds).contains(openingMovement.getFinishedGoodBatch().getId());
+
+    Dealer dealer =
+        createDealer(
+            company, "CANON-" + token, "Canonical Reuse Dealer " + token, new BigDecimal("500000"));
+    Long orderId =
+        createOrder(dealer, finishedGood, new BigDecimal("2"), new BigDecimal("1000.00"));
+    SalesOrder order =
+        salesOrderRepository.findWithItemsByCompanyAndId(company, orderId).orElseThrow();
+    assertThat(order.getItems()).hasSize(1);
+    assertThat(order.getItems().getFirst().getProductCode()).isEqualTo(sku);
+    assertThat(order.getItems().getFirst().getFinishedGoodId()).isEqualTo(finishedGood.getId());
+
+    PackagingSlip slip = reserveSlip(company, orderId);
+    PackagingSlipLine slipLine =
+        packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).getFirst();
+    assertThat(canonicalBatchIds).contains(slipLine.getFinishedGoodBatch().getId());
+
+    ResponseEntity<Map> dispatchResponse =
+        rest.exchange(
+            "/api/v1/dispatch/confirm",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                dispatchRequestForSlip(slip, "canonical-sku-dispatch-" + token), headers),
+            Map.class);
+    assertThat(dispatchResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    PackagingSlip dispatchedSlip = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    SalesOrder dispatchedOrder = salesOrderRepository.findById(orderId).orElseThrow();
+    assertThat(dispatchedSlip.getJournalEntryId()).isNotNull();
+    assertThat(dispatchedSlip.getCogsJournalEntryId()).isNotNull();
+    assertThat(dispatchedOrder.getSalesJournalEntryId())
+        .isEqualTo(dispatchedSlip.getJournalEntryId());
+    assertThat(dispatchedOrder.getCogsJournalEntryId())
+        .isEqualTo(dispatchedSlip.getCogsJournalEntryId());
+
+    List<InventoryMovement> dispatchMovements =
+        inventoryMovementRepository
+            .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
+                company, slip.getId(), "DISPATCH");
+    assertThat(dispatchMovements)
+        .singleElement()
+        .satisfies(
+            movement -> {
+              assertThat(movement.getFinishedGood().getId()).isEqualTo(finishedGood.getId());
+              assertThat(canonicalBatchIds).contains(movement.getFinishedGoodBatch().getId());
+            });
+
+    ProductionProduct persistedProduct =
+        productionProductRepository.findByCompanyAndSkuCode(company, sku).orElseThrow();
+    assertThat(persistedProduct.getId()).isEqualTo(catalogItem.id());
+    assertThat(finishedGood.getProductCode()).isEqualTo(persistedProduct.getSkuCode());
   }
 
   @Test

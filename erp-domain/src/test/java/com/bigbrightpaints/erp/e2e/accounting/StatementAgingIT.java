@@ -22,6 +22,8 @@ import org.springframework.http.ResponseEntity;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -39,6 +41,7 @@ class StatementAgingIT extends AbstractIntegrationTest {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private DealerRepository dealerRepository;
   @Autowired private AccountRepository accountRepository;
+  @Autowired private DealerLedgerRepository dealerLedgerRepository;
 
   private HttpHeaders headers;
   private Company company;
@@ -157,6 +160,143 @@ class StatementAgingIT extends AbstractIntegrationTest {
             new HttpEntity<>(orderReq, headers),
             Map.class);
     assertThat(blocked.getStatusCode().is4xxClientError()).isTrue();
+  }
+
+  @Test
+  @DisplayName("Windowed aged debtors applies pre-window credits to in-window invoices")
+  void windowedAgedDebtorsAppliesOutOfWindowCreditsBeforeAsOf() {
+    Dealer windowDealer =
+        dealerRepository
+            .findByCompanyAndCodeIgnoreCase(company, "D-STMT-WINDOW")
+            .orElseGet(
+                () -> {
+                  var d = new Dealer();
+                  d.setCompany(company);
+                  d.setName("Statement Window Dealer");
+                  d.setCode("D-STMT-WINDOW");
+                  d.setStatus("ACTIVE");
+                  return dealerRepository.save(d);
+                });
+    windowDealer.setReceivableAccount(ar);
+    dealerRepository.save(windowDealer);
+    dealerLedgerRepository.deleteAll(
+        dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, windowDealer));
+
+    DealerLedgerEntry preWindowCredit = new DealerLedgerEntry();
+    preWindowCredit.setCompany(company);
+    preWindowCredit.setDealer(windowDealer);
+    preWindowCredit.setEntryDate(LocalDate.of(2026, 2, 28));
+    preWindowCredit.setReferenceNumber("RCPT-WIN-001");
+    preWindowCredit.setMemo("Pre-window credit");
+    preWindowCredit.setDebit(BigDecimal.ZERO);
+    preWindowCredit.setCredit(new BigDecimal("80.00"));
+
+    DealerLedgerEntry inWindowInvoice = new DealerLedgerEntry();
+    inWindowInvoice.setCompany(company);
+    inWindowInvoice.setDealer(windowDealer);
+    inWindowInvoice.setEntryDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setReferenceNumber("INV-WIN-001");
+    inWindowInvoice.setMemo("In-window invoice");
+    inWindowInvoice.setInvoiceNumber("INV-WIN-001");
+    inWindowInvoice.setDueDate(LocalDate.of(2026, 3, 10));
+    inWindowInvoice.setDebit(new BigDecimal("100.00"));
+    inWindowInvoice.setCredit(BigDecimal.ZERO);
+
+    dealerLedgerRepository.saveAll(List.of(preWindowCredit, inWindowInvoice));
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/reports/aged-debtors?startDate=2026-03-01&endDate=2026-03-15",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> rows = (List<Map<String, Object>>) response.getBody().get("data");
+    Map<String, Object> windowDealerRow =
+        rows.stream()
+            .filter(row -> "D-STMT-WINDOW".equals(row.get("dealerCode")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(new BigDecimal(windowDealerRow.get("totalOutstanding").toString()))
+        .isEqualByComparingTo("20.00");
+    assertThat(new BigDecimal(windowDealerRow.get("current").toString()))
+        .isEqualByComparingTo("0.00");
+    BigDecimal overdueBucketTotal =
+        new BigDecimal(windowDealerRow.get("oneToThirtyDays").toString())
+            .add(new BigDecimal(windowDealerRow.get("thirtyOneToSixtyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("sixtyOneToNinetyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("ninetyPlusDays").toString()));
+    assertThat(overdueBucketTotal).isEqualByComparingTo("20.00");
+  }
+
+  @Test
+  @DisplayName(
+      "Windowed aged debtors ignores mutable paid state when payment date is after as-of date")
+  void windowedAgedDebtorsIgnoresMutablePaidStateForPostAsOfPayment() {
+    LocalDate asOfDate = LocalDate.now();
+    LocalDate invoiceDate = asOfDate.minusDays(5);
+    LocalDate paymentDate = asOfDate.plusDays(3);
+
+    Dealer windowDealer =
+        dealerRepository
+            .findByCompanyAndCodeIgnoreCase(company, "D-STMT-LATE-PAY")
+            .orElseGet(
+                () -> {
+                  var d = new Dealer();
+                  d.setCompany(company);
+                  d.setName("Statement Late Pay Dealer");
+                  d.setCode("D-STMT-LATE-PAY");
+                  d.setStatus("ACTIVE");
+                  return dealerRepository.save(d);
+                });
+    windowDealer.setReceivableAccount(ar);
+    dealerRepository.save(windowDealer);
+    dealerLedgerRepository.deleteAll(
+        dealerLedgerRepository.findByCompanyAndDealerOrderByEntryDateAsc(company, windowDealer));
+
+    DealerLedgerEntry inWindowInvoice = new DealerLedgerEntry();
+    inWindowInvoice.setCompany(company);
+    inWindowInvoice.setDealer(windowDealer);
+    inWindowInvoice.setEntryDate(invoiceDate);
+    inWindowInvoice.setReferenceNumber("INV-LATE-001");
+    inWindowInvoice.setMemo("In-window invoice with future paid state");
+    inWindowInvoice.setInvoiceNumber("INV-LATE-001");
+    inWindowInvoice.setDueDate(invoiceDate);
+    inWindowInvoice.setDebit(new BigDecimal("100.00"));
+    inWindowInvoice.setCredit(BigDecimal.ZERO);
+    inWindowInvoice.setAmountPaid(new BigDecimal("100.00"));
+    inWindowInvoice.setPaidDate(paymentDate);
+    inWindowInvoice.setPaymentStatus("PAID");
+
+    dealerLedgerRepository.save(inWindowInvoice);
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/reports/aged-debtors?startDate="
+                + invoiceDate.minusDays(1)
+                + "&endDate="
+                + invoiceDate.plusDays(1),
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> rows = (List<Map<String, Object>>) response.getBody().get("data");
+    Map<String, Object> windowDealerRow =
+        rows.stream()
+            .filter(row -> "D-STMT-LATE-PAY".equals(row.get("dealerCode")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(new BigDecimal(windowDealerRow.get("totalOutstanding").toString()))
+        .isEqualByComparingTo("100.00");
+    BigDecimal bucketTotal =
+        new BigDecimal(windowDealerRow.get("current").toString())
+            .add(new BigDecimal(windowDealerRow.get("oneToThirtyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("thirtyOneToSixtyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("sixtyOneToNinetyDays").toString()))
+            .add(new BigDecimal(windowDealerRow.get("ninetyPlusDays").toString()));
+    assertThat(bucketTotal).isEqualByComparingTo("100.00");
   }
 
   @Test

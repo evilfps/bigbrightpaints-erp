@@ -279,9 +279,7 @@ class GlobalExceptionHandlerTest {
         (CreditLimitExceededException)
             new CreditLimitExceededException("Dealer credit limit exceeded")
                 .withDetail(
-                    "breakdown",
-                    new JournalCreationRequest.GstBreakdown(
-                        null, null, null, null));
+                    "breakdown", new JournalCreationRequest.GstBreakdown(null, null, null, null));
 
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.setRequestURI("/api/v1/accounting/settlements/dealers");

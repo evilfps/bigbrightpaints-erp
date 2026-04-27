@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +21,9 @@ import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -29,6 +34,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImport;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImportRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
@@ -48,6 +54,7 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
 
   @Autowired private CompanyRepository companyRepository;
   @Autowired private AccountRepository accountRepository;
+  @Autowired private AccountingPeriodRepository accountingPeriodRepository;
   @Autowired private ProductionBrandRepository productionBrandRepository;
   @Autowired private ProductionProductRepository productionProductRepository;
   @Autowired private RawMaterialRepository rawMaterialRepository;
@@ -56,6 +63,7 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
   @Autowired private OpeningStockImportRepository openingStockImportRepository;
   @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Autowired private InventoryMovementRepository inventoryMovementRepository;
+  @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
 
   private Company company;
 
@@ -83,6 +91,7 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
     company.setDefaultRevenueAccountId(revenue.getId());
     company.setDefaultTaxAccountId(tax.getId());
     companyRepository.save(company);
+    ensureCurrentOpenPeriod(company);
 
     ensurePreparedRawMaterialSku("RM-OPEN-1", "Resin", inventory);
     ensurePreparedFinishedGoodSku("FG-OPEN-1", "Paint 1L", inventory, cogs, revenue, tax);
@@ -169,6 +178,112 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
             .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 company, InventoryReference.OPENING_STOCK, "FG-OPEN-B1");
     assertThat(fgMovements).hasSize(1);
+  }
+
+  @Test
+  void openingStockImport_rejectsSameKeyReplayWhenNormalizedContentDiffers() {
+    openingStockImportService.importOpeningStock(
+        csvFile(), IDEMPOTENCY_KEY, OPENING_STOCK_BATCH_KEY);
+
+    MockMultipartFile changedFile =
+        new MockMultipartFile(
+            "file",
+            "opening.csv",
+            "text/csv",
+            String.join(
+                    "\n",
+                    "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type,manufactured_at",
+                    "RAW_MATERIAL,RM-OPEN-1,Resin,KG,KG,RM-OPEN-B1,11,5.00,PRODUCTION,",
+                    "FINISHED_GOOD,FG-OPEN-1,Paint 1L,L,L,FG-OPEN-B1,5,12.50,,2026-01-10")
+                .getBytes(StandardCharsets.UTF_8));
+
+    assertThatThrownBy(
+            () ->
+                openingStockImportService.importOpeningStock(
+                    changedFile, IDEMPOTENCY_KEY, OPENING_STOCK_BATCH_KEY))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+              assertThat(ex.getMessage())
+                  .isEqualTo(
+                      "Idempotency key already used with materially different opening stock file"
+                          + " content");
+              assertThat(ex.getDetails())
+                  .containsEntry("outcome", "replay-conflict")
+                  .containsEntry("idempotencyKey", IDEMPOTENCY_KEY)
+                  .containsEntry("openingStockBatchKey", OPENING_STOCK_BATCH_KEY)
+                  .containsEntry("existingOpeningStockBatchKey", OPENING_STOCK_BATCH_KEY);
+            });
+
+    OpeningStockImport persisted =
+        openingStockImportRepository
+            .findByCompanyAndIdempotencyKey(company, IDEMPOTENCY_KEY)
+            .orElseThrow();
+    assertThat(persisted.getRowsProcessed()).isEqualTo(2);
+
+    List<RawMaterialMovement> rmMovements =
+        rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.OPENING_STOCK, "RM-OPEN-B1");
+    assertThat(rmMovements).hasSize(1);
+
+    List<InventoryMovement> fgMovements =
+        inventoryMovementRepository
+            .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company, InventoryReference.OPENING_STOCK, "FG-OPEN-B1");
+    assertThat(fgMovements).hasSize(1);
+  }
+
+  @Test
+  void openingStockImport_duplicateSkuRowsFailWholeFileWithoutStockSideEffects() {
+    String duplicateReplayKey = "OPEN-STOCK-IDEMP-DUP-ROWS-001";
+    String duplicateBatchKey = "OPEN-STOCK-BATCH-IDEMP-DUP-ROWS-001";
+    MockMultipartFile duplicateFile =
+        new MockMultipartFile(
+            "file",
+            "opening-duplicate.csv",
+            "text/csv",
+            String.join(
+                    "\n",
+                    "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type,manufactured_at",
+                    "RAW_MATERIAL,RM-OPEN-1,Resin,KG,KG,RM-DUP-B1,10,5.00,PRODUCTION,",
+                    "RAW_MATERIAL,RM-OPEN-1,Resin Duplicate,KG,KG,RM-DUP-B2,3,5.00,PRODUCTION,")
+                .getBytes(StandardCharsets.UTF_8));
+
+    OpeningStockImportResponse response =
+        openingStockImportService.importOpeningStock(
+            duplicateFile, duplicateReplayKey, duplicateBatchKey);
+
+    assertThat(response.rowsProcessed()).isZero();
+    assertThat(response.rawMaterialBatchesCreated()).isZero();
+    assertThat(response.finishedGoodBatchesCreated()).isZero();
+    assertThat(response.results()).isEmpty();
+    assertThat(response.errors()).hasSize(1);
+    assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
+    assertThat(response.errors().getFirst().message())
+        .isEqualTo("Duplicate SKU in import file: RM-OPEN-1 (first seen at row 1)");
+
+    OpeningStockImport persisted =
+        openingStockImportRepository
+            .findByCompanyAndIdempotencyKey(company, duplicateReplayKey)
+            .orElseThrow();
+    assertThat(persisted.getJournalEntryId()).isNull();
+
+    RawMaterial rawMaterial =
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-OPEN-1").orElseThrow();
+    assertThat(rawMaterialBatchRepository.findByRawMaterialAndBatchCode(rawMaterial, "RM-DUP-B1"))
+        .isEmpty();
+    assertThat(rawMaterialBatchRepository.findByRawMaterialAndBatchCode(rawMaterial, "RM-DUP-B2"))
+        .isEmpty();
+
+    assertThat(
+            rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company, InventoryReference.OPENING_STOCK, "RM-DUP-B1"))
+        .isEmpty();
+    assertThat(
+            rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company, InventoryReference.OPENING_STOCK, "RM-DUP-B2"))
+        .isEmpty();
   }
 
   private MockMultipartFile csvFile() {
@@ -266,5 +381,27 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
               brand.setName("Opening Stock");
               return productionBrandRepository.save(brand);
             });
+  }
+
+  private void ensureCurrentOpenPeriod(Company company) {
+    ZoneId zoneId = ZoneId.of(company.getTimezone() == null ? "UTC" : company.getTimezone());
+    LocalDate today = LocalDate.now(zoneId);
+    AccountingPeriod period =
+        accountingPeriodRepository
+            .findByCompanyAndYearAndMonth(company, today.getYear(), today.getMonthValue())
+            .orElseGet(
+                () -> {
+                  AccountingPeriod created = new AccountingPeriod();
+                  created.setCompany(company);
+                  created.setYear(today.getYear());
+                  created.setMonth(today.getMonthValue());
+                  created.setStartDate(today.withDayOfMonth(1));
+                  created.setEndDate(today.withDayOfMonth(today.lengthOfMonth()));
+                  return accountingPeriodRepository.save(created);
+                });
+    if (period.getStatus() != AccountingPeriodStatus.OPEN) {
+      period.setStatus(AccountingPeriodStatus.OPEN);
+      accountingPeriodRepository.save(period);
+    }
   }
 }

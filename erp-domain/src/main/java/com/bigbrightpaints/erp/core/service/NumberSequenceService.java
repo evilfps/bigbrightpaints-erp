@@ -82,6 +82,13 @@ public class NumberSequenceService {
     throw new IllegalStateException("Failed to generate next value for " + sequenceKey);
   }
 
+  public long previewNextValue(Company company, String sequenceKey) {
+    return repository
+        .findByCompanyAndSequenceKey(company, sequenceKey)
+        .map(sequence -> sequence.getNextValue())
+        .orElse(1L);
+  }
+
   private NumberSequence initializeSequence(Company company, String key) {
     NumberSequence sequence = new NumberSequence();
     sequence.setCompany(company);

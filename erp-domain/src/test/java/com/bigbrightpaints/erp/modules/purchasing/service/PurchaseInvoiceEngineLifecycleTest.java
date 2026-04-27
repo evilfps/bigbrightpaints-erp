@@ -689,8 +689,7 @@ class PurchaseInvoiceEngineLifecycleTest {
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
-              assertThat(ex.getErrorCode())
-                  .isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
               assertThat(ex).hasMessageContaining("State codes are required for GST decisioning");
             });
 
@@ -702,8 +701,7 @@ class PurchaseInvoiceEngineLifecycleTest {
   @Test
   @DisplayName("splitTaxAmountSafe falls back to IGST when splitter returns null for inter-state")
   void splitTaxAmountSafe_fallsBackToInterStateIgstWhenSplitterReturnsNull() {
-    when(gstService.splitTaxAmount(
-            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
+    when(gstService.splitTaxAmount(new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
         .thenReturn(null);
     when(gstService.resolveTaxType("KA", "MH", false)).thenReturn(GstService.TaxType.INTER_STATE);
 
@@ -726,8 +724,7 @@ class PurchaseInvoiceEngineLifecycleTest {
   @Test
   @DisplayName("splitTaxAmountSafe falls back to CGST SGST split when splitter returns null")
   void splitTaxAmountSafe_fallsBackToIntraStateSplitWhenSplitterReturnsNull() {
-    when(gstService.splitTaxAmount(
-            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
+    when(gstService.splitTaxAmount(new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
         .thenReturn(null);
     when(gstService.resolveTaxType("KA", "KA", false)).thenReturn(GstService.TaxType.INTRA_STATE);
 

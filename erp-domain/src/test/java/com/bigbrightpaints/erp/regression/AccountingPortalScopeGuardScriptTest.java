@@ -66,7 +66,9 @@ class AccountingPortalScopeGuardScriptTest {
   void guardFailsWhenPortalDocOmitsMakerCheckerWorkflow() throws Exception {
     FixturePaths fixturePaths = writeFixture(13);
     replaceInFile(
-        fixturePaths.portalDoc(), "drive request-close, approve-close, and reject-close workflow\n", "");
+        fixturePaths.portalDoc(),
+        "drive request-close, approve-close, and reject-close workflow\n",
+        "");
 
     ProcessResult result = runGuard(fixturePaths);
 
@@ -185,10 +187,10 @@ class AccountingPortalScopeGuardScriptTest {
     Files.writeString(
         frontendApiDoc,
         """
-        # Frontend API Contract
-        - **accounting:** COA, journals, reconciliation, period close, reports
-        - **Period close:** frontend must follow maker-checker flow: request close -> tenant-admin approvals inbox -> approve/reject close.
-        """);
+# Frontend API Contract
+- **accounting:** COA, journals, reconciliation, period close, reports
+- **Period close:** frontend must follow maker-checker flow: request close -> tenant-admin approvals inbox -> approve/reject close.
+""");
 
     Files.writeString(
         endpointInventoryDoc,

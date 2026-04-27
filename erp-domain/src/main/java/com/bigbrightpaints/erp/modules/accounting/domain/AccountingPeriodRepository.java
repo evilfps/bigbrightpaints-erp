@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.domain;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,10 @@ public interface AccountingPeriodRepository extends JpaRepository<AccountingPeri
 
   Optional<AccountingPeriod> findFirstByCompanyAndStatusOrderByStartDateDesc(
       Company company, AccountingPeriodStatus status);
+
+  Optional<AccountingPeriod>
+      findFirstByCompanyAndStatusAndStartDateLessThanEqualOrderByStartDateDesc(
+          Company company, AccountingPeriodStatus status, LocalDate startDate);
 
   Optional<AccountingPeriod> findFirstByCompanyOrderByStartDateDesc(Company company);
 

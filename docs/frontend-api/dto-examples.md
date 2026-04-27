@@ -335,7 +335,40 @@ POST /api/v1/inventory/adjustments
 }
 ```
 
-### Opening stock import response (`importedCount`)
+### Opening stock preview/import response (`importedCount`)
+
+```json
+POST /api/v1/inventory/opening-stock/preview?openingStockBatchKey=FY26-OPENING-STOCK-01
+{
+  "success": true,
+  "data": {
+    "openingStockBatchKey": "FY26-OPENING-STOCK-01",
+    "preview": true,
+    "rowsProcessed": 1,
+    "importedCount": 0,
+    "finishedGoodBatchesCreated": 1,
+    "rawMaterialBatchesCreated": 0,
+    "results": [
+      {
+        "rowNumber": 1,
+        "sku": "ULTRA-BLACK-1L",
+        "stockType": "FINISHED_GOOD",
+        "batchCode": "FG-OPEN-001",
+        "quantity": 120,
+        "unitCost": 2.50,
+        "entryMode": "BOXES",
+        "enteredQuantity": 10,
+        "piecesPerBox": 12
+      }
+    ],
+    "errors": []
+  }
+}
+```
+
+When a CSV row omits `batch_code`, preview returns a read-only candidate
+`batchCode` without reserving the number sequence; the final import performs the
+actual allocation.
 
 ```json
 POST /api/v1/inventory/opening-stock
@@ -343,6 +376,7 @@ POST /api/v1/inventory/opening-stock
   "success": true,
   "data": {
     "openingStockBatchKey": "FY26-OPENING-STOCK-01",
+    "preview": false,
     "rowsProcessed": 24,
     "importedCount": 24,
     "finishedGoodBatchesCreated": 8,
@@ -543,13 +577,7 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 
 ### Approve Request
 
-> **Note**: Approve/reject actions are not exposed as separate REST endpoints on `/api/v1/admin/approvals`. Instead, approvals are handled through module-specific endpoints:
-> - Credit limit requests: `POST /api/v1/credit/limit-requests/{id}/approve`
-> - Credit limit overrides: `POST /api/v1/credit/override-requests/{id}/approve`
-> - Payroll runs: `POST /api/v1/payroll/runs/{id}/approve`
-> - Export requests: `PUT /api/v1/admin/exports/{requestId}/approve`
-> - Period close: `POST /api/v1/accounting/periods/{periodId}/approve-close`
-> - Purchase orders: `POST /api/v1/purchasing/purchase-orders/{id}/approve`
+> **Note**: Normalized tenant-admin approvals are decided through `POST /api/v1/admin/approvals/{originType}/{id}/decisions` with `decision` set to `APPROVE` or `REJECT`. Module-specific operational routes may still exist for their own workflows, but export requests and period-close inbox decisions should use the canonical approval decision route.
 
 ### Approve Response
 

@@ -26,7 +26,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService;
-import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
@@ -39,17 +38,14 @@ import jakarta.validation.Valid;
 public class JournalController {
 
   private final AccountingService accountingService;
-  private final JournalEntryService journalEntryService;
   private final CreditDebitNoteService creditDebitNoteService;
   private final AccountingFacade accountingFacade;
 
   public JournalController(
       AccountingService accountingService,
-      JournalEntryService journalEntryService,
       CreditDebitNoteService creditDebitNoteService,
       AccountingFacade accountingFacade) {
     this.accountingService = accountingService;
-    this.journalEntryService = journalEntryService;
     this.creditDebitNoteService = creditDebitNoteService;
     this.accountingFacade = accountingFacade;
   }
@@ -65,7 +61,7 @@ public class JournalController {
       @RequestParam(defaultValue = "100") int size) {
     return ResponseEntity.ok(
         ApiResponse.success(
-            journalEntryService.listJournalEntries(dealerId, supplierId, page, size, source)));
+            accountingService.listJournalEntries(dealerId, supplierId, page, size, source)));
   }
 
   @GetMapping("/journals")
@@ -98,7 +94,7 @@ public class JournalController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Journal entry posted",
-            accountingFacade.createManualJournalEntry(
+            accountingService.createManualJournalEntry(
                 sanitizeManualJournalRequest(request), idempotencyKey)));
   }
 
@@ -109,7 +105,7 @@ public class JournalController {
       @RequestBody(required = false) JournalEntryReversalRequest request) {
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Journal entry corrected", journalEntryService.reverseJournalEntry(entryId, request)));
+            "Journal entry corrected", accountingService.reverseJournalEntry(entryId, request)));
   }
 
   @PostMapping("/payroll/payments")

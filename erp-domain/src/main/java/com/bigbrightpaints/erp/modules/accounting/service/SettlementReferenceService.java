@@ -59,6 +59,19 @@ class SettlementReferenceService {
     return buildDealerSettlementIdempotencyKey(request);
   }
 
+  String resolveExplicitSettlementReplayKey(PartnerSettlementRequest request) {
+    if (request == null) {
+      return null;
+    }
+    if (StringUtils.hasText(request.idempotencyKey())) {
+      return request.idempotencyKey().trim();
+    }
+    if (StringUtils.hasText(request.referenceNumber())) {
+      return request.referenceNumber().trim();
+    }
+    return null;
+  }
+
   String resolveSupplierSettlementIdempotencyKey(PartnerSettlementRequest request) {
     if (request == null) {
       return "";

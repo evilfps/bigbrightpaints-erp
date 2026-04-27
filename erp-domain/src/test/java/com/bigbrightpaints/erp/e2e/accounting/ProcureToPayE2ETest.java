@@ -34,7 +34,12 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentEvent;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentEventRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerPaymentFlow;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
@@ -67,6 +72,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
   @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Autowired private GoodsReceiptRepository goodsReceiptRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
+  @Autowired private PartnerPaymentEventRepository partnerPaymentEventRepository;
   @Autowired private RawMaterialPurchaseRepository purchaseRepository;
   @Autowired private PartnerSettlementAllocationRepository settlementAllocationRepository;
   @Autowired private AuditActionEventRepository auditActionEventRepository;
@@ -201,14 +207,35 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
     assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(purchase.getStatus()).isEqualTo("PAID");
-    assertThat(
-            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, settlementRef))
-        .hasSize(1);
+    List<PartnerSettlementAllocation> settlementAllocations =
+        settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, settlementRef);
+    assertThat(settlementAllocations).hasSize(1);
     assertThat(purchase.getJournalEntry()).isNotNull();
     JournalEntry settlementJournal =
         journalEntryRepository
             .findByCompanyAndReferenceNumber(company, settlementRef)
             .orElseThrow();
+    PartnerPaymentEvent settlementPaymentEvent =
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, settlementJournal)
+            .orElseThrow();
+    assertThat(settlementPaymentEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
+    assertThat(settlementPaymentEvent.getSupplier()).isNotNull();
+    assertThat(settlementPaymentEvent.getSupplier().getId()).isEqualTo(supplierId);
+    assertThat(settlementPaymentEvent.getPaymentFlow())
+        .isEqualTo(PartnerPaymentFlow.SUPPLIER_SETTLEMENT);
+    assertThat(settlementPaymentEvent.getSourceRoute())
+        .isEqualTo("/api/v1/accounting/settlements/suppliers");
+    assertThat(settlementPaymentEvent.getIdempotencyKey()).isEqualTo(settlementRef);
+    assertThat(settlementPaymentEvent.getReferenceNumber()).isEqualTo(settlementRef);
+    assertThat(settlementPaymentEvent.getAmount()).isEqualByComparingTo(totalAmount);
+    assertThat(settlementAllocations)
+        .allSatisfy(
+            settlementRow -> {
+              assertThat(settlementRow.getPaymentEvent()).isNotNull();
+              assertThat(settlementRow.getPaymentEvent().getId())
+                  .isEqualTo(settlementPaymentEvent.getId());
+            });
 
     AuditActionEvent purchaseAudit =
         awaitBusinessAuditEvent(
@@ -657,10 +684,250 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(paymentReq, paymentHeaders),
             Map.class);
     assertThat(paymentResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    JournalEntry paymentJournal =
+        journalEntryRepository.findByCompanyAndReferenceNumber(company, paymentRef).orElseThrow();
+    PartnerPaymentEvent paymentEvent =
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, paymentJournal)
+            .orElseThrow();
+    assertThat(paymentEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
+    assertThat(paymentEvent.getPaymentFlow()).isEqualTo(PartnerPaymentFlow.SUPPLIER_SETTLEMENT);
+    assertThat(paymentEvent.getSourceRoute()).isEqualTo("/api/v1/accounting/settlements/suppliers");
+    assertThat(paymentEvent.getAmount()).isEqualByComparingTo(totalAmount);
+    assertThat(
+            settlementAllocationRepository
+                .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(
+                    company, paymentRef))
+        .allSatisfy(
+            settlementRow -> {
+              assertThat(settlementRow.getPaymentEvent()).isNotNull();
+              assertThat(settlementRow.getPaymentEvent().getId()).isEqualTo(paymentEvent.getId());
+            });
 
     RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
     assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(purchase.getStatus()).isEqualTo("PAID");
+  }
+
+  @Test
+  @DisplayName(
+      "Supplier auto-settle posts SUPPLIER_PAYMENT via payment-event and oldest-open order")
+  void supplierAutoSettleUsesCanonicalPaymentEventFlow() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Auto Supplier", "AUTO-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial(
+            "Auto Settlement Material", "RM-AUTO-" + shortSuffix(), inventory.getId());
+
+    BigDecimal quantity = new BigDecimal("5");
+    BigDecimal costPerUnit = new BigDecimal("10.00");
+    BigDecimal invoiceTotal = quantity.multiply(costPerUnit);
+    PurchaseWorkflowIds firstWorkflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+    PurchaseWorkflowIds secondWorkflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+
+    Long firstPurchaseId =
+        createPurchaseInvoiceForWorkflow(
+            supplierId,
+            rawMaterialId,
+            quantity,
+            costPerUnit,
+            entryDate,
+            firstWorkflow,
+            "INV-AUTO-1-" + shortSuffix());
+    Long secondPurchaseId =
+        createPurchaseInvoiceForWorkflow(
+            supplierId,
+            rawMaterialId,
+            quantity,
+            costPerUnit,
+            entryDate,
+            secondWorkflow,
+            "INV-AUTO-2-" + shortSuffix());
+    assertThat(firstPurchaseId).isLessThan(secondPurchaseId);
+
+    String autoRef = "SUP-AUTO-" + shortSuffix();
+    BigDecimal autoAmount = new BigDecimal("75.00");
+    Map<String, Object> autoReq = new HashMap<>();
+    autoReq.put("cashAccountId", cash.getId());
+    autoReq.put("amount", autoAmount);
+    autoReq.put("referenceNumber", autoRef);
+    autoReq.put("idempotencyKey", autoRef);
+    autoReq.put("memo", "Supplier auto settle");
+    HttpHeaders autoHeaders = headersWithIdempotencyKey(autoRef);
+
+    ResponseEntity<Map> autoResp =
+        rest.exchange(
+            "/api/v1/accounting/suppliers/" + supplierId + "/auto-settle",
+            HttpMethod.POST,
+            new HttpEntity<>(autoReq, autoHeaders),
+            Map.class);
+    assertThat(autoResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    ResponseEntity<Map> replayResp =
+        rest.exchange(
+            "/api/v1/accounting/suppliers/" + supplierId + "/auto-settle",
+            HttpMethod.POST,
+            new HttpEntity<>(autoReq, autoHeaders),
+            Map.class);
+    assertThat(replayResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    JournalEntry autoJournal =
+        journalEntryRepository.findByCompanyAndReferenceNumber(company, autoRef).orElseThrow();
+    assertThat(autoJournal.getSourceModule()).isEqualTo("SUPPLIER_PAYMENT");
+    PartnerPaymentEvent autoEvent =
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, autoJournal)
+            .orElseThrow();
+    assertThat(autoEvent.getPartnerType()).isEqualTo(PartnerType.SUPPLIER);
+    assertThat(autoEvent.getSupplier()).isNotNull();
+    assertThat(autoEvent.getSupplier().getId()).isEqualTo(supplierId);
+    assertThat(autoEvent.getPaymentFlow()).isEqualTo(PartnerPaymentFlow.SUPPLIER_SETTLEMENT);
+    assertThat(autoEvent.getSourceRoute())
+        .isEqualTo("/api/v1/accounting/suppliers/{supplierId}/auto-settle");
+    assertThat(autoEvent.getAmount()).isEqualByComparingTo(autoAmount);
+    assertThat(autoEvent.getReferenceNumber()).isEqualTo(autoRef);
+    assertThat(autoEvent.getIdempotencyKey()).isEqualTo(autoRef);
+
+    List<PartnerSettlementAllocation> autoAllocations =
+        settlementAllocationRepository
+            .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(company, autoRef);
+    assertThat(autoAllocations).hasSize(2);
+    assertThat(autoAllocations.get(0).getPurchase()).isNotNull();
+    assertThat(autoAllocations.get(0).getPurchase().getId()).isEqualTo(firstPurchaseId);
+    assertThat(autoAllocations.get(0).getAllocationAmount()).isEqualByComparingTo(invoiceTotal);
+    assertThat(autoAllocations.get(1).getPurchase()).isNotNull();
+    assertThat(autoAllocations.get(1).getPurchase().getId()).isEqualTo(secondPurchaseId);
+    assertThat(autoAllocations.get(1).getAllocationAmount())
+        .isEqualByComparingTo(autoAmount.subtract(invoiceTotal));
+    assertThat(autoAllocations)
+        .allSatisfy(
+            allocation -> {
+              assertThat(allocation.getPaymentEvent()).isNotNull();
+              assertThat(allocation.getPaymentEvent().getId()).isEqualTo(autoEvent.getId());
+            });
+
+    RawMaterialPurchase firstPurchase = purchaseRepository.findById(firstPurchaseId).orElseThrow();
+    RawMaterialPurchase secondPurchase =
+        purchaseRepository.findById(secondPurchaseId).orElseThrow();
+    assertThat(firstPurchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(firstPurchase.getStatus()).isEqualTo("PAID");
+    assertThat(secondPurchase.getOutstandingAmount())
+        .isEqualByComparingTo(invoiceTotal.subtract(autoAmount.subtract(invoiceTotal)));
+    assertThat(secondPurchase.getStatus()).isEqualTo("PARTIAL");
+  }
+
+  @Test
+  @DisplayName(
+      "Supplier auto-settle keyless same-amount calls derive identity from resolved due-date"
+          + " ordered allocations")
+  void supplierAutoSettleKeylessSuccessiveCallsUseDueDateOrderingAndDistinctIdentity() {
+    LocalDate baseDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Keyless Supplier", "AUTO-KEYLESS-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial(
+            "Auto Keyless Material", "RM-AUTO-KEYLESS-" + shortSuffix(), inventory.getId());
+
+    BigDecimal quantity = new BigDecimal("5");
+    BigDecimal costPerUnit = new BigDecimal("10.00");
+    BigDecimal invoiceTotal = quantity.multiply(costPerUnit);
+
+    PurchaseWorkflowIds firstWorkflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, baseDate);
+    PurchaseWorkflowIds secondWorkflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, baseDate);
+
+    Long firstPurchaseId =
+        createPurchaseInvoiceForWorkflow(
+            supplierId,
+            rawMaterialId,
+            quantity,
+            costPerUnit,
+            baseDate.minusDays(10),
+            firstWorkflow,
+            "INV-AUTO-KEYLESS-1-" + shortSuffix());
+    Long secondPurchaseId =
+        createPurchaseInvoiceForWorkflow(
+            supplierId,
+            rawMaterialId,
+            quantity,
+            costPerUnit,
+            baseDate.minusDays(1),
+            secondWorkflow,
+            "INV-AUTO-KEYLESS-2-" + shortSuffix());
+
+    RawMaterialPurchase firstPurchase = purchaseRepository.findById(firstPurchaseId).orElseThrow();
+    RawMaterialPurchase secondPurchase =
+        purchaseRepository.findById(secondPurchaseId).orElseThrow();
+    assertThat(firstPurchase.getDueDate()).isEqualTo(baseDate.minusDays(10).plusDays(30));
+    assertThat(secondPurchase.getDueDate()).isEqualTo(baseDate.minusDays(1).plusDays(30));
+    firstPurchase.setDueDate(baseDate.plusDays(30));
+    secondPurchase.setDueDate(baseDate.plusDays(2));
+    purchaseRepository.saveAll(List.of(firstPurchase, secondPurchase));
+
+    Map<String, Object> autoReq = new HashMap<>();
+    autoReq.put("cashAccountId", cash.getId());
+    autoReq.put("amount", invoiceTotal);
+    autoReq.put("memo", "Supplier auto settle keyless");
+
+    ResponseEntity<Map> firstResp =
+        rest.exchange(
+            "/api/v1/accounting/suppliers/" + supplierId + "/auto-settle",
+            HttpMethod.POST,
+            new HttpEntity<>(autoReq, headers),
+            Map.class);
+    assertThat(firstResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> firstData = (Map<String, Object>) firstResp.getBody().get("data");
+    Map<String, Object> firstJournal = (Map<String, Object>) firstData.get("journalEntry");
+    String firstReference = (String) firstJournal.get("referenceNumber");
+    List<Map<String, Object>> firstAllocations =
+        (List<Map<String, Object>>) firstData.get("allocations");
+    assertThat(firstAllocations).hasSize(1);
+    assertThat(((Number) firstAllocations.get(0).get("purchaseId")).longValue())
+        .isEqualTo(secondPurchaseId);
+
+    ResponseEntity<Map> secondResp =
+        rest.exchange(
+            "/api/v1/accounting/suppliers/" + supplierId + "/auto-settle",
+            HttpMethod.POST,
+            new HttpEntity<>(autoReq, headers),
+            Map.class);
+    assertThat(secondResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> secondData = (Map<String, Object>) secondResp.getBody().get("data");
+    Map<String, Object> secondJournal = (Map<String, Object>) secondData.get("journalEntry");
+    String secondReference = (String) secondJournal.get("referenceNumber");
+    List<Map<String, Object>> secondAllocations =
+        (List<Map<String, Object>>) secondData.get("allocations");
+    assertThat(secondAllocations).hasSize(1);
+    assertThat(((Number) secondAllocations.get(0).get("purchaseId")).longValue())
+        .isEqualTo(firstPurchaseId);
+
+    assertThat(secondReference).isNotEqualTo(firstReference);
+
+    JournalEntry firstEntry =
+        journalEntryRepository
+            .findByCompanyAndReferenceNumber(company, firstReference)
+            .orElseThrow();
+    JournalEntry secondEntry =
+        journalEntryRepository
+            .findByCompanyAndReferenceNumber(company, secondReference)
+            .orElseThrow();
+    PartnerPaymentEvent firstEvent =
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, firstEntry)
+            .orElseThrow();
+    PartnerPaymentEvent secondEvent =
+        partnerPaymentEventRepository
+            .findByCompanyAndJournalEntry(company, secondEntry)
+            .orElseThrow();
+    assertThat(firstEvent.getIdempotencyKey()).isNotEqualTo(secondEvent.getIdempotencyKey());
+
+    RawMaterialPurchase firstSettled = purchaseRepository.findById(firstPurchaseId).orElseThrow();
+    RawMaterialPurchase secondSettled = purchaseRepository.findById(secondPurchaseId).orElseThrow();
+    assertThat(firstSettled.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(firstSettled.getStatus()).isEqualTo("PAID");
+    assertThat(secondSettled.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(secondSettled.getStatus()).isEqualTo("PAID");
   }
 
   @Test
@@ -1659,6 +1926,38 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     Long goodsReceiptId =
         createGoodsReceipt(purchaseOrderId, rawMaterialId, quantity, costPerUnit, entryDate);
     return new PurchaseWorkflowIds(purchaseOrderId, goodsReceiptId);
+  }
+
+  private Long createPurchaseInvoiceForWorkflow(
+      Long supplierId,
+      Long rawMaterialId,
+      BigDecimal quantity,
+      BigDecimal costPerUnit,
+      LocalDate invoiceDate,
+      PurchaseWorkflowIds workflow,
+      String invoiceNumber) {
+    Map<String, Object> line = new HashMap<>();
+    line.put("rawMaterialId", rawMaterialId);
+    line.put("quantity", quantity);
+    line.put("costPerUnit", costPerUnit);
+
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", invoiceNumber);
+    purchaseReq.put("invoiceDate", invoiceDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put("lines", List.of(line));
+
+    ResponseEntity<Map> purchaseResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, headers),
+            Map.class);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+    return ((Number) purchaseData.get("id")).longValue();
   }
 
   private Long createPurchaseOrder(

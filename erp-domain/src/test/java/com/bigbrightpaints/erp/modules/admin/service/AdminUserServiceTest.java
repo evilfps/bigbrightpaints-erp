@@ -112,6 +112,11 @@ class AdminUserServiceTest {
                 anyString(), anyString()))
         .thenReturn(false);
     lenient()
+        .when(
+            userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                anyString(), anyString()))
+        .thenReturn(Optional.empty());
+    lenient()
         .when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(
             invocation -> {
@@ -168,6 +173,42 @@ class AdminUserServiceTest {
     assertThat(savedDealer.getStatus()).isEqualTo("ACTIVE");
     assertThat(savedDealer.getPortalUser()).isNotNull();
     assertThat(savedDealer.getPortalUser().getEmail()).isEqualTo("dealer@example.com");
+    assertThat(receivable.isActive()).isTrue();
+    verify(accountRepository).save(receivable);
+  }
+
+  @Test
+  void createUser_relinksExistingDealerByEmailAndPreservesBlockedStatus() {
+    Dealer existingDealer = new Dealer();
+    existingDealer.setCompany(company);
+    ReflectionTestUtils.setField(existingDealer, "id", 45L);
+    existingDealer.setCode("BLOCKED45");
+    existingDealer.setName("Blocked Dealer");
+    existingDealer.setStatus("BLOCKED");
+    existingDealer.setEmail("blocked-dealer@example.com");
+
+    Account receivable = new Account();
+    receivable.setCompany(company);
+    receivable.setCode("AR-BLOCKED45");
+    receivable.setActive(false);
+    existingDealer.setReceivableAccount(receivable);
+
+    when(dealerRepository.findByCompanyAndPortalUserEmail(company, "blocked-dealer@example.com"))
+        .thenReturn(Optional.empty());
+    when(dealerRepository.findByCompanyAndEmailIgnoreCase(company, "blocked-dealer@example.com"))
+        .thenReturn(Optional.of(existingDealer));
+
+    service.createUser(
+        new CreateUserRequest(
+            "blocked-dealer@example.com", "Blocked Dealer", List.of("ROLE_DEALER")));
+
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository).save(dealerCaptor.capture());
+    Dealer savedDealer = dealerCaptor.getValue();
+    assertThat(savedDealer.getId()).isEqualTo(45L);
+    assertThat(savedDealer.getStatus()).isEqualTo("BLOCKED");
+    assertThat(savedDealer.getPortalUser()).isNotNull();
+    assertThat(savedDealer.getPortalUser().getEmail()).isEqualTo("blocked-dealer@example.com");
     assertThat(receivable.isActive()).isTrue();
     verify(accountRepository).save(receivable);
   }
@@ -240,8 +281,7 @@ class AdminUserServiceTest {
                 List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
     try {
       service.createUser(
-          new CreateUserRequest(
-              "platform-sales@example.com", "Platform Sales", List.of("sales")));
+          new CreateUserRequest("platform-sales@example.com", "Platform Sales", List.of("sales")));
       verify(userRepository).save(any(UserAccount.class));
     } finally {
       SecurityContextHolder.clearContext();
@@ -311,6 +351,83 @@ class AdminUserServiceTest {
 
     verify(dealerRepository, times(1)).save(any(Dealer.class));
     verify(accountRepository, never()).save(any(Account.class));
+  }
+
+  @Test
+  void createUser_salesFirstDealerUserConvergesWithoutProvisioningDuplicateScopedAccount() {
+    UserAccount existingScopedDealer =
+        new UserAccount("sales-first@example.com", "TEST", "hash", "Sales First Dealer");
+    ReflectionTestUtils.setField(existingScopedDealer, "id", 77L);
+    existingScopedDealer.setCompany(company);
+    Role dealerRole = new Role();
+    dealerRole.setName("ROLE_DEALER");
+    existingScopedDealer.addRole(dealerRole);
+
+    Dealer existingDealer = new Dealer();
+    existingDealer.setCompany(company);
+    ReflectionTestUtils.setField(existingDealer, "id", 57L);
+    existingDealer.setCode("ACTIVE57");
+    existingDealer.setName("Sales First Dealer");
+    existingDealer.setStatus("ACTIVE");
+    existingDealer.setEmail("sales-first@example.com");
+    existingDealer.setPortalUser(existingScopedDealer);
+    Account receivable = new Account();
+    receivable.setCompany(company);
+    receivable.setCode("AR-ACTIVE57");
+    receivable.setActive(true);
+    existingDealer.setReceivableAccount(receivable);
+
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "sales-first@example.com", "TEST"))
+        .thenReturn(Optional.of(existingScopedDealer));
+    when(dealerRepository.findByCompanyAndPortalUserEmail(company, "sales-first@example.com"))
+        .thenReturn(Optional.of(existingDealer));
+
+    UserDto response =
+        service.createUser(
+            new CreateUserRequest(
+                "sales-first@example.com", "Sales First Dealer", List.of("ROLE_DEALER")));
+
+    assertThat(response.id()).isEqualTo(77L);
+    assertThat(response.email()).isEqualTo("sales-first@example.com");
+    assertThat(response.roles()).contains("ROLE_DEALER");
+    verify(tenantRuntimePolicyService, never())
+        .assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+    verify(userRepository, never()).save(any(UserAccount.class));
+    verify(emailService, never())
+        .sendUserCredentialsEmailRequired(anyString(), anyString(), anyString(), anyString());
+    verify(dealerRepository, times(1)).save(any(Dealer.class));
+    verify(accountRepository, never()).save(any(Account.class));
+  }
+
+  @Test
+  void createUser_dealerConvergenceFailsClosedForConflictingScopedDuplicate() {
+    UserAccount conflictingScopedUser =
+        new UserAccount("conflict@example.com", "TEST", "hash", "Conflicting User");
+    ReflectionTestUtils.setField(conflictingScopedUser, "id", 78L);
+    conflictingScopedUser.setCompany(company);
+    Role salesRole = new Role();
+    salesRole.setName("ROLE_SALES");
+    conflictingScopedUser.addRole(salesRole);
+
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "conflict@example.com", "TEST"))
+        .thenReturn(Optional.of(conflictingScopedUser));
+
+    assertThatThrownBy(
+            () ->
+                service.createUser(
+                    new CreateUserRequest(
+                        "conflict@example.com", "Conflicting Dealer", List.of("ROLE_DEALER"))))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("User already exists for scope: TEST");
+
+    verify(tenantRuntimePolicyService, never())
+        .assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
+    verify(userRepository, never()).save(any(UserAccount.class));
+    verify(dealerRepository, never()).save(any(Dealer.class));
+    verify(emailService, never())
+        .sendUserCredentialsEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -631,7 +748,8 @@ class AdminUserServiceTest {
   }
 
   @Test
-  void forceResetPassword_sameTenantProtectedRole_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
+  void
+      forceResetPassword_sameTenantProtectedRole_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
     UserAccount protectedUser =
         new UserAccount("tenant-admin-protected@example.com", "hash", "Tenant Admin");
     ReflectionTestUtils.setField(protectedUser, "id", 313L);
@@ -706,8 +824,7 @@ class AdminUserServiceTest {
         .thenReturn(Optional.empty());
 
     try {
-      var response =
-          service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null));
+      var response = service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null));
       assertThat(response.displayName()).isEqualTo("Foreign User Updated");
     } finally {
       SecurityContextHolder.clearContext();
@@ -732,8 +849,7 @@ class AdminUserServiceTest {
                 AuditEvent.LOGIN_SUCCESS, company.getId(), "same-enabled@example.com"))
         .thenReturn(Optional.empty());
 
-    var response =
-        service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null));
+    var response = service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null));
 
     assertThat(response.displayName()).isEqualTo("Same Enabled Updated");
     verify(tokenBlacklistService, never()).revokeAllUserTokens(user.getPublicId().toString());
@@ -809,8 +925,7 @@ class AdminUserServiceTest {
     assertThatThrownBy(
             () ->
                 service.updateUser(
-                    403L,
-                    new UpdateUserRequest("Updated User", List.of("ROLE_SUPER_ADMIN"))))
+                    403L, new UpdateUserRequest("Updated User", List.of("ROLE_SUPER_ADMIN"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_SUPER_ADMIN");
 

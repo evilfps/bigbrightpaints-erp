@@ -90,6 +90,9 @@ class TemporalBalanceServiceTest {
     LocalDate asOfDate = LocalDate.of(2026, 2, 9);
     Long accountId = 100L;
 
+    Account liabilityAccount = new Account();
+    liabilityAccount.setType(AccountType.LIABILITY);
+
     AccountingPeriod closedPeriod = new AccountingPeriod();
     closedPeriod.setStatus(AccountingPeriodStatus.CLOSED);
     ReflectionFieldAccess.setField(closedPeriod, "id", 11L);
@@ -105,6 +108,8 @@ class TemporalBalanceServiceTest {
 
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(eq(company), eq(2026), eq(2)))
         .thenReturn(Optional.of(closedPeriod));
+    when(accountRepository.findByCompanyAndId(eq(company), eq(accountId)))
+        .thenReturn(Optional.of(liabilityAccount));
     when(snapshotRepository.findByCompanyAndPeriod(eq(company), eq(closedPeriod)))
         .thenReturn(Optional.of(snapshot));
     when(snapshotLineRepository.findBySnapshotAndAccountId(eq(snapshot), eq(accountId)))

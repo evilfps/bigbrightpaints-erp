@@ -161,7 +161,7 @@ GET /api/v1/admin/self/settings
 
 | Retired for tenant-admin product | Canonical |
 | --- | --- |
-| `PUT /api/v1/admin/exports/{requestId}/approve|reject` | `POST /api/v1/admin/approvals/{originType}/{id}/decisions` |
+| Export-specific approve/reject aliases | `POST /api/v1/admin/approvals/{originType}/{id}/decisions` |
 | `/api/v1/portal/support/tickets/**` as tenant-admin host | `/api/v1/admin/support/tickets/**` |
 | Tenant-admin dependency on platform role-catalog hosts (`/api/v1/superadmin/roles/**`) | fixed role assignment validation in `/api/v1/admin/users/**` |
 | `/api/v1/auth/profile` as identity source | `GET /api/v1/auth/me` |

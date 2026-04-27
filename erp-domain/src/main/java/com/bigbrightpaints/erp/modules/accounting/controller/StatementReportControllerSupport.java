@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.HashMap;
@@ -15,7 +14,8 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingDateContextDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReturnDto;
@@ -23,57 +23,42 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
-import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 
 @Component
 public class StatementReportControllerSupport {
 
-  private final TaxService taxService;
-  private final JournalEntryService journalEntryService;
+  private final AccountingService accountingService;
   private final SalesReturnService salesReturnService;
   private final StatementService statementService;
-  private final TemporalBalanceService temporalBalanceService;
-  private final CompanyContextService companyContextService;
-  private final CompanyClock companyClock;
   private final AuditService auditService;
 
   public StatementReportControllerSupport(
-      TaxService taxService,
-      JournalEntryService journalEntryService,
+      AccountingService accountingService,
       SalesReturnService salesReturnService,
       StatementService statementService,
-      TemporalBalanceService temporalBalanceService,
-      CompanyContextService companyContextService,
-      CompanyClock companyClock,
       AuditService auditService) {
-    this.taxService = taxService;
-    this.journalEntryService = journalEntryService;
+    this.accountingService = accountingService;
     this.salesReturnService = salesReturnService;
     this.statementService = statementService;
-    this.temporalBalanceService = temporalBalanceService;
-    this.companyContextService = companyContextService;
-    this.companyClock = companyClock;
     this.auditService = auditService;
   }
 
   GstReturnDto generateGstReturn(String period) {
-    return taxService.generateGstReturn(
+    return accountingService.generateGstReturn(
         StringUtils.hasText(period) ? YearMonth.parse(period.trim()) : null);
   }
 
   GstReconciliationDto getGstReconciliation(String period) {
-    return taxService.generateGstReconciliation(
+    return accountingService.getGstReconciliation(
         StringUtils.hasText(period) ? YearMonth.parse(period.trim()) : null);
   }
 
   List<JournalEntryDto> listSalesReturns() {
-    return journalEntryService.listJournalEntriesByReferencePrefix("CRN-").stream()
+    return accountingService.listJournalEntriesByReferencePrefix("CRN-").stream()
         .filter(this::isSalesReturnCreditNote)
         .toList();
   }
@@ -104,7 +89,10 @@ public class StatementReportControllerSupport {
             supplierId,
             AccountingDateParameters.parseOptionalDate(from, "from"),
             AccountingDateParameters.parseOptionalDate(to, "to"));
-    logAccountingExport("ACCOUNTING_SUPPLIER_STATEMENT", supplierId, "pdf");
+    logAccountingExport(
+        SensitiveDisclosurePolicyOwner.ACCOUNTING_SUPPLIER_STATEMENT_EXPORT_TYPE,
+        supplierId,
+        "pdf");
     return pdf;
   }
 
@@ -112,17 +100,18 @@ public class StatementReportControllerSupport {
     byte[] pdf =
         statementService.supplierAgingPdf(
             supplierId, AccountingDateParameters.parseOptionalDate(asOf, "asOf"), buckets);
-    logAccountingExport("ACCOUNTING_SUPPLIER_AGING", supplierId, "pdf");
+    logAccountingExport(
+        SensitiveDisclosurePolicyOwner.ACCOUNTING_SUPPLIER_AGING_EXPORT_TYPE, supplierId, "pdf");
     return pdf;
   }
 
   BigDecimal getBalanceAsOf(Long accountId, String date) {
-    return temporalBalanceService.getBalanceAsOfDate(
+    return accountingService.getBalanceAsOf(
         accountId, AccountingDateParameters.parseRequiredDate(date, "date"));
   }
 
   TemporalBalanceService.TrialBalanceSnapshot getTrialBalanceAsOf(String date) {
-    return temporalBalanceService.getTrialBalanceAsOf(
+    return accountingService.getTrialBalanceAsOf(
         AccountingDateParameters.parseRequiredDate(date, "date"));
   }
 
@@ -148,7 +137,7 @@ public class StatementReportControllerSupport {
           .withDetail("endDate", resolvedEnd);
     }
     TemporalBalanceService.AccountActivityReport report =
-        temporalBalanceService.getAccountActivity(accountId, start, end);
+        accountingService.getAccountActivity(accountId, start, end);
     List<TemporalBalanceService.AccountMovement> movements =
         report != null && report.movements() != null ? report.movements() : List.of();
     BigDecimal totalDebits = report != null ? report.totalDebits() : BigDecimal.ZERO;
@@ -168,17 +157,8 @@ public class StatementReportControllerSupport {
         movements);
   }
 
-  Map<String, Object> getAccountingDateContext() {
-    Company company = companyContextService.requireCurrentCompany();
-    LocalDate today = companyClock.today(company);
-    Instant now = companyClock.now(company);
-    Map<String, Object> payload = new HashMap<>();
-    payload.put("companyId", company != null ? company.getId() : null);
-    payload.put("companyCode", company != null ? company.getCode() : null);
-    payload.put("timezone", company != null ? company.getTimezone() : null);
-    payload.put("today", today);
-    payload.put("now", now);
-    return payload;
+  AccountingDateContextDto getAccountingDateContext() {
+    return accountingService.getAccountingDateContext();
   }
 
   BalanceComparisonResponse compareBalances(
@@ -193,7 +173,7 @@ public class StatementReportControllerSupport {
     LocalDate fromDate = AccountingDateParameters.parseRequiredDate(resolvedFrom, "from");
     LocalDate toDate = AccountingDateParameters.parseRequiredDate(resolvedTo, "to");
     TemporalBalanceService.BalanceComparison comparison =
-        temporalBalanceService.compareBalances(accountId, fromDate, toDate);
+        accountingService.compareBalances(accountId, fromDate, toDate);
     return new BalanceComparisonResponse(
         fromDate, comparison.balance1(), toDate, comparison.balance2(), comparison.change());
   }
@@ -218,6 +198,9 @@ public class StatementReportControllerSupport {
     metadata.put("resourceId", resourceId != null ? resourceId.toString() : "");
     metadata.put("operation", "EXPORT");
     metadata.put("format", format);
+    if (SensitiveDisclosurePolicyOwner.isApprovalBypassExportType(resourceType)) {
+      metadata.put("approvalBypass", "true");
+    }
     auditService.logSuccess(AuditEvent.DATA_EXPORT, metadata);
   }
 

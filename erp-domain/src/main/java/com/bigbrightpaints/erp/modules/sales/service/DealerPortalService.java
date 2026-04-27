@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -34,12 +36,18 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.util.DealerProvisioningSupport;
 
 @Service
 public class DealerPortalService {
 
   private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
-  private static final String ACTIVE_DEALER_STATUS = "ACTIVE";
+  private static final Set<String> PORTAL_ENABLED_DEALER_STATUSES =
+      Set.of(
+          DealerProvisioningSupport.ACTIVE_STATUS,
+          DealerProvisioningSupport.ON_HOLD_STATUS,
+          DealerProvisioningSupport.SUSPENDED_STATUS,
+          DealerProvisioningSupport.BLOCKED_STATUS);
 
   public record RequesterIdentity(Long userId, String email) {}
 
@@ -75,6 +83,13 @@ public class DealerPortalService {
   }
 
   public Dealer getCurrentDealer() {
+    return findCurrentDealerMapping()
+        .map(this::requireActivePortalDealer)
+        .orElseThrow(
+            () -> new AccessDeniedException("Dealer mapping missing for authenticated principal"));
+  }
+
+  public Optional<Dealer> findCurrentDealerMapping() {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null || !auth.isAuthenticated()) {
       throw new AccessDeniedException("No authenticated user");
@@ -88,7 +103,7 @@ public class DealerPortalService {
               dealerRepository.findAllByCompanyAndPortalUserId(company, authenticatedUser.getId()),
               "userId:" + authenticatedUser.getId());
       if (matchedByUserId != null) {
-        return requireActivePortalDealer(matchedByUserId);
+        return Optional.of(matchedByUserId);
       }
     }
 
@@ -98,9 +113,9 @@ public class DealerPortalService {
             dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, email),
             "email:" + email);
     if (matchedByEmail != null) {
-      return requireActivePortalDealer(matchedByEmail);
+      return Optional.of(matchedByEmail);
     }
-    throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
+    return Optional.empty();
   }
 
   public RequesterIdentity getCurrentRequesterIdentity() {
@@ -118,6 +133,11 @@ public class DealerPortalService {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null) return false;
     return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DEALER"));
+  }
+
+  public boolean isFinanceReadOnlyDealer(Dealer dealer) {
+    return dealer != null
+        && DealerProvisioningSupport.isPreservedNonActiveStatus(dealer.getStatus());
   }
 
   public void verifyDealerAccess(Long dealerId) {
@@ -394,7 +414,8 @@ public class DealerPortalService {
       throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
     }
     String status = dealer.getStatus();
-    if (status != null && ACTIVE_DEALER_STATUS.equalsIgnoreCase(status.trim())) {
+    if (status != null
+        && PORTAL_ENABLED_DEALER_STATUSES.contains(status.trim().toUpperCase(Locale.ROOT))) {
       return dealer;
     }
     throw new AccessDeniedException("Dealer portal access is disabled for inactive dealer mapping");

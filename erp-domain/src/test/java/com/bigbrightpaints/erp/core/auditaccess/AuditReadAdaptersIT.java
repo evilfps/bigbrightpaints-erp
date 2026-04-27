@@ -338,9 +338,7 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             log -> {
               log.setRequestPath("/api/v1/auth/password/forgot");
               log.setMetadata(
-                  Map.of(
-                      "operation", "forgot_password",
-                      "subjectPublicId", subjectPublicId));
+                  Map.of("operation", "forgot_password", "subjectPublicId", subjectPublicId));
             });
 
     AuditFeedSlice slice = queryTenantLogs(company, day, day, "AUTH", null, null, null, null, null);

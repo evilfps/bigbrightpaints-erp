@@ -86,11 +86,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       HttpStatus status,
       Map<String, Object> responseDetails) {
     String traceId = UUID.randomUUID().toString();
-    logger.error(
-        "Application error [{}] - Code: {}",
-        traceId,
-        ex.getErrorCode().getCode(),
-        ex);
+    logger.error("Application error [{}] - Code: {}", traceId, ex.getErrorCode().getCode(), ex);
     Map<String, Object> data = new HashMap<>();
     data.put("code", ex.getErrorCode().getCode());
     data.put("message", ex.getUserMessage());

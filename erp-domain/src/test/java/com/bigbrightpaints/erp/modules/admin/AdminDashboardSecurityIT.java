@@ -47,7 +47,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
 
   @BeforeEach
   void setUpUsers() {
-    dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Dashboard Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+    dataSeeder.ensureUser(
+        ADMIN_EMAIL, PASSWORD, "Dashboard Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
         SECONDARY_ADMIN_EMAIL,
         PASSWORD,
@@ -88,7 +89,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
     assertThat(data).isNotNull();
-    assertThat(data).containsKeys("approvalSummary", "userSummary", "supportSummary", "tenantRuntime");
+    assertThat(data)
+        .containsKeys("approvalSummary", "userSummary", "supportSummary", "tenantRuntime");
 
     ResponseEntity<Map> accountingResponse =
         rest.exchange(
@@ -133,7 +135,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     assertThat(((Number) userSummary.get("disabledUsers")).longValue()).isEqualTo(0L);
 
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    List<Map<String, Object>> recentActivity =
+        (List<Map<String, Object>>) data.get("recentActivity");
     assertThat(recentActivity).isNotNull();
     assertThat(recentActivity)
         .extracting(item -> String.valueOf(item.get("actor")).trim().toLowerCase())
@@ -171,7 +174,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
     assertThat(data).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    List<Map<String, Object>> recentActivity =
+        (List<Map<String, Object>>) data.get("recentActivity");
     assertThat(recentActivity).isNotNull();
     assertThat(recentActivity)
         .extracting(item -> String.valueOf(item.get("actor")).trim().toLowerCase())
@@ -196,11 +200,7 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     }
     for (int i = 0; i < 20; i++) {
       writeAuditLog(
-          companyId,
-          ACCOUNTING_EMAIL,
-          accountingUserId,
-          visiblePath,
-          anchor.minusMinutes(55L + i));
+          companyId, ACCOUNTING_EMAIL, accountingUserId, visiblePath, anchor.minusMinutes(55L + i));
     }
 
     ResponseEntity<Map> adminResponse =
@@ -216,7 +216,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
     assertThat(data).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    List<Map<String, Object>> recentActivity =
+        (List<Map<String, Object>>) data.get("recentActivity");
     assertThat(recentActivity).isNotNull();
     assertThat(recentActivity).hasSize(12);
     assertThat(recentActivity)
@@ -476,7 +477,8 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) adminResponse.getBody().get("data");
     assertThat(data).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> recentActivity = (List<Map<String, Object>>) data.get("recentActivity");
+    List<Map<String, Object>> recentActivity =
+        (List<Map<String, Object>>) data.get("recentActivity");
     assertThat(recentActivity).isNotNull();
     return recentActivity;
   }
@@ -487,14 +489,19 @@ class AdminDashboardSecurityIT extends AbstractIntegrationTest {
         .contains("PUT " + requestPath);
   }
 
-  private void assertDetailsDoesNotContain(List<Map<String, Object>> recentActivity, String requestPath) {
+  private void assertDetailsDoesNotContain(
+      List<Map<String, Object>> recentActivity, String requestPath) {
     assertThat(recentActivity)
         .extracting(item -> String.valueOf(item.get("details")))
         .doesNotContain("PUT " + requestPath);
   }
 
   private void writeAuditLog(
-      Long companyId, String actorEmail, String actorUserId, String requestPath, LocalDateTime timestamp) {
+      Long companyId,
+      String actorEmail,
+      String actorUserId,
+      String requestPath,
+      LocalDateTime timestamp) {
     writeAuditLog(
         companyId,
         actorEmail,

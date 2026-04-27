@@ -812,6 +812,85 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void product_code_canonical_sku_order_keeps_finished_good_identity_without_draft_lifecycle() {
+    HttpHeaders headers = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    Long dealerId = createDealer(headers, "Canonical Lifecycle Dealer");
+    Long finishedGoodId = resolveFinishedGoodId();
+    ensureReservableFinishedGoodStock(finishedGoodId, new BigDecimal("4.00"));
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> createdData = (Map<?, ?>) createResponse.getBody().get("data");
+    Long orderId = ((Number) createdData.get("id")).longValue();
+    assertThat(createdData.get("status")).isEqualTo("RESERVED");
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> createdItems = (List<Map<String, Object>>) createdData.get("items");
+    assertThat(createdItems).hasSize(1);
+    assertThat(((Number) createdItems.getFirst().get("finishedGoodId")).longValue())
+        .isEqualTo(finishedGoodId);
+
+    ResponseEntity<Map> updateResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId,
+            HttpMethod.PUT,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> updatedData = (Map<?, ?>) updateResponse.getBody().get("data");
+    assertThat(updatedData.get("status")).isEqualTo("RESERVED");
+
+    ResponseEntity<Map> confirmResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId + "/confirm",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(confirmResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> confirmedData = (Map<?, ?>) confirmResponse.getBody().get("data");
+    assertThat(confirmedData.get("status")).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  void product_code_canonical_sku_order_delete_uses_normal_lifecycle_despite_finished_good_id() {
+    HttpHeaders headers = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    Long dealerId = createDealer(headers, "Canonical Delete Dealer");
+    Long finishedGoodId = resolveFinishedGoodId();
+    ensureReservableFinishedGoodStock(finishedGoodId, new BigDecimal("2.00"));
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> createdData = (Map<?, ?>) createResponse.getBody().get("data");
+    Long orderId = ((Number) createdData.get("id")).longValue();
+    assertThat(createdData.get("status")).isEqualTo("RESERVED");
+    SalesOrder order =
+        salesOrderRepository
+            .findWithItemsByCompanyAndId(
+                companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow(), orderId)
+            .orElseThrow();
+    assertThat(order.getItems()).hasSize(1);
+    assertThat(order.getItems().getFirst().getFinishedGoodId()).isEqualTo(finishedGoodId);
+
+    ResponseEntity<Void> deleteResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId,
+            HttpMethod.DELETE,
+            new HttpEntity<>(headers),
+            Void.class);
+    assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    assertThat(salesOrderRepository.findById(orderId)).isEmpty();
+  }
+
+  @Test
   void sales_dashboard_exposes_metrics_and_tracks_activity() {
     HttpHeaders salesHeaders = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
     Map<?, ?> dashboardBefore = salesDashboardData(salesHeaders);

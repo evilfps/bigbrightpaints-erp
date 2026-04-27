@@ -70,6 +70,7 @@ public class TemporalBalanceService {
    */
   public BigDecimal getBalanceAsOfDate(Long accountId, LocalDate asOfDate) {
     Company company = companyContextService.requireCurrentCompany();
+    Account account = requireCompanyAccount(company, accountId);
     AccountingPeriodSnapshot snapshot = resolveClosedSnapshot(company, asOfDate);
     if (snapshot != null) {
       return snapshotLineRepository
@@ -80,9 +81,7 @@ public class TemporalBalanceService {
     }
     BigDecimal rawBalance =
         safe(journalLineRepository.netBalanceUpTo(company, accountId, asOfDate));
-    AccountType accountType =
-        accountRepository.findByCompanyAndId(company, accountId).map(Account::getType).orElse(null);
-    return normalizeNetBalance(rawBalance, accountType);
+    return normalizeNetBalance(rawBalance, account.getType());
   }
 
   /**
@@ -199,13 +198,7 @@ public class TemporalBalanceService {
   public AccountActivityReport getAccountActivity(
       Long accountId, LocalDate startDate, LocalDate endDate) {
     Company company = companyContextService.requireCurrentCompany();
-    Account account =
-        accountRepository
-            .findByCompanyAndId(company, accountId)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Account not found"));
+    Account account = requireCompanyAccount(company, accountId);
     AccountType accountType = account.getType();
 
     // Get opening balance (balance as of day before start)
@@ -266,6 +259,15 @@ public class TemporalBalanceService {
     BigDecimal change = balance2.subtract(balance1);
 
     return new BalanceComparison(accountId, date1, balance1, date2, balance2, change);
+  }
+
+  private Account requireCompanyAccount(Company company, Long accountId) {
+    return accountRepository
+        .findByCompanyAndId(company, accountId)
+        .orElseThrow(
+            () ->
+                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Account not found"));
   }
 
   private AccountingPeriodSnapshot resolveClosedSnapshot(Company company, LocalDate asOfDate) {

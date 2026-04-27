@@ -95,25 +95,7 @@ public class DealerService {
   public DealerResponse createDealer(CreateDealerRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     String contactEmail = request.contactEmail().trim();
-    if (!dealerRepository
-        .findAllByCompanyAndPortalUserEmailIgnoreCase(company, contactEmail)
-        .isEmpty()) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Dealer already exists for this portal user");
-    }
-
-    Dealer dealer =
-        dealerRepository
-            .findByCompanyAndEmailIgnoreCase(company, contactEmail)
-            .orElseGet(
-                () -> {
-                  Dealer fresh = new Dealer();
-                  fresh.setCompany(company);
-                  fresh.setCode(
-                      DealerProvisioningSupport.generateDealerCode(
-                          request.name(), company, dealerRepository));
-                  return fresh;
-                });
+    Dealer dealer = resolveSharedDealerMaster(company, contactEmail, request.name());
     dealer.setName(request.name().trim());
     dealer.setCompanyName(request.companyName().trim());
     dealer.setEmail(contactEmail);
@@ -124,7 +106,7 @@ public class DealerService {
     dealer.setGstRegistrationType(resolveRegistrationType(request.gstRegistrationType()));
     dealer.setPaymentTerms(resolvePaymentTerms(request.paymentTerms()));
     dealer.setRegion(normalizeRegion(request.region()));
-    dealer.setStatus(DealerProvisioningSupport.ACTIVE_STATUS);
+    dealer.setStatus(DealerProvisioningSupport.resolveStatusForOnboarding(dealer.getStatus()));
     if (request.creditLimit() != null) {
       dealer.setCreditLimit(request.creditLimit());
     }
@@ -162,6 +144,30 @@ public class DealerService {
     dealer.setReceivableAccount(receivableAccount);
     dealer = dealerRepository.save(dealer);
     return toResponse(dealer, portalUser.getEmail());
+  }
+
+  private Dealer resolveSharedDealerMaster(
+      Company company, String contactEmail, String dealerName) {
+    List<Dealer> portalMappedDealers =
+        dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, contactEmail);
+    if (portalMappedDealers.size() > 1) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Dealer onboarding is ambiguous for this portal user");
+    }
+    if (!portalMappedDealers.isEmpty()) {
+      return portalMappedDealers.get(0);
+    }
+    return dealerRepository
+        .findByCompanyAndEmailIgnoreCase(company, contactEmail)
+        .orElseGet(
+            () -> {
+              Dealer fresh = new Dealer();
+              fresh.setCompany(company);
+              fresh.setCode(
+                  DealerProvisioningSupport.generateDealerCode(
+                      dealerName, company, dealerRepository));
+              return fresh;
+            });
   }
 
   @Transactional
@@ -204,8 +210,8 @@ public class DealerService {
       String query, String status, String region, String creditStatus) {
     Company company = companyContextService.requireCurrentCompany();
     String term = StringUtils.hasText(query) ? query.trim() : "";
-    String normalizedStatus = normalizeOptionalToken(status);
-    String normalizedRegion = normalizeOptionalToken(region);
+    String normalizedStatus = normalizeSearchFilterToken(status);
+    String normalizedRegion = normalizeSearchFilterToken(region);
     String normalizedCreditStatus = normalizeCreditStatus(creditStatus);
 
     List<Dealer> matches =
@@ -472,6 +478,11 @@ public class DealerService {
             () ->
                 com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                     "Dealer not found"));
+  }
+
+  private String normalizeSearchFilterToken(String value) {
+    String normalized = normalizeOptionalToken(value);
+    return "ALL".equals(normalized) ? null : normalized;
   }
 
   private String normalizeOptionalToken(String value) {

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,7 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -35,9 +35,10 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBa
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.GstReportBreakdownDto;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
-import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
@@ -46,13 +47,6 @@ import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLooku
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryPhysicalCountService;
-import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryReconciliationItemDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryReconciliationReportDto;
@@ -61,7 +55,6 @@ import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationGroupDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationItemDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationDashboardDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
-import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 @Tag("critical")
@@ -90,11 +83,8 @@ class ReportServiceInventoryAndGstTest {
   @Mock private ProfitLossReportQueryService profitLossReportQueryService;
   @Mock private BalanceSheetReportQueryService balanceSheetReportQueryService;
   @Mock private AgedDebtorsReportQueryService agedDebtorsReportQueryService;
-  @Mock private InvoiceRepository invoiceRepository;
-  @Mock private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+  @Mock private TaxService taxService;
   @Mock private InventoryPhysicalCountService inventoryPhysicalCountService;
-
-  private final GstService gstService = new GstService();
 
   private ReportService reportService;
   private Company company;
@@ -125,9 +115,7 @@ class ReportServiceInventoryAndGstTest {
             profitLossReportQueryService,
             balanceSheetReportQueryService,
             agedDebtorsReportQueryService,
-            invoiceRepository,
-            rawMaterialPurchaseRepository,
-            gstService,
+            taxService,
             inventoryPhysicalCountService);
 
     company = new Company();
@@ -277,8 +265,9 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.systemQuantityTotal()).isEqualByComparingTo("10.00");
     assertThat(report.physicalQuantityTotal()).isEqualByComparingTo("8.00");
     assertThat(report.quantityVarianceTotal()).isEqualByComparingTo("-2.00");
+    assertThat(report.ledgerInventoryValue()).isEqualByComparingTo("0.00");
     assertThat(report.physicalInventoryValue()).isEqualByComparingTo("96.00");
-    assertThat(report.valueVariance()).isEqualByComparingTo("6.00");
+    assertThat(report.valueVariance()).isEqualByComparingTo("96.00");
     assertThat(report.items())
         .extracting(InventoryReconciliationItemDto::physicalQty)
         .containsExactly(new BigDecimal("8.00"));
@@ -314,6 +303,9 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.systemQuantityTotal()).isEqualByComparingTo("5.00");
     assertThat(report.physicalQuantityTotal()).isEqualByComparingTo("5.00");
     assertThat(report.quantityVarianceTotal()).isEqualByComparingTo("0.00");
+    assertThat(report.ledgerInventoryValue()).isEqualByComparingTo("0.00");
+    assertThat(report.physicalInventoryValue()).isEqualByComparingTo("35.00");
+    assertThat(report.valueVariance()).isEqualByComparingTo("35.00");
     assertThat(report.items())
         .extracting(InventoryReconciliationItemDto::variance)
         .containsExactly(new BigDecimal("0.00"));
@@ -335,12 +327,20 @@ class ReportServiceInventoryAndGstTest {
 
   @Test
   void balanceWarnings_flagsUnexpectedSignsAcrossAccountTypes() {
+    stubToday();
     Account asset = account(1L, "1000", "Inventory Asset", AccountType.ASSET, "-10");
     Account liability = account(2L, "2000", "GST Liability", AccountType.LIABILITY, "5");
     Account revenue = account(3L, "3000", "Sales Revenue", AccountType.REVENUE, "7");
     Account expense = account(4L, "4000", "Factory Expense", AccountType.EXPENSE, "-3");
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(asset, liability, revenue, expense));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(1L, "0.00", "10.00"),
+                accountSummaryRow(2L, "5.00", "0.00"),
+                accountSummaryRow(3L, "7.00", "0.00"),
+                accountSummaryRow(4L, "0.00", "3.00")));
 
     var warnings = reportService.balanceWarnings();
 
@@ -363,12 +363,46 @@ class ReportServiceInventoryAndGstTest {
   }
 
   @Test
+  void balanceWarnings_prefersLiveJournalSummaryOverStaleAccountCacheBalance() {
+    stubToday();
+    Account asset = account(99L, "AST-99", "Asset 99", AccountType.ASSET, "999.00");
+    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(asset));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(java.util.Collections.singletonList(accountSummaryRow(99L, "0.00", "25.00")));
+
+    var warnings = reportService.balanceWarnings();
+
+    assertThat(warnings).hasSize(1);
+    assertThat(warnings.getFirst().reason()).isEqualTo("Asset account has a credit balance");
+    assertThat(warnings.getFirst().balance()).isEqualByComparingTo("-25.00");
+  }
+
+  @Test
+  void balanceWarnings_usesZeroWhenLiveJournalSummaryRowIsMissing() {
+    stubToday();
+    Account asset = account(99L, "AST-99", "Asset 99", AccountType.ASSET, "-999.00");
+    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(asset));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(List.of());
+
+    var warnings = reportService.balanceWarnings();
+
+    assertThat(warnings).isEmpty();
+  }
+
+  @Test
   void reconciliationDashboard_usesProvidedStatementBalanceAndInventoryFallbackLedgerBalance() {
+    stubToday();
     Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "1000");
     Account inventoryAccount = account(11L, "INV", "Inventory Control", AccountType.ASSET, "400");
     when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(inventoryAccount));
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(10L, "1000.00", "0.00"),
+                accountSummaryRow(11L, "400.00", "0.00")));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
             new InventoryValuationQueryService.InventorySnapshot(
@@ -386,6 +420,60 @@ class ReportServiceInventoryAndGstTest {
     assertThat(dashboard.balanceWarnings()).isEmpty();
   }
 
+  @Test
+  void reconciliationDashboard_prefersLiveJournalSummaryOverStaleAccountCacheBalance() {
+    stubToday();
+    company.setDefaultInventoryAccountId(11L);
+    Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "700.00");
+    Account inventoryAccount =
+        account(11L, "INV", "Inventory Control", AccountType.ASSET, "300.00");
+    when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
+    when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventoryAccount);
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(
+            List.of(
+                accountSummaryRow(10L, "1200.00", "100.00"),
+                accountSummaryRow(11L, "600.00", "0.00")));
+    when(inventoryValuationService.currentSnapshot(company))
+        .thenReturn(
+            new InventoryValuationQueryService.InventorySnapshot(
+                new BigDecimal("650"), 0L, "FIFO", List.of()));
+
+    ReconciliationDashboardDto dashboard = reportService.reconciliationDashboard(10L, null);
+
+    assertThat(dashboard.bank().ledgerBalance()).isEqualByComparingTo("1100.00");
+    assertThat(dashboard.bank().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().ledgerValue()).isEqualByComparingTo("600.00");
+    assertThat(dashboard.inventory().variance()).isEqualByComparingTo("50.00");
+  }
+
+  @Test
+  void reconciliationDashboard_usesZeroWhenLiveJournalSummaryRowsAreMissing() {
+    stubToday();
+    company.setDefaultInventoryAccountId(11L);
+    Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "700.00");
+    Account inventoryAccount =
+        account(11L, "INV", "Inventory Control", AccountType.ASSET, "300.00");
+    when(accountingLookupService.requireAccount(company, 10L)).thenReturn(bankAccount);
+    when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventoryAccount);
+    when(journalLineRepository.summarizeByAccountUpTo(company, LocalDate.of(2026, 3, 20)))
+        .thenReturn(List.of());
+    when(inventoryValuationService.currentSnapshot(company))
+        .thenReturn(
+            new InventoryValuationQueryService.InventorySnapshot(
+                BigDecimal.ZERO, 0L, "FIFO", List.of()));
+
+    ReconciliationDashboardDto dashboard = reportService.reconciliationDashboard(10L, null);
+
+    assertThat(dashboard.bank().ledgerBalance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().statementBalance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().ledgerValue()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.inventory().variance()).isEqualByComparingTo("0.00");
+    assertThat(dashboard.bank().balanced()).isTrue();
+    assertThat(dashboard.inventory().balanced()).isTrue();
+  }
+
   private Account account(Long id, String code, String name, AccountType type, String balance) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);
@@ -394,6 +482,10 @@ class ReportServiceInventoryAndGstTest {
     account.setType(type);
     account.setBalance(new BigDecimal(balance));
     return account;
+  }
+
+  private Object[] accountSummaryRow(Long accountId, String debit, String credit) {
+    return new Object[] {accountId, new BigDecimal(debit), new BigDecimal(credit)};
   }
 
   @Test
@@ -501,7 +593,7 @@ class ReportServiceInventoryAndGstTest {
   }
 
   @Test
-  void gstReturn_aggregatesRateSummaryComponentsAndTransactionDetails() {
+  void gstReturn_delegatesToCanonicalAccountingOwnerAndMapsComponentBreakdown() {
     AccountingPeriod period = new AccountingPeriod();
     ReflectionTestUtils.setField(period, "id", 25L);
     period.setYear(2026);
@@ -513,354 +605,114 @@ class ReportServiceInventoryAndGstTest {
     when(accountingPeriodRepository.findByCompanyAndId(company, 25L))
         .thenReturn(Optional.of(period));
 
-    Dealer dealer = new Dealer();
-    dealer.setName("Dealer One");
-    dealer.setStateCode("27");
-
-    Invoice invoice = new Invoice();
-    ReflectionTestUtils.setField(invoice, "id", 101L);
-    invoice.setInvoiceNumber("INV-101");
-    invoice.setIssueDate(LocalDate.of(2026, 2, 10));
-    invoice.setStatus("POSTED");
-    invoice.setDealer(dealer);
-
-    InvoiceLine invoiceLine = new InvoiceLine();
-    invoiceLine.setTaxRate(new BigDecimal("18"));
-    invoiceLine.setTaxableAmount(new BigDecimal("100"));
-    invoiceLine.setTaxAmount(new BigDecimal("18"));
-    invoiceLine.setCgstAmount(new BigDecimal("9"));
-    invoiceLine.setSgstAmount(new BigDecimal("9"));
-    invoiceLine.setIgstAmount(BigDecimal.ZERO);
-    invoice.getLines().add(invoiceLine);
-
-    Supplier supplier = new Supplier();
-    supplier.setName("Supplier One");
-    supplier.setStateCode("29");
-
-    RawMaterialPurchase purchase = new RawMaterialPurchase();
-    ReflectionTestUtils.setField(purchase, "id", 202L);
-    purchase.setInvoiceNumber("PUR-202");
-    purchase.setInvoiceDate(LocalDate.of(2026, 2, 12));
-    purchase.setStatus("POSTED");
-    purchase.setSupplier(supplier);
-
-    RawMaterialPurchaseLine purchaseLine = new RawMaterialPurchaseLine();
-    purchaseLine.setTaxRate(new BigDecimal("18"));
-    purchaseLine.setQuantity(new BigDecimal("10"));
-    purchaseLine.setReturnedQuantity(new BigDecimal("2"));
-    purchaseLine.setCostPerUnit(new BigDecimal("10"));
-    purchaseLine.setLineTotal(new BigDecimal("118"));
-    purchaseLine.setTaxAmount(new BigDecimal("18"));
-    purchaseLine.setCgstAmount(BigDecimal.ZERO);
-    purchaseLine.setSgstAmount(BigDecimal.ZERO);
-    purchaseLine.setIgstAmount(new BigDecimal("18"));
-    purchase.getLines().add(purchaseLine);
-
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(invoice));
-
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(purchase));
+    GstReportBreakdownDto breakdown = new GstReportBreakdownDto();
+    breakdown.setPeriodStart(LocalDate.of(2026, 2, 1));
+    breakdown.setPeriodEnd(LocalDate.of(2026, 2, 28));
+    breakdown.setCollected(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
+            new BigDecimal("9.00"),
+            new BigDecimal("9.00"),
+            BigDecimal.ZERO,
+            new BigDecimal("18.00")));
+    breakdown.setInputTaxCredit(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
+            new BigDecimal("2.00"),
+            new BigDecimal("2.00"),
+            new BigDecimal("4.00"),
+            new BigDecimal("8.00")));
+    breakdown.setNetLiability(
+        new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto.GstComponentSummary(
+            new BigDecimal("7.00"),
+            new BigDecimal("7.00"),
+            new BigDecimal("-4.00"),
+            new BigDecimal("10.00")));
+    breakdown.setRateSummaries(
+        List.of(
+            new GstReportBreakdownDto.GstRateSummary(
+                new BigDecimal("18.00"),
+                new BigDecimal("180.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("8.00"),
+                new BigDecimal("10.00"),
+                new BigDecimal("9.00"),
+                new BigDecimal("9.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("2.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("4.00"))));
+    breakdown.setTransactionDetails(
+        List.of(
+            new GstReportBreakdownDto.GstTransactionDetail(
+                "SALES_INVOICE",
+                101L,
+                "INV-101",
+                LocalDate.of(2026, 2, 10),
+                "Dealer One",
+                new BigDecimal("18.00"),
+                new BigDecimal("100.00"),
+                new BigDecimal("9.00"),
+                new BigDecimal("9.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("18.00"),
+                "OUTPUT"),
+            new GstReportBreakdownDto.GstTransactionDetail(
+                "PURCHASE_INVOICE",
+                202L,
+                "PUR-202",
+                LocalDate.of(2026, 2, 12),
+                "Supplier One",
+                new BigDecimal("18.00"),
+                new BigDecimal("80.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("2.00"),
+                new BigDecimal("4.00"),
+                new BigDecimal("8.00"),
+                "INPUT")));
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 2))).thenReturn(breakdown);
 
     GstReturnReportDto report = reportService.gstReturn(25L);
 
     assertThat(report.periodId()).isEqualTo(25L);
+    assertThat(report.periodStart()).isEqualTo(LocalDate.of(2026, 2, 1));
+    assertThat(report.periodEnd()).isEqualTo(LocalDate.of(2026, 2, 28));
     assertThat(report.outputTax().total()).isEqualByComparingTo("18.00");
-    assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("14.40");
-    assertThat(report.netLiability().total()).isEqualByComparingTo("3.60");
+    assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("8.00");
+    assertThat(report.netLiability().total()).isEqualByComparingTo("10.00");
     assertThat(report.rateSummaries()).hasSize(1);
-
-    GstReturnReportDto.GstRateSummary summary = report.rateSummaries().getFirst();
-    assertThat(summary.taxRate()).isEqualByComparingTo("18.00");
-    assertThat(summary.taxableAmount()).isEqualByComparingTo("180.00");
-    assertThat(summary.outputTax()).isEqualByComparingTo("18.00");
-    assertThat(summary.inputTaxCredit()).isEqualByComparingTo("14.40");
-
+    assertThat(report.rateSummaries().getFirst().taxRate()).isEqualByComparingTo("18.00");
+    assertThat(report.rateSummaries().getFirst().taxableAmount()).isEqualByComparingTo("180.00");
     assertThat(report.transactionDetails()).hasSize(2);
     assertThat(report.transactionDetails())
         .extracting(GstReturnReportDto.GstTransactionDetail::direction)
         .containsExactly("OUTPUT", "INPUT");
-    assertThat(report.metadata().source()).isEqualTo(ReportSource.SNAPSHOT);
+    assertThat(report.metadata().source()).isEqualTo(ReportSource.LIVE);
+
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 2));
   }
 
   @Test
-  void gstReturn_ignoresDraftDocuments_withoutMutatingImmutableLineCollections() {
-    AccountingPeriod period = new AccountingPeriod();
-    ReflectionTestUtils.setField(period, "id", 28L);
-    period.setYear(2026);
-    period.setMonth(2);
-    period.setStartDate(LocalDate.of(2026, 2, 1));
-    period.setEndDate(LocalDate.of(2026, 2, 28));
-    period.setStatus(AccountingPeriodStatus.CLOSED);
-
-    when(accountingPeriodRepository.findByCompanyAndId(company, 28L))
-        .thenReturn(Optional.of(period));
-
-    Dealer postedDealer = new Dealer();
-    postedDealer.setName("Posted Dealer");
-    postedDealer.setStateCode("27");
-
-    Invoice postedInvoice = new Invoice();
-    ReflectionTestUtils.setField(postedInvoice, "id", 104L);
-    postedInvoice.setInvoiceNumber("INV-POSTED");
-    postedInvoice.setIssueDate(LocalDate.of(2026, 2, 5));
-    postedInvoice.setStatus("POSTED");
-    postedInvoice.setDealer(postedDealer);
-    InvoiceLine postedInvoiceLine = new InvoiceLine();
-    postedInvoiceLine.setTaxRate(new BigDecimal("18"));
-    postedInvoiceLine.setTaxableAmount(new BigDecimal("100"));
-    postedInvoiceLine.setTaxAmount(new BigDecimal("18"));
-    postedInvoiceLine.setCgstAmount(new BigDecimal("9"));
-    postedInvoiceLine.setSgstAmount(new BigDecimal("9"));
-    postedInvoiceLine.setIgstAmount(BigDecimal.ZERO);
-    ReflectionTestUtils.setField(postedInvoice, "lines", List.of(postedInvoiceLine));
-
-    Dealer draftDealer = new Dealer();
-    draftDealer.setName("Draft Dealer");
-    draftDealer.setStateCode("27");
-
-    Invoice draftInvoice = new Invoice();
-    ReflectionTestUtils.setField(draftInvoice, "id", 105L);
-    draftInvoice.setInvoiceNumber("INV-DRAFT");
-    draftInvoice.setIssueDate(LocalDate.of(2026, 2, 6));
-    draftInvoice.setStatus("DRAFT");
-    draftInvoice.setDealer(draftDealer);
-    InvoiceLine draftInvoiceLine = new InvoiceLine();
-    draftInvoiceLine.setTaxRate(new BigDecimal("18"));
-    draftInvoiceLine.setTaxableAmount(new BigDecimal("1000"));
-    draftInvoiceLine.setTaxAmount(new BigDecimal("180"));
-    draftInvoiceLine.setCgstAmount(new BigDecimal("90"));
-    draftInvoiceLine.setSgstAmount(new BigDecimal("90"));
-    draftInvoiceLine.setIgstAmount(BigDecimal.ZERO);
-    ReflectionTestUtils.setField(draftInvoice, "lines", List.of(draftInvoiceLine));
-
-    Supplier postedSupplier = new Supplier();
-    postedSupplier.setName("Posted Supplier");
-    postedSupplier.setStateCode("29");
-
-    RawMaterialPurchase postedPurchase = new RawMaterialPurchase();
-    ReflectionTestUtils.setField(postedPurchase, "id", 203L);
-    postedPurchase.setInvoiceNumber("PUR-POSTED");
-    postedPurchase.setInvoiceDate(LocalDate.of(2026, 2, 7));
-    postedPurchase.setStatus("POSTED");
-    postedPurchase.setSupplier(postedSupplier);
-    RawMaterialPurchaseLine postedPurchaseLine = new RawMaterialPurchaseLine();
-    postedPurchaseLine.setTaxRate(new BigDecimal("18"));
-    postedPurchaseLine.setQuantity(new BigDecimal("10"));
-    postedPurchaseLine.setReturnedQuantity(BigDecimal.ZERO);
-    postedPurchaseLine.setCostPerUnit(new BigDecimal("10"));
-    postedPurchaseLine.setLineTotal(new BigDecimal("118"));
-    postedPurchaseLine.setTaxAmount(new BigDecimal("18"));
-    postedPurchaseLine.setCgstAmount(BigDecimal.ZERO);
-    postedPurchaseLine.setSgstAmount(BigDecimal.ZERO);
-    postedPurchaseLine.setIgstAmount(new BigDecimal("18"));
-    postedPurchase.setLines(List.of(postedPurchaseLine));
-
-    Supplier draftSupplier = new Supplier();
-    draftSupplier.setName("Draft Supplier");
-    draftSupplier.setStateCode("29");
-
-    RawMaterialPurchase draftPurchase = new RawMaterialPurchase();
-    ReflectionTestUtils.setField(draftPurchase, "id", 204L);
-    draftPurchase.setInvoiceNumber("PUR-DRAFT");
-    draftPurchase.setInvoiceDate(LocalDate.of(2026, 2, 8));
-    draftPurchase.setStatus("DRAFT");
-    draftPurchase.setSupplier(draftSupplier);
-    RawMaterialPurchaseLine draftPurchaseLine = new RawMaterialPurchaseLine();
-    draftPurchaseLine.setTaxRate(new BigDecimal("18"));
-    draftPurchaseLine.setQuantity(new BigDecimal("10"));
-    draftPurchaseLine.setReturnedQuantity(BigDecimal.ZERO);
-    draftPurchaseLine.setCostPerUnit(new BigDecimal("100"));
-    draftPurchaseLine.setLineTotal(new BigDecimal("1180"));
-    draftPurchaseLine.setTaxAmount(new BigDecimal("180"));
-    draftPurchaseLine.setCgstAmount(BigDecimal.ZERO);
-    draftPurchaseLine.setSgstAmount(BigDecimal.ZERO);
-    draftPurchaseLine.setIgstAmount(new BigDecimal("180"));
-    draftPurchase.setLines(List.of(draftPurchaseLine));
-
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(postedInvoice, draftInvoice));
-
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(postedPurchase, draftPurchase));
-
-    GstReturnReportDto report = reportService.gstReturn(28L);
-
-    assertThat(report.outputTax().total()).isEqualByComparingTo("18.00");
-    assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("18.00");
-    assertThat(report.netLiability().total()).isEqualByComparingTo("0.00");
-    assertThat(report.transactionDetails())
-        .extracting(GstReturnReportDto.GstTransactionDetail::referenceNumber)
-        .containsExactlyInAnyOrder("INV-POSTED", "PUR-POSTED");
-  }
-
-  @Test
-  void gstReturn_rejectsTaxedInvoiceLinesMissingCanonicalTaxableAmount() {
-    AccountingPeriod period = new AccountingPeriod();
-    ReflectionTestUtils.setField(period, "id", 25L);
-    period.setYear(2026);
-    period.setMonth(2);
-    period.setStartDate(LocalDate.of(2026, 2, 1));
-    period.setEndDate(LocalDate.of(2026, 2, 28));
-    period.setStatus(AccountingPeriodStatus.CLOSED);
-
-    when(accountingPeriodRepository.findByCompanyAndId(company, 25L))
-        .thenReturn(Optional.of(period));
-
-    Dealer dealer = new Dealer();
-    dealer.setName("Dealer One");
-    dealer.setStateCode("27");
-
-    Invoice invoice = new Invoice();
-    ReflectionTestUtils.setField(invoice, "id", 101L);
-    invoice.setInvoiceNumber("INV-101");
-    invoice.setIssueDate(LocalDate.of(2026, 2, 10));
-    invoice.setStatus("POSTED");
-    invoice.setDealer(dealer);
-
-    InvoiceLine invoiceLine = new InvoiceLine();
-    invoiceLine.setQuantity(BigDecimal.ONE);
-    invoiceLine.setUnitPrice(new BigDecimal("100"));
-    invoiceLine.setTaxRate(new BigDecimal("18"));
-    invoiceLine.setLineTotal(new BigDecimal("118"));
-    invoiceLine.setTaxAmount(new BigDecimal("18"));
-    invoiceLine.setCgstAmount(new BigDecimal("9"));
-    invoiceLine.setSgstAmount(new BigDecimal("9"));
-    invoiceLine.setIgstAmount(BigDecimal.ZERO);
-    invoice.getLines().add(invoiceLine);
-
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(invoice));
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of());
-
-    assertThatThrownBy(() -> reportService.gstReturn(25L))
-        .isInstanceOf(ApplicationException.class)
-        .satisfies(
-            ex -> {
-              ApplicationException applicationException = (ApplicationException) ex;
-              assertThat(applicationException.getErrorCode())
-                  .isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
-              assertThat(applicationException.getMessage()).contains("INV-101");
-              assertThat(applicationException.getMessage())
-                  .contains("taxable amount is required and must be non-negative");
-            });
-  }
-
-  @Test
-  void gstReturn_rejectsTaxedInvoiceLinesWithNegativeTaxableAmount() {
+  void gstReturn_usesPeriodDatesWhenReconciliationDatesAreMissing() {
     AccountingPeriod period = new AccountingPeriod();
     ReflectionTestUtils.setField(period, "id", 26L);
     period.setYear(2026);
     period.setMonth(2);
     period.setStartDate(LocalDate.of(2026, 2, 1));
     period.setEndDate(LocalDate.of(2026, 2, 28));
-    period.setStatus(AccountingPeriodStatus.CLOSED);
-
+    period.setStatus(AccountingPeriodStatus.OPEN);
     when(accountingPeriodRepository.findByCompanyAndId(company, 26L))
         .thenReturn(Optional.of(period));
 
-    Dealer dealer = new Dealer();
-    dealer.setName("Dealer Two");
-    dealer.setStateCode("27");
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 2)))
+        .thenReturn(new GstReportBreakdownDto());
 
-    Invoice invoice = new Invoice();
-    ReflectionTestUtils.setField(invoice, "id", 102L);
-    invoice.setInvoiceNumber("INV-102");
-    invoice.setIssueDate(LocalDate.of(2026, 2, 11));
-    invoice.setStatus("POSTED");
-    invoice.setDealer(dealer);
+    GstReturnReportDto report = reportService.gstReturn(26L);
 
-    InvoiceLine invoiceLine = new InvoiceLine();
-    invoiceLine.setQuantity(BigDecimal.ONE);
-    invoiceLine.setUnitPrice(new BigDecimal("100"));
-    invoiceLine.setTaxRate(new BigDecimal("18"));
-    invoiceLine.setTaxableAmount(new BigDecimal("-1"));
-    invoiceLine.setLineTotal(new BigDecimal("118"));
-    invoiceLine.setTaxAmount(new BigDecimal("18"));
-    invoiceLine.setCgstAmount(new BigDecimal("9"));
-    invoiceLine.setSgstAmount(new BigDecimal("9"));
-    invoiceLine.setIgstAmount(BigDecimal.ZERO);
-    invoice.getLines().add(invoiceLine);
-
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(invoice));
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of());
-
-    assertThatThrownBy(() -> reportService.gstReturn(26L))
-        .isInstanceOf(ApplicationException.class)
-        .satisfies(
-            ex -> {
-              ApplicationException applicationException = (ApplicationException) ex;
-              assertThat(applicationException.getErrorCode())
-                  .isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
-              assertThat(applicationException.getMessage()).contains("INV-102");
-              assertThat(applicationException.getMessage())
-                  .contains("taxable amount is required and must be non-negative");
-            });
-  }
-
-  @Test
-  void gstReturn_rejectsTaxedInvoiceLinesMissingTaxableAmountWithoutInvoiceNumber() {
-    AccountingPeriod period = new AccountingPeriod();
-    ReflectionTestUtils.setField(period, "id", 27L);
-    period.setYear(2026);
-    period.setMonth(2);
-    period.setStartDate(LocalDate.of(2026, 2, 1));
-    period.setEndDate(LocalDate.of(2026, 2, 28));
-    period.setStatus(AccountingPeriodStatus.CLOSED);
-
-    when(accountingPeriodRepository.findByCompanyAndId(company, 27L))
-        .thenReturn(Optional.of(period));
-
-    Dealer dealer = new Dealer();
-    dealer.setName("Dealer Three");
-    dealer.setStateCode("27");
-
-    Invoice invoice = new Invoice();
-    ReflectionTestUtils.setField(invoice, "id", 103L);
-    invoice.setIssueDate(LocalDate.of(2026, 2, 12));
-    invoice.setStatus("POSTED");
-    invoice.setDealer(dealer);
-
-    InvoiceLine invoiceLine = new InvoiceLine();
-    invoiceLine.setQuantity(BigDecimal.ONE);
-    invoiceLine.setUnitPrice(new BigDecimal("100"));
-    invoiceLine.setTaxRate(new BigDecimal("18"));
-    invoiceLine.setLineTotal(new BigDecimal("118"));
-    invoiceLine.setTaxAmount(new BigDecimal("18"));
-    invoiceLine.setCgstAmount(new BigDecimal("9"));
-    invoiceLine.setSgstAmount(new BigDecimal("9"));
-    invoiceLine.setIgstAmount(BigDecimal.ZERO);
-    invoice.getLines().add(invoiceLine);
-
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of(invoice));
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            company, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
-        .thenReturn(List.of());
-
-    assertThatThrownBy(() -> reportService.gstReturn(27L))
-        .isInstanceOf(ApplicationException.class)
-        .satisfies(
-            ex -> {
-              ApplicationException applicationException = (ApplicationException) ex;
-              assertThat(applicationException.getErrorCode())
-                  .isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
-              assertThat(applicationException.getMessage()).contains("unknown");
-              assertThat(applicationException.getMessage())
-                  .contains("taxable amount is required and must be non-negative");
-            });
+    assertThat(report.periodStart()).isEqualTo(LocalDate.of(2026, 2, 1));
+    assertThat(report.periodEnd()).isEqualTo(LocalDate.of(2026, 2, 28));
+    assertThat(report.outputTax().total()).isEqualByComparingTo("0.00");
+    assertThat(report.inputTaxCredit().total()).isEqualByComparingTo("0.00");
+    assertThat(report.netLiability().total()).isEqualByComparingTo("0.00");
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 2));
   }
 
   @Test
@@ -876,11 +728,8 @@ class ReportServiceInventoryAndGstTest {
 
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(Optional.of(period));
-    when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(any(), any(), any()))
-        .thenReturn(List.of());
-    when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
-            any(), any(), any()))
-        .thenReturn(List.of());
+    when(taxService.generateGstReportBreakdown(YearMonth.of(2026, 3)))
+        .thenReturn(new GstReportBreakdownDto());
 
     GstReturnReportDto report = reportService.gstReturn(null);
 
@@ -888,5 +737,6 @@ class ReportServiceInventoryAndGstTest {
     assertThat(report.rateSummaries()).isEmpty();
     assertThat(report.transactionDetails()).isEmpty();
     assertThat(report.netLiability().total()).isEqualByComparingTo("0.00");
+    verify(taxService).generateGstReportBreakdown(YearMonth.of(2026, 3));
   }
 }

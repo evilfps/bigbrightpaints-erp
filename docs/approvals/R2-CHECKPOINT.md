@@ -1,89 +1,96 @@
 # R2 Checkpoint
 
-Last reviewed: 2026-04-16
+Last reviewed: 2026-04-26
 
 ## Scope
-- Feature: `tenant-admin-backend-hard-cut` slices 1-2 + slice 8 pending-status index hardening
-- Branch: codex/tenant-admin-hardcut-s1 (base: `fc3266800`)
+- Feature: `default-account-clear-semantics-followup-hardcut`
+- Branch: refactor/accounting-centralization-20260420 (base: origin/main)
 - PR: pending
 - Review candidate:
-  - keep tenant-admin user assignment constrained to `ROLE_ACCOUNTING`, `ROLE_FACTORY`, `ROLE_SALES`, `ROLE_DEALER`
-  - keep tenant-admin `ROLE_ADMIN` / `ROLE_SUPER_ADMIN` assignment denied with explicit access-denied auditing
-  - keep tenant-admin custom/unknown role creation removed from the admin users workflow surface
-  - keep superadmin settings/roles/notify control-plane hosts platform-scope-only for superadmin callers
-  - keep denied role-mutation audit body extraction fail-closed when request body cache is unavailable
-  - keep normalized pending-status predicates (`upper(trim(status))='PENDING'`) index-backed for tenant-admin approval inbox/dashboard queries
-- Why this is R2: this packet changes high-risk auth/RBAC and superadmin control-plane enforcement behavior under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`; it also changes `erp-domain/src/main/resources/db/migration_v2/` in slice 8 to keep normalized pending query predicates index-backed.
+  - add explicit `clearAccountFields` semantics to the existing accounting default-account update route so validators can intentionally clear a configured default without treating omitted/null account IDs as accidental mutation intent
+  - keep default-account updates company-scoped through the existing `CompanyContextService` + company-scoped account lookup owner
+  - audit default-account update/clear outcomes through accounting business audit events
+  - seed and verify deterministic MOCK/RIVAL inventory, COGS, revenue, discount, and tax default-account baselines for validation runtime dispatch/invoice proofs
+  - preserve downstream fail-closed configuration readiness when a required default is intentionally cleared
+- Why this is R2: this packet changes high-risk accounting configuration behavior in `CompanyDefaultAccountsService`, validation seeding, and the validation runtime reset script.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserService.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/RequestBodyCachingFilter.java`
-  - `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java`
+  - `erp-domain/src/main/resources/db/migration_v2/V184__accounting_truth_rls_hard_cut.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V185__accounting_rls_fail_closed_session_binding.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V186__account_code_case_insensitive_uniqueness.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V187__dealer_receipt_payment_event_hard_cut.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V188__supplier_auto_settlement_due_date_support.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V189__reconciliation_discrepancy_resolution_alignment.sql`
+  - `scripts/reset_final_validation_runtime.sh`
 - Contract surfaces affected:
-  - tenant-admin create/update user role validation and assignment behavior
-  - role-escalation denial semantics for tenant-admin actors
-  - audit failure metadata for blocked privileged role attempts
-  - platform-scope host enforcement for superadmin settings/role/notify control-plane routes
-  - denied-path role target extraction behavior on oversized/uncached request bodies
-  - tenant-admin dashboard and approval inbox pending-status lookup performance under normalized status semantics
+  - PUT /api/v1/accounting/default-accounts
+  - GET /api/v1/accounting/default-accounts
+  - GET /api/v1/accounting/configuration/health
+  - validation runtime reset fixture verification for seeded default-account readiness
 - Failure mode if wrong:
-  - tenant-admin could assign privileged or unknown roles
-  - tenant-scoped superadmin sessions could execute platform-only notify/settings/roles endpoints
-  - denied-path auditing could attempt raw request-stream reads instead of failing closed
-  - audit trail for blocked role escalation could become inconsistent
-  - tenant-admin dashboard approval summary could degrade under polling load if normalized status predicates are not index-backed
+  - omitted/null fields could still be mistaken for explicit clears, or explicit clears could mutate unrelated default-account slots
+  - runtime validation could start without required dispatch/invoice defaults, forcing manual setup drift
+  - downstream dispatch/invoice accounting readiness could stay healthy after a required default is cleared instead of failing closed
+  - default-account changes could lose audit visibility or cross company boundaries
 
 ## Approval Authority
 - Mode: orchestrator
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
 - Approval status: branch-local integration candidate pending PR review
-- Basis: this is a hard-cut tenant-admin RBAC tightening with no compatibility bridge; rollout remains pre-deployment but still requires explicit R2 evidence because auth/RBAC semantics changed.
+- Basis: this is a hard-cut accounting configuration hardening that adds an explicit clear path and deterministic validation defaults without widening tenant, auth, accounting posting, report, export, or payment semantics.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: this packet narrows tenant-admin privileges, hardens platform-only superadmin boundaries, and keeps denied-path parsing fail-closed; it does not widen tenant boundaries or introduce destructive migration behavior.
+- Reason: this packet only makes existing accounting default-account mutation intent explicit, adds runtime fixture verification, and does not widen privileges, change tenant boundaries, or introduce destructive migration behavior.
 
 ## Rollback Owner
 - Owner: Droid mission orchestrator
 - Rollback method:
-  - before merge: revert the packet if tenant-admin role assignment or superadmin platform-only host contracts regress
-  - after merge: revert packet and rerun focused security/auth tests plus enterprise policy gates
+  - before merge: revert the packet if default-account update/clear semantics or validation runtime readiness regress
+  - after merge: revert packet and rerun focused default-account, accounting proof, runtime reset, OpenAPI, compile, High-Risk Change Control, and PR parity checks
 - Rollback trigger:
-  - any non-allowlisted role can be assigned from the admin users API surface
-  - tenant-scoped superadmin can access superadmin settings/roles/notify control-plane hosts
-  - denied role-mutation audit extraction no longer fails closed when request body cache is unavailable
-  - tenant-admin privileged role denial/audit behavior diverges from the contract
+  - `clearAccountFields` cannot intentionally clear a requested default-account slot, or it clears unrelated slots
+  - omitted/null account ID fields start clearing defaults without explicit clear intent
+  - reset validation runtime no longer starts with MOCK/RIVAL ready default-account baselines
+  - configuration health stays healthy after a required default is cleared
+  - default-account public contract or audit behavior drifts from the scoped packet intent
   - policy gate fails after integrating this packet
 
 ## Expiry
-- Valid until: 2026-04-23
-- Re-evaluate if: scope expands into broader auth, company-control-plane, or migration-path changes.
+- Valid until: 2026-05-03
+- Re-evaluate if: scope expands beyond default-account clear semantics and validation runtime seeding into broader auth, tenant isolation, payment semantics, destructive migrations, or accounting posting redesign.
 
 ## Verification Evidence
 - Scope-to-evidence mapping:
-  - tenant-admin role allowlist + escalation denial contract: commit `5fe768a5d` and targeted tests `AdminUserServiceTest`, `AuthTenantAuthorityIT#admin_cannot_create_tenant_admin_user+tenant_admin_can_still_create_non_privileged_user`
-  - platform-only superadmin host deny (`settings`, `roles`, `notify`): `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml` testcase `tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts`
-  - denied role-mutation body extraction fail-closed: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
-  - normalized pending-status predicate index hardening: migration `V183__credit_pending_status_norm_indexes.sql` + focused verification (`AdminApprovalServiceTest`, `AdminDashboardSecurityIT`)
+  - Explicit clear semantics: `CompanyDefaultAccountsRequest.clearAccountFields` and `CompanyDefaultAccountsService` clear only requested slots, reject set+clear conflicts, and keep null/omitted IDs as no-op partial update semantics.
+  - Runtime baseline: `ValidationSeedDataInitializer` creates company-scoped MOCK/RIVAL inventory, COGS, revenue, discount, and tax defaults; `scripts/reset_final_validation_runtime.sh` now verifies those slots and account types.
+  - Auditability: `AccountingComplianceAuditService` records `DEFAULT_ACCOUNTS_CLEARED` / `DEFAULT_ACCOUNTS_UPDATED` business audit events with before/after default-account state.
+  - Fail-closed proof: compose-backed curl cleared MOCK `taxAccountId`, observed configuration health fail closed, restored the same tax account, and observed health recover.
+  - Migration governance: Flyway v2 schema changes `V184` through `V189` are covered by the migration and rollback runbooks, and the new PR lane must be validated with high-risk and PR parity checks against the remote default branch.
 - Commands run:
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=RequestBodyCachingFilterTest,CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT#tenant_scoped_super_admin_cannot_access_platform_only_superadmin_hosts test`
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AdminApprovalServiceTest,AdminDashboardSecurityIT test`
-  - `bash ci/lint-knowledgebase.sh`
-  - `bash ci/check-architecture.sh`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CompanyDefaultAccountsServiceTest,AccountControllerTest,ValidationSeedDataInitializerTest' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
+  - `bash scripts/reset_final_validation_runtime.sh`
+  - `commands.strict-runtime-smoke-check`
+  - `curl` runtime probes for GET defaults, PUT clear `taxAccountId`, configuration health fail-closed, PUT restore, and audit row inspection
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='CriticalAccountingAxesIT,AccountingEndpointContractTest,SettlementControllerIdempotencyHeaderParityTest,ReconciliationControlsIT' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/modules/accounting/dto/CompanyDefaultAccountsRequest.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountController.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountResolutionOwnerService.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsService.java,src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java,src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountControllerTest.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/service/CompanyDefaultAccountsServiceTest.java'`
   - `bash ci/check-high-risk-changes.sh`
+  - `python3 scripts/pr_ci_parity.py --base origin/main --head HEAD`
+  - `git diff --check`
 - Result summary:
-  - focused security/auth tests passed for this slice (`RequestBodyCachingFilterTest`, `CompanyContextFilterControlPlaneBindingTest`, `AuthTenantAuthorityIT` targeted method)
-  - tenant-scoped superadmin deny contract now explicitly covered on canonical notify POST call
-  - normalized pending-status queries remain behavior-compatible and now have dedicated expression indexes for dashboard/inbox load paths
-  - policy gates (`lint-knowledgebase`, `check-architecture`, `check-high-risk-changes`) passed
+  - focused default-account/controller/validation-seed tests passed
+  - OpenAPI snapshot refreshed and exposes optional `clearAccountFields`
+  - runtime reset verified actors, tenant fixtures, dealers, finance/UAT fixtures, and the new default-account baseline checks
+  - runtime clear proof showed baseline health `healthy=true`, clear response `taxAccountId=null`, health after clear `healthy=false`, restore response `taxAccountId=7`, restored health `healthy=true`
+  - audit DB inspection showed one `DEFAULT_ACCOUNTS_CLEARED` and one `DEFAULT_ACCOUNTS_UPDATED` event for `COMPANY_DEFAULT_ACCOUNTS`
+  - targeted accounting proof, baseline test pack, compile, scoped spotless check, and diff whitespace check passed
 - Artifact note:
-  - evidence bundle index: `docs/approvals/evidence/2026-04-16-r2-slice2/README.md`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.core.security.RequestBodyCachingFilterTest.txt`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest.txt`
-  - test evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.txt`
-  - testcase anchor: `docs/approvals/evidence/2026-04-16-r2-slice2/TEST-com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT.xml`
-  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-enterprise-policy.txt`
-  - archived policy evidence: `docs/approvals/evidence/2026-04-16-r2-slice2/check-codex-review-guidelines.txt`
+  - inline evidence in this checkpoint records the Maven proof, runtime reset, curl clear/restore, audit inspection, and OpenAPI observations for the scoped default-account clear semantics packet.

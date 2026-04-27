@@ -43,7 +43,8 @@ class OpeningStockImportControllerTest {
         new OpeningStockImportController(openingStockImportService, skuReadinessService);
     MockMultipartFile file = csvFile();
     OpeningStockImportResponse response =
-        new OpeningStockImportResponse(batchKey("import-key"), 1, 1, 0, List.of(), List.of());
+        new OpeningStockImportResponse(
+            batchKey("import-key"), false, 1, 1, 0, List.of(), List.of());
     when(openingStockImportService.importOpeningStock(file, "import-key", batchKey("import-key")))
         .thenReturn(response);
 
@@ -53,6 +54,27 @@ class OpeningStockImportControllerTest {
     verify(openingStockImportService)
         .importOpeningStock(file, "import-key", batchKey("import-key"));
     assertThat(response.importedCount()).isEqualTo(response.rowsProcessed());
+  }
+
+  @Test
+  void previewOpeningStock_delegatesBatchKeyToService() {
+    OpeningStockImportController controller =
+        new OpeningStockImportController(openingStockImportService, skuReadinessService);
+    MockMultipartFile file = csvFile();
+    OpeningStockImportResponse response =
+        new OpeningStockImportResponse("preview-batch", true, 1, 0, 1, List.of(), List.of());
+    when(openingStockImportService.previewOpeningStock(file, "preview-batch")).thenReturn(response);
+
+    OpeningStockImportResponse payload =
+        controller
+            .previewOpeningStock("preview-batch", file, authentication("ROLE_ADMIN"))
+            .getBody()
+            .data();
+
+    verify(openingStockImportService).previewOpeningStock(file, "preview-batch");
+    assertThat(payload.preview()).isTrue();
+    assertThat(payload.rowsProcessed()).isEqualTo(1);
+    assertThat(payload.importedCount()).isZero();
   }
 
   @Test
@@ -75,12 +97,13 @@ class OpeningStockImportControllerTest {
     OpeningStockImportResponse response =
         new OpeningStockImportResponse(
             batchKey("factory-key"),
+            false,
             0,
             0,
             1,
             List.of(
                 new OpeningStockImportResponse.ImportRowResult(
-                    1L, "FG-1", "FINISHED_GOOD", rawReadiness)),
+                    1L, "FG-1", "FINISHED_GOOD", null, null, null, null, null, null, rawReadiness)),
             List.of(
                 new OpeningStockImportResponse.ImportError(
                     2L,
@@ -123,12 +146,13 @@ class OpeningStockImportControllerTest {
     OpeningStockImportResponse response =
         new OpeningStockImportResponse(
             batchKey("accounting-key"),
+            false,
             0,
             0,
             1,
             List.of(
                 new OpeningStockImportResponse.ImportRowResult(
-                    1L, "FG-1", "FINISHED_GOOD", rawReadiness)),
+                    1L, "FG-1", "FINISHED_GOOD", null, null, null, null, null, null, rawReadiness)),
             List.of(
                 new OpeningStockImportResponse.ImportError(
                     2L,

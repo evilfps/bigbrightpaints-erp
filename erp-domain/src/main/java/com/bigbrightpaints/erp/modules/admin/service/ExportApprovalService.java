@@ -22,10 +22,10 @@ import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
-import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
@@ -44,24 +44,24 @@ public class ExportApprovalService {
   private final CompanyContextService companyContextService;
   private final UserAccountRepository userAccountRepository;
   private final ExportRequestRepository exportRequestRepository;
-  private final SystemSettingsService systemSettingsService;
+  private final SensitiveDisclosurePolicyOwner sensitiveDisclosurePolicyOwner;
   private final EnterpriseAuditTrailService enterpriseAuditTrailService;
 
   public ExportApprovalService(
       CompanyContextService companyContextService,
       UserAccountRepository userAccountRepository,
       ExportRequestRepository exportRequestRepository,
-      SystemSettingsService systemSettingsService,
+      SensitiveDisclosurePolicyOwner sensitiveDisclosurePolicyOwner,
       EnterpriseAuditTrailService enterpriseAuditTrailService) {
     this.companyContextService = companyContextService;
     this.userAccountRepository = userAccountRepository;
     this.exportRequestRepository = exportRequestRepository;
-    this.systemSettingsService = systemSettingsService;
+    this.sensitiveDisclosurePolicyOwner = sensitiveDisclosurePolicyOwner;
     this.enterpriseAuditTrailService = enterpriseAuditTrailService;
   }
 
   public boolean isApprovalRequired() {
-    return systemSettingsService.isExportApprovalRequired();
+    return sensitiveDisclosurePolicyOwner.exportApprovalRequired();
   }
 
   @Transactional
@@ -139,26 +139,8 @@ public class ExportApprovalService {
     Company company = companyContextService.requireCurrentCompany();
     ExportRequest request = requireRequest(company, requestId);
     UserAccount actor = resolveActor(company);
-
-    if (request.getUserId() == null || !request.getUserId().equals(actor.getId())) {
-      throw new ApplicationException(
-              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
-              "Export request does not belong to the authenticated actor")
-          .withDetail("requestId", requestId)
-          .withDetail("actor", actor.getEmail());
-    }
-
-    if (!isApprovalRequired()) {
-      return buildDownloadPayload(request, actor);
-    }
-
-    if (request.getStatus() != ExportApprovalStatus.APPROVED) {
-      throw new ApplicationException(
-              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
-              "Export request is not approved for download")
-          .withDetail("requestId", requestId)
-          .withDetail("status", request.getStatus().name());
-    }
+    sensitiveDisclosurePolicyOwner.enforceRequesterOwnedDownload(request, actor);
+    sensitiveDisclosurePolicyOwner.enforceApprovalGate(request);
 
     return buildDownloadPayload(request, actor);
   }
@@ -287,13 +269,32 @@ public class ExportApprovalService {
         float margin = 56f;
         float y = page.getMediaBox().getUpperRightY() - margin;
 
-        writePdfLine(content, PDType1Font.HELVETICA_BOLD, 18f, margin, y, normalizedReportType + " export");
+        writePdfLine(
+            content, PDType1Font.HELVETICA_BOLD, 18f, margin, y, normalizedReportType + " export");
         y -= 24f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Request ID: " + safePdfValue(request != null ? request.getId() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Request ID: " + safePdfValue(request != null ? request.getId() : null));
         y -= 18f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Status: " + safePdfValue(request != null ? request.getStatus() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Status: " + safePdfValue(request != null ? request.getStatus() : null));
         y -= 18f;
-        writePdfLine(content, PDType1Font.HELVETICA, 12f, margin, y, "Parameters: " + safePdfValue(request != null ? request.getParameters() : null));
+        writePdfLine(
+            content,
+            PDType1Font.HELVETICA,
+            12f,
+            margin,
+            y,
+            "Parameters: " + safePdfValue(request != null ? request.getParameters() : null));
       }
 
       document.save(out);
@@ -376,11 +377,7 @@ public class ExportApprovalService {
     if (value == null) {
       return "";
     }
-    return value
-        .toString()
-        .replaceAll("[\\p{Cntrl}]", " ")
-        .replaceAll("\\s+", " ")
-        .trim();
+    return value.toString().replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
   }
 
   private void recordExportBusinessEvent(

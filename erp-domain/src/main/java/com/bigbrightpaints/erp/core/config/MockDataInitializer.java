@@ -16,6 +16,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 
@@ -97,13 +98,11 @@ public class MockDataInitializer {
   private static final String P2P_RECEIPT_IDEMPOTENCY_KEY = "mock-p2p-grn-001";
   private static final String P2P_INVOICE_NUMBER = "MOCK-P2P-INV-001";
   private static final String P2P_BATCH_CODE = "RM-RESIN-MOCK-P2P-001";
-  private static final LocalDate P2P_ORDER_DATE = LocalDate.of(2026, 2, 10);
-  private static final LocalDate P2P_RECEIPT_DATE = LocalDate.of(2026, 2, 12);
-  private static final LocalDate P2P_INVOICE_DATE = LocalDate.of(2026, 2, 14);
   private static final BigDecimal DEFAULT_FINISHED_GOOD_BASE_PRICE = new BigDecimal("20.00");
   private static final BigDecimal DEFAULT_FINISHED_GOOD_GST_RATE = new BigDecimal("18.00");
 
   @Bean
+  @Order(20)
   CommandLineRunner seedMockData(
       CompanyRepository companyRepository,
       RoleRepository roleRepository,
@@ -133,7 +132,14 @@ public class MockDataInitializer {
       @Value("${erp.seed.mock-admin.password:}") String mockAdminPassword) {
     return args -> {
       Company company = createCompany(companyRepository);
-      Map<String, Account> accounts = seedAccounts(company, accountRepository, companyRepository);
+      String previousCompanyCode = CompanyContextHolder.getCompanyCode();
+      CompanyContextHolder.setCompanyCode(company.getCode());
+      Map<String, Account> accounts;
+      try {
+        accounts = seedAccounts(company, accountRepository, companyRepository);
+      } finally {
+        restoreCompanyContext(previousCompanyCode);
+      }
       UserAccount seededAdmin =
           seedRolesAndUsers(
               roleRepository,
@@ -566,9 +572,11 @@ public class MockDataInitializer {
     request.setAmountRequested(new BigDecimal("75000.00"));
     request.setStatus("PENDING");
     request.setReason(APPROVAL_CREDIT_REASON);
-    if (dealer.getPortalUser() != null) {
+    if (dealer.getPortalUser() != null && dealer.getPortalUser().getId() != null) {
       request.setRequesterUserId(dealer.getPortalUser().getId());
-      request.setRequesterEmail(dealer.getPortalUser().getEmail());
+    }
+    if (StringUtils.hasText(dealer.getEmail())) {
+      request.setRequesterEmail(dealer.getEmail());
     }
     creditRequestRepository.save(request);
   }
@@ -590,6 +598,9 @@ public class MockDataInitializer {
     if (rawMaterial == null || rawMaterial.getId() == null) {
       return;
     }
+    LocalDate p2pOrderDate = CompanyTime.today(company).minusDays(6);
+    LocalDate p2pReceiptDate = p2pOrderDate.plusDays(2);
+    LocalDate p2pInvoiceDate = p2pReceiptDate.plusDays(2);
 
     if (rawMaterialPurchaseRepository
         .findByCompanyAndInvoiceNumberIgnoreCase(company, P2P_INVOICE_NUMBER)
@@ -607,7 +618,7 @@ public class MockDataInitializer {
               new PurchaseOrderRequest(
                   supplier.getId(),
                   P2P_ORDER_NUMBER,
-                  P2P_ORDER_DATE,
+                  p2pOrderDate,
                   "Seeded PO for MOCK P2P validation chain",
                   List.of(
                       new PurchaseOrderLineRequest(
@@ -636,7 +647,7 @@ public class MockDataInitializer {
               new GoodsReceiptRequest(
                   purchaseOrder.getId(),
                   P2P_RECEIPT_NUMBER,
-                  P2P_RECEIPT_DATE,
+                  p2pReceiptDate,
                   "Seeded GRN for MOCK P2P validation chain",
                   P2P_RECEIPT_IDEMPOTENCY_KEY,
                   List.of(
@@ -660,7 +671,7 @@ public class MockDataInitializer {
         new RawMaterialPurchaseRequest(
             supplier.getId(),
             P2P_INVOICE_NUMBER,
-            P2P_INVOICE_DATE,
+            p2pInvoiceDate,
             "Seeded purchase invoice for MOCK P2P validation chain",
             purchaseOrder.getId(),
             goodsReceipt.getId(),
@@ -962,6 +973,10 @@ public class MockDataInitializer {
       String batchCode,
       BigDecimal qty,
       BigDecimal cost) {
+    if (rawMaterial.getId() != null
+        && batchRepository.existsByRawMaterialAndBatchCode(rawMaterial, batchCode)) {
+      return;
+    }
     RawMaterialBatch batch = new RawMaterialBatch();
     batch.setRawMaterial(rawMaterial);
     batch.setBatchCode(batchCode);
@@ -971,6 +986,14 @@ public class MockDataInitializer {
     batchRepository.save(batch);
     rawMaterial.setCurrentStock(rawMaterial.getCurrentStock().add(qty));
     rawMaterialRepository.save(rawMaterial);
+  }
+
+  private static void restoreCompanyContext(String previousCompanyCode) {
+    if (StringUtils.hasText(previousCompanyCode)) {
+      CompanyContextHolder.setCompanyCode(previousCompanyCode);
+    } else {
+      CompanyContextHolder.clear();
+    }
   }
 
   private void seedSalesPurchaseAndCogs(

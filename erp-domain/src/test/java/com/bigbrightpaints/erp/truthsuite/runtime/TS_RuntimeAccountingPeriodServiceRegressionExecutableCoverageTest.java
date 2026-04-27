@@ -37,10 +37,10 @@ import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepan
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -74,7 +74,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
   @Mock private PayrollRunRepository payrollRunRepository;
   @Mock private ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository;
   @Mock private PeriodCloseRequestRepository periodCloseRequestRepository;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  @Mock private ObjectProvider<JournalEntryService> journalEntryServiceProvider;
   @Mock private PeriodCloseHook periodCloseHook;
   @Mock private AccountingPeriodSnapshotService snapshotService;
 
@@ -362,7 +362,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
         payrollRunRepository,
         reconciliationDiscrepancyRepository,
         periodCloseRequestRepository,
-        accountingFacadeProvider,
+        journalEntryServiceProvider,
         periodCloseHook,
         snapshotService);
   }

@@ -176,8 +176,7 @@ class PurchaseJournalFacadeOperationsTest {
     when(referenceNumberService.purchaseReturnReference(company, supplier)).thenReturn("  RET-1  ");
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "RET-1"))
         .thenReturn(Optional.empty());
-    when(accountingService.createStandardJournal(any()))
-        .thenReturn(journalEntryDto(12L, "RET-1"));
+    when(accountingService.createStandardJournal(any())).thenReturn(journalEntryDto(12L, "RET-1"));
 
     operations.postPurchaseReturn(
         7L,

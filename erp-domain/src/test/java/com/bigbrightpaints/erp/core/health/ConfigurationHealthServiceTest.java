@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,8 +16,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -166,6 +170,107 @@ class ConfigurationHealthServiceTest {
               assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT");
               assertThat(issue.reference()).isEqualTo("GST_OUTPUT");
             });
+  }
+
+  @Test
+  void evaluateCompany_reportsFinishedGoodValuationGapAsFinishedGoodAccountIssue() {
+    Company company = configuredCompany("CFG-FG-VALUATION");
+    company.setDefaultGstRate(BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
+
+    FinishedGood finishedGood = new FinishedGood();
+    finishedGood.setProductCode("FG-GST");
+    finishedGood.setValuationAccountId(null);
+    finishedGood.setRevenueAccountId(301L);
+    finishedGood.setTaxAccountId(302L);
+
+    when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company))
+        .thenReturn(List.of(finishedGood));
+    when(rawMaterialRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of());
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of());
+
+    ConfigurationHealthService.ConfigurationHealthReport report =
+        configurationHealthService.evaluateCompany(company);
+
+    assertThat(report.healthy()).isFalse();
+    assertThat(report.issues())
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.domain()).isEqualTo("FINISHED_GOOD_ACCOUNT");
+              assertThat(issue.reference()).isEqualTo("FG-GST");
+              assertThat(issue.message()).contains("valuation");
+            });
+  }
+
+  @Test
+  void evaluateCompany_reportsStockCarryingVariantMetadataGapAsFinishedGoodAccountIssue() {
+    Company company = configuredCompany("CFG-FG-VARIANT");
+    company.setDefaultGstRate(BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
+
+    ProductionProduct variant = new ProductionProduct();
+    variant.setCategory("FINISHED_GOOD");
+    variant.setSkuCode("FG-VAR-01");
+    variant.setMetadata(Map.of("fgRevenueAccountId", 401L, "fgTaxAccountId", 402L));
+
+    when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)).thenReturn(List.of());
+    when(rawMaterialRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of());
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of(variant));
+
+    ConfigurationHealthService.ConfigurationHealthReport report =
+        configurationHealthService.evaluateCompany(company);
+
+    assertThat(report.healthy()).isFalse();
+    assertThat(report.issues())
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.domain()).isEqualTo("FINISHED_GOOD_ACCOUNT");
+              assertThat(issue.reference()).isEqualTo("FG-VAR-01");
+              assertThat(issue.message()).contains("valuation");
+            });
+  }
+
+  @Test
+  void evaluateCompany_keepsRawMaterialAndTaxIssuesAlongsideFinishedGoodCoverage() {
+    Company company = configuredCompany("CFG-MIXED-GAPS");
+    company.setDefaultGstRate(new BigDecimal("18.00"));
+    company.setGstInputTaxAccountId(501L);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(503L);
+
+    FinishedGood finishedGood = new FinishedGood();
+    finishedGood.setProductCode("FG-MIXED-01");
+    finishedGood.setValuationAccountId(null);
+    finishedGood.setRevenueAccountId(601L);
+    finishedGood.setTaxAccountId(602L);
+
+    RawMaterial rawMaterial = new RawMaterial();
+    rawMaterial.setSku("RM-RESIN");
+    rawMaterial.setInventoryAccountId(null);
+
+    when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company))
+        .thenReturn(List.of(finishedGood));
+    when(rawMaterialRepository.findByCompanyOrderByNameAsc(company))
+        .thenReturn(List.of(rawMaterial));
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of());
+
+    ConfigurationHealthService.ConfigurationHealthReport report =
+        configurationHealthService.evaluateCompany(company);
+
+    assertThat(report.healthy()).isFalse();
+    assertThat(report.issues())
+        .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("FINISHED_GOOD_ACCOUNT"));
+    assertThat(report.issues())
+        .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("RAW_MATERIAL_ACCOUNT"));
+    assertThat(report.issues())
+        .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT"));
   }
 
   private Company configuredCompany(String code) {

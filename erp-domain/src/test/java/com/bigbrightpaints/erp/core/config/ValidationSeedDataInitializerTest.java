@@ -121,24 +121,6 @@ class ValidationSeedDataInitializerTest {
   }
 
   @Test
-  void validationSeedInitializer_isLoadedFromTestClasspath() {
-    String classLocation =
-        ValidationSeedDataInitializer.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-    String testClassLocation =
-        ValidationSeedDataInitializerTest.class
-            .getProtectionDomain()
-            .getCodeSource()
-            .getLocation()
-            .toExternalForm();
-
-    assertThat(classLocation).isEqualTo(testClassLocation);
-  }
-
-  @Test
   void seedValidationActorsSkipsWhenDisabled() throws Exception {
     CommandLineRunner runner =
         initializer.seedValidationActors(
@@ -278,7 +260,7 @@ class ValidationSeedDataInitializerTest {
     runner.run();
 
     ArgumentCaptor<UserAccount> users = ArgumentCaptor.forClass(UserAccount.class);
-    verify(userAccountRepository, times(15)).save(users.capture());
+    verify(userAccountRepository, times(16)).save(users.capture());
 
     assertThat(users.getAllValues())
         .extracting(UserAccount::getEmail)
@@ -297,6 +279,7 @@ class ValidationSeedDataInitializerTest {
             "validation.blocked.admin@example.com",
             "validation.quota.alpha@example.com",
             "validation.quota.beta@example.com",
+            "validation.tenant.superadmin@example.com",
             "validation.superadmin@example.com");
 
     UserAccount platformUser =
@@ -306,6 +289,17 @@ class ValidationSeedDataInitializerTest {
             .orElseThrow();
     assertThat(platformUser.getAuthScopeCode()).isEqualTo("PLATFORM");
     assertThat(platformUser.getCompany()).isNull();
+
+    UserAccount tenantReopenSuperAdmin =
+        users.getAllValues().stream()
+            .filter(user -> "validation.tenant.superadmin@example.com".equals(user.getEmail()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(tenantReopenSuperAdmin.getAuthScopeCode()).isEqualTo("MOCK");
+    assertThat(tenantReopenSuperAdmin.getCompany()).extracting(Company::getCode).isEqualTo("MOCK");
+    assertThat(tenantReopenSuperAdmin.getRoles())
+        .extracting(Role::getName)
+        .containsExactly("ROLE_SUPER_ADMIN");
 
     UserAccount mockAdmin =
         users.getAllValues().stream()

@@ -18,12 +18,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
-import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
-import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 
 class StatementReportControllerExportGovernanceContractTest {
@@ -39,18 +36,16 @@ class StatementReportControllerExportGovernanceContractTest {
 
     assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class)).isNotNull();
     assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class).value())
-        .isEqualTo("hasAuthority('ROLE_ADMIN')");
+        .isEqualTo(SensitiveDisclosurePolicyOwner.ADMIN_ONLY);
     assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class)).isNotNull();
     assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class).value())
-        .isEqualTo("hasAuthority('ROLE_ADMIN')");
+        .isEqualTo(SensitiveDisclosurePolicyOwner.ADMIN_ONLY);
   }
 
   @Test
   void supplierStatementPdf_logsDeterministicDataExportEvidence() {
     StatementService statementService = mock(StatementService.class);
     AuditService auditService = mock(AuditService.class);
-    CompanyContextService companyContextService = mock(CompanyContextService.class);
-    CompanyClock companyClock = mock(CompanyClock.class);
     byte[] pdf = "pdf".getBytes();
     when(statementService.supplierStatementPdf(
             17L, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
@@ -59,13 +54,9 @@ class StatementReportControllerExportGovernanceContractTest {
     StatementReportController controller =
         new StatementReportController(
             new StatementReportControllerSupport(
-                mock(TaxService.class),
-                mock(JournalEntryService.class),
+                mock(AccountingService.class),
                 mock(SalesReturnService.class),
                 statementService,
-                mock(TemporalBalanceService.class),
-                companyContextService,
-                companyClock,
                 auditService));
 
     ResponseEntity<byte[]> response =

@@ -55,6 +55,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
 
 @Tag("critical")
 @ExtendWith(MockitoExtension.class)
@@ -207,14 +208,41 @@ class DealerServiceTest {
   }
 
   @Test
-  void createDealer_rejectsDuplicatePortalMappingGracefully() {
+  void createDealer_reusesExistingDealerByPortalEmailMapping() {
+    Dealer existing = new Dealer();
+    existing.setCompany(company);
+    existing.setCode("PORTAL-MAPPED");
+    existing.setName("Portal Dealer");
+    existing.setStatus("SUSPENDED");
+    ReflectionTestUtils.setField(existing, "id", 88L);
+
     when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
             eq(company), eq("dealer@example.com")))
-        .thenReturn(List.of(new Dealer()));
+        .thenReturn(List.of(existing));
+
+    DealerResponse response = dealerService.createDealer(request());
+
+    assertThat(response.id()).isEqualTo(88L);
+    assertThat(response.code()).isEqualTo("PORTAL-MAPPED");
+    assertThat(response.arAccountId()).isNotNull();
+    assertThat(response.receivableAccountCode()).isNotBlank();
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+    Dealer saved = dealerCaptor.getAllValues().get(dealerCaptor.getAllValues().size() - 1);
+    assertThat(saved.getStatus()).isEqualTo("SUSPENDED");
+  }
+
+  @Test
+  void createDealer_rejectsAmbiguousPortalMappingsFailClosed() {
+    Dealer first = new Dealer();
+    Dealer second = new Dealer();
+    when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
+            eq(company), eq("dealer@example.com")))
+        .thenReturn(List.of(first, second));
 
     assertThatThrownBy(() -> dealerService.createDealer(request()))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Dealer already exists for this portal user")
+        .hasMessageContaining("Dealer onboarding is ambiguous for this portal user")
         .extracting(ex -> ((ApplicationException) ex).getErrorCode())
         .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
   }
@@ -519,6 +547,27 @@ class DealerServiceTest {
     assertThat(results)
         .singleElement()
         .satisfies(result -> assertThat(result.creditStatus()).isEqualTo("WITHIN_LIMIT"));
+  }
+
+  @Test
+  void search_treatsAllStatusAndRegionAsUnfiltered() {
+    Dealer dealer = dealer("D-ALL", new BigDecimal("1000"), "NORTH");
+    when(dealerRepository.searchFiltered(
+            eq(company), eq("shared@example.com"), eq(null), eq(null), any()))
+        .thenReturn(List.of(dealer));
+    when(dealerLedgerService.currentBalances(List.of(99L)))
+        .thenReturn(Map.of(99L, BigDecimal.ZERO));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(99L)), any()))
+        .thenReturn(List.of());
+
+    var results = dealerService.search(" shared@example.com ", " all ", " all ", null);
+
+    assertThat(results)
+        .singleElement()
+        .satisfies(result -> assertThat(result.code()).isEqualTo("D-ALL"));
+    verify(dealerRepository)
+        .searchFiltered(eq(company), eq("shared@example.com"), eq(null), eq(null), any());
   }
 
   @Test
@@ -880,6 +929,28 @@ class DealerServiceTest {
     assertThat(saved.getId()).isEqualTo(77L);
     assertThat(saved.getCode()).isEqualTo("LEGACY-DEALER");
     assertThat(saved.getStatus()).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void createDealer_preservesBlockedStatusWhenReusingExistingDealerByContactEmail() {
+    Dealer existing = new Dealer();
+    existing.setCompany(company);
+    ReflectionTestUtils.setField(existing, "id", 78L);
+    existing.setCode("BLOCKED-DEALER");
+    existing.setName("Blocked Dealer");
+    existing.setStatus("BLOCKED");
+
+    when(dealerRepository.findByCompanyAndEmailIgnoreCase(eq(company), eq("dealer@example.com")))
+        .thenReturn(Optional.of(existing));
+
+    dealerService.createDealer(request());
+
+    ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+    verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+    Dealer saved = dealerCaptor.getAllValues().get(dealerCaptor.getAllValues().size() - 1);
+    assertThat(saved.getId()).isEqualTo(78L);
+    assertThat(saved.getCode()).isEqualTo("BLOCKED-DEALER");
+    assertThat(saved.getStatus()).isEqualTo("BLOCKED");
   }
 
   private CreateDealerRequest request() {

@@ -22,6 +22,8 @@ class TS_P2PPurchaseSettlementBoundaryTest {
       "src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java";
   private static final String SUPPLIER_SETTLEMENT_REQUEST =
       "src/main/java/com/bigbrightpaints/erp/modules/accounting/dto/PartnerSettlementRequest.java";
+  private static final String RAW_MATERIAL_PURCHASE_REPOSITORY =
+      "src/main/java/com/bigbrightpaints/erp/modules/purchasing/domain/RawMaterialPurchaseRepository.java";
 
   @Test
   void purchasingAndSupplierSettlementEndpointsRemainIsolated() {
@@ -88,5 +90,15 @@ class TS_P2PPurchaseSettlementBoundaryTest {
         "Settlement allocation exceeds purchase outstanding amount",
         "remainingByPurchase.put(",
         "validateSettlementIdempotencyKey(");
+  }
+
+  @Test
+  void supplierAutoSettleOrderingPrefersDueDateThenInvoiceDateThenId() {
+    TruthSuiteFileAssert.assertContains(
+        RAW_MATERIAL_PURCHASE_REPOSITORY,
+        "ORDER BY CASE WHEN p.dueDate IS NULL THEN 1 ELSE 0 END,",
+        "p.dueDate,",
+        "p.invoiceDate,",
+        "p.id");
   }
 }

@@ -53,6 +53,9 @@ The user provides a single-item payload such as:
 - `gstRate`
 - optional `size`, `color`, `basePrice`, `minDiscountPercent`, `minSellingPrice`, and metadata
 
+The response includes the persisted `variantGroupId` and `productFamilyName` so related
+stock-carrying variants can be grouped without parsing the display name or SKU.
+
 ### Step 3: Save once
 
 `POST /api/v1/catalog/items` should:
@@ -67,8 +70,13 @@ The user provides a single-item payload such as:
 `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true` should show:
 
 - item identity and class
+- brand identity plus `variantGroupId` / `productFamilyName` family linkage
+- baseline pricing (`basePrice`, `gstRate`, `minDiscountPercent`, `minSellingPrice`)
 - readiness state for `catalog`, `inventory`, `production`, and `sales`
 - blocker details before operators reach factory execution
+
+`includeStock=true` returns stock totals only to `ROLE_ADMIN`, `ROLE_ACCOUNTING`, and
+`ROLE_FACTORY`; sales-facing readers still receive pricing and readiness without stock quantities.
 
 ### Step 5: Execution handoff
 

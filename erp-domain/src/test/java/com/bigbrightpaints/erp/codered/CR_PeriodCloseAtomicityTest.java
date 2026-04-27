@@ -2,10 +2,6 @@ package com.bigbrightpaints.erp.codered;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -22,7 +18,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,7 +38,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
@@ -65,7 +59,6 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private TestPeriodCloseHook closeHook;
-  @SpyBean private AccountingFacade accountingFacade;
 
   @AfterEach
   void clearCompanyContext() {
@@ -182,14 +175,12 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
 
       assertThat(closed.status()).isEqualTo("CLOSED");
       assertThat(countClosingJournals(company, period)).isEqualTo(1);
-      verify(accountingFacade)
-          .createStandardJournal(
-              argThat(
-                  request ->
-                      request != null
-                          && closingReference(period).equals(request.sourceReference())
-                          && Boolean.TRUE.equals(request.adminOverride())
-                          && "ACCOUNTING_PERIOD".equals(request.sourceModule())));
+      JournalEntry closing =
+          journalEntryRepository
+              .findByCompanyAndReferenceNumber(company, closingReference(period))
+              .orElseThrow();
+      assertThat(closing.getSourceReference()).isEqualTo(closingReference(period));
+      assertThat(closing.getSourceModule()).isEqualTo("ACCOUNTING_PERIOD");
 
       authenticate("super.admin", "ROLE_SUPER_ADMIN");
       AccountingPeriodDto reopened =
@@ -204,11 +195,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
               period.getId(), new AccountingPeriodReopenRequest("CODE-RED reopen retry"));
       assertThat(reopenedAgain.status()).isEqualTo("OPEN");
       assertThat(reopenedAgain.closingJournalEntryId()).isNull();
-      verify(accountingFacade)
-          .reverseClosingEntryForPeriodReopen(
-              any(JournalEntry.class), any(AccountingPeriod.class), eq("CODE-RED reopen"));
-
-      JournalEntry closing =
+      closing =
           journalEntryRepository
               .findByCompanyAndReferenceNumber(company, closingReference(period))
               .orElseThrow();

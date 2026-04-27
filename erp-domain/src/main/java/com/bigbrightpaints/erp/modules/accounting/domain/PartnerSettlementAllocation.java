@@ -35,7 +35,10 @@ import jakarta.persistence.Table;
           name = "idx_partner_settlement_partner",
           columnList = "company_id, partner_type, dealer_id, supplier_id"),
       @Index(name = "idx_partner_settlement_invoice", columnList = "company_id, invoice_id"),
-      @Index(name = "idx_partner_settlement_purchase", columnList = "company_id, purchase_id")
+      @Index(name = "idx_partner_settlement_purchase", columnList = "company_id, purchase_id"),
+      @Index(
+          name = "idx_partner_settlement_payment_event",
+          columnList = "company_id, payment_event_id")
     })
 public class PartnerSettlementAllocation extends VersionedEntity {
 
@@ -70,6 +73,10 @@ public class PartnerSettlementAllocation extends VersionedEntity {
   @ManyToOne(optional = false, fetch = FetchType.LAZY)
   @JoinColumn(name = "journal_entry_id")
   private JournalEntry journalEntry;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "payment_event_id")
+  private PartnerPaymentEvent paymentEvent;
 
   @Column(name = "settlement_date", nullable = false)
   private LocalDate settlementDate;
@@ -165,6 +172,14 @@ public class PartnerSettlementAllocation extends VersionedEntity {
 
   public void setJournalEntry(JournalEntry journalEntry) {
     this.journalEntry = journalEntry;
+  }
+
+  public PartnerPaymentEvent getPaymentEvent() {
+    return paymentEvent;
+  }
+
+  public void setPaymentEvent(PartnerPaymentEvent paymentEvent) {
+    this.paymentEvent = paymentEvent;
   }
 
   public LocalDate getSettlementDate() {

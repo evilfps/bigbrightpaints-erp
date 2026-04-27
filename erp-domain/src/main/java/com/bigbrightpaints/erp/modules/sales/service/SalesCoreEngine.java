@@ -195,6 +195,8 @@ public class SalesCoreEngine {
           ORDER_STATUS_READY_TO_SHIP,
           ORDER_STATUS_ON_HOLD,
           "BOOKED");
+  private static final Set<String> COMMERCIAL_LIFECYCLE_REASON_CODES =
+      Set.of("ORDER_COMMERCIAL_RECORDED", "ORDER_PENDING_PRODUCTION");
 
   private final CompanyContextService companyContextService;
   private final DealerRepository dealerRepository;
@@ -1596,8 +1598,7 @@ public class SalesCoreEngine {
             }
           }
           if (cogsJournalEntryId == null) {
-            cogsJournalEntryId =
-                resolveCogsMarkerForReconciliation(order, singleActiveSlip, null);
+            cogsJournalEntryId = resolveCogsMarkerForReconciliation(order, singleActiveSlip, null);
           }
           if (invoiceId == null && salesJournalEntryId == null && cogsJournalEntryId == null) {
             // Avoid destructive cleanup when no slip-level anchors are available yet.
@@ -2060,12 +2061,7 @@ public class SalesCoreEngine {
       }
       resolved.add(
           new PricedOrderLine(
-              product,
-              request.hasFinishedGoodId() ? request.finishedGoodId() : null,
-              description,
-              quantity,
-              unitPrice,
-              normalizedRate));
+              product, finishedGood.getId(), description, quantity, unitPrice, normalizedRate));
     }
     return resolved;
   }
@@ -2113,7 +2109,22 @@ public class SalesCoreEngine {
     if (order == null || order.getItems() == null) {
       return false;
     }
-    return order.getItems().stream().anyMatch(item -> item.getFinishedGoodId() != null);
+    boolean hasFinishedGoodSelectionIdentity =
+        order.getItems().stream()
+            .filter(Objects::nonNull)
+            .anyMatch(item -> item.getFinishedGoodId() != null);
+    if (!hasFinishedGoodSelectionIdentity) {
+      return false;
+    }
+    return !hasCommercialLifecycleTransition(order);
+  }
+
+  private boolean hasCommercialLifecycleTransition(SalesOrder order) {
+    if (order == null || order.getId() == null || order.getCompany() == null) {
+      return false;
+    }
+    return salesOrderStatusHistoryRepository.existsByCompanyAndSalesOrderAndReasonCodeIn(
+        order.getCompany(), order, COMMERCIAL_LIFECYCLE_REASON_CODES);
   }
 
   private String signaturePaymentModeToken(String rawMode, boolean preserveLegacySplitAlias) {
@@ -3867,7 +3878,9 @@ public class SalesCoreEngine {
             line ->
                 new DispatchConfirmRequest.DispatchLine(
                     line.getId(),
-                    line.getFinishedGoodBatch() != null ? line.getFinishedGoodBatch().getId() : null,
+                    line.getFinishedGoodBatch() != null
+                        ? line.getFinishedGoodBatch().getId()
+                        : null,
                     resolveDispatchLineQuantity(line),
                     null,
                     null,

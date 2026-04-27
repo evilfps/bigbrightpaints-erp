@@ -12,24 +12,29 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceStandardJournalTest {
 
-  @Mock private AccountCatalogService accountCatalogService;
+  @Mock private AccountResolutionOwnerService accountResolutionOwnerService;
   @Mock private JournalEntryService journalEntryService;
   @Mock private DealerReceiptService dealerReceiptService;
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private AccountingFacade accountingFacade;
+  @Mock private TaxService taxService;
+  @Mock private TemporalBalanceService temporalBalanceService;
+  @Mock private ConfigurationHealthService configurationHealthService;
+  @Mock private CompanyContextService companyContextService;
+  @Mock private CompanyClock companyClock;
 
   private AccountingService accountingService;
 
@@ -37,17 +42,21 @@ class AccountingServiceStandardJournalTest {
   void setUp() {
     accountingService =
         new AccountingService(
-            accountCatalogService,
+            accountResolutionOwnerService,
             journalEntryService,
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
             inventoryAccountingService,
-            accountingFacadeProvider);
+            taxService,
+            temporalBalanceService,
+            configurationHealthService,
+            companyContextService,
+            companyClock);
   }
 
   @Test
-  void createManualJournal_balancedMultiLineDelegatesToFacade() {
+  void createManualJournal_balancedMultiLineDelegatesToJournalEntryService() {
     ManualJournalRequest request =
         new ManualJournalRequest(
             LocalDate.of(2026, 2, 28),
@@ -71,8 +80,7 @@ class AccountingServiceStandardJournalTest {
                     "Credit line",
                     ManualJournalRequest.EntryType.CREDIT)));
     JournalEntryDto expected = journalEntryDto(301L, "JRN-301");
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(accountingFacade);
-    when(accountingFacade.createManualJournal(request)).thenReturn(expected);
+    when(journalEntryService.createManualJournal(request)).thenReturn(expected);
 
     assertThat(accountingService.createManualJournal(request)).isSameAs(expected);
   }

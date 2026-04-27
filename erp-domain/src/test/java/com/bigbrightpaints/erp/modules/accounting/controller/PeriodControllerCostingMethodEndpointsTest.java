@@ -17,10 +17,12 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 class PeriodControllerCostingMethodEndpointsTest {
 
   @Test
-  void createOrUpdatePeriod_delegatesWithCostingMethod() {
+  void createOrUpdatePeriod_delegatesWithDateAndCostingContract() {
     AccountingPeriodService periodService = mock(AccountingPeriodService.class);
     PeriodController controller = controller(periodService);
-    AccountingPeriodRequest request = new AccountingPeriodRequest(2026, 2, CostingMethod.LIFO);
+    AccountingPeriodRequest request =
+        new AccountingPeriodRequest(
+            2026, 2, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), CostingMethod.LIFO);
     AccountingPeriodDto expected = dto(10L, "LIFO");
     when(periodService.createOrUpdatePeriod(request)).thenReturn(expected);
 
@@ -32,10 +34,16 @@ class PeriodControllerCostingMethodEndpointsTest {
   }
 
   @Test
-  void updatePeriod_delegatesCostingMethodChange() {
+  void updatePeriod_delegatesDateUpdateForExplicitPeriodPath() {
     AccountingPeriodService periodService = mock(AccountingPeriodService.class);
     PeriodController controller = controller(periodService);
-    AccountingPeriodRequest request = new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE);
+    AccountingPeriodRequest request =
+        new AccountingPeriodRequest(
+            2026,
+            2,
+            LocalDate.of(2026, 2, 2),
+            LocalDate.of(2026, 2, 27),
+            CostingMethod.WEIGHTED_AVERAGE);
     AccountingPeriodDto expected = dto(11L, "WEIGHTED_AVERAGE");
     when(periodService.updatePeriod(11L, request)).thenReturn(expected);
 

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.SensitiveDisclosurePolicyOwner;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
 import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestCreateRequest;
@@ -34,7 +35,7 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 @RestController
 @RequestMapping("/api/v1")
-@PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+@PreAuthorize(SensitiveDisclosurePolicyOwner.REPORT_OR_ACCOUNTING_ONLY)
 public class ReportController {
 
   private final ReportService reportService;

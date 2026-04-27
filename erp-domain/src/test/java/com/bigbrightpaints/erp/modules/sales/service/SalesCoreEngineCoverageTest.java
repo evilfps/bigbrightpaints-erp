@@ -210,7 +210,8 @@ class SalesCoreEngineCoverageTest {
             new FinishedGoodsService.InventoryReservationResult(null, List.of()),
             1L);
 
-    assertThat((List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
+    assertThat(
+            (List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
                 providedResult)
         .isEqualTo(provided);
     assertThat(explicitSlipResult).isNull();
@@ -237,38 +238,39 @@ class SalesCoreEngineCoverageTest {
     slipLine.setQuantity(BigDecimal.TEN);
     slip.getLines().add(slipLine);
 
-    List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine> synthesized =
-        (List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
-            method.invoke(
-                engine,
-                null,
-                slip,
-                null,
-                new FinishedGoodsService.InventoryReservationResult(
-                    new PackagingSlipDto(
-                        77L,
-                        null,
-                        1L,
-                        "SO-1",
-                        null,
-                        "PS-77",
-                        "RESERVED",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null),
-                    List.of()),
-                1L);
+    List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>
+        synthesized =
+            (List<com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest.DispatchLine>)
+                method.invoke(
+                    engine,
+                    null,
+                    slip,
+                    null,
+                    new FinishedGoodsService.InventoryReservationResult(
+                        new PackagingSlipDto(
+                            77L,
+                            null,
+                            1L,
+                            "SO-1",
+                            null,
+                            "PS-77",
+                            "RESERVED",
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            List.of(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null),
+                        List.of()),
+                    1L);
 
     assertThat(synthesized).hasSize(1);
     assertThat(synthesized.get(0).lineId()).isEqualTo(701L);
@@ -277,7 +279,8 @@ class SalesCoreEngineCoverageTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void buildFullDispatchLines_andResolveDispatchLineQuantity_coverFallbackBranches() throws Exception {
+  void buildFullDispatchLines_andResolveDispatchLineQuantity_coverFallbackBranches()
+      throws Exception {
     Method buildMethod =
         SalesCoreEngine.class.getDeclaredMethod("buildFullDispatchLines", PackagingSlip.class);
     buildMethod.setAccessible(true);

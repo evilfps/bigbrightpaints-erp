@@ -266,7 +266,8 @@ class SalesJournalFacadeOperationsTest {
     JournalEntry existing = journalEntry(3002L, "LEG-779");
     when(journalReferenceResolver.findExistingEntry(company, canonicalReference))
         .thenReturn(Optional.empty());
-    when(journalReferenceResolver.findExistingEntry(company, "LEG-779")).thenReturn(Optional.of(existing));
+    when(journalReferenceResolver.findExistingEntry(company, "LEG-779"))
+        .thenReturn(Optional.of(existing));
     when(accountingService.createStandardJournal(any())).thenReturn(null);
 
     operations.postSalesJournal(

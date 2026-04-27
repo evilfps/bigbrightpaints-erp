@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,8 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
+import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -23,18 +23,22 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceTest {
 
-  @Mock private AccountCatalogService accountCatalogService;
+  @Mock private AccountResolutionOwnerService accountResolutionOwnerService;
   @Mock private JournalEntryService journalEntryService;
   @Mock private DealerReceiptService dealerReceiptService;
   @Mock private SettlementService settlementService;
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
-  @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private AccountingFacade accountingFacade;
+  @Mock private TaxService taxService;
+  @Mock private TemporalBalanceService temporalBalanceService;
+  @Mock private ConfigurationHealthService configurationHealthService;
+  @Mock private CompanyContextService companyContextService;
+  @Mock private CompanyClock companyClock;
 
   private AccountingService accountingService;
 
@@ -42,13 +46,17 @@ class AccountingServiceTest {
   void setUp() {
     accountingService =
         new AccountingService(
-            accountCatalogService,
+            accountResolutionOwnerService,
             journalEntryService,
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
             inventoryAccountingService,
-            accountingFacadeProvider);
+            taxService,
+            temporalBalanceService,
+            configurationHealthService,
+            companyContextService,
+            companyClock);
   }
 
   @Test
@@ -63,8 +71,7 @@ class AccountingServiceTest {
   }
 
   @Test
-  void createManualJournal_usesAccountingFacadeComposition() {
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(accountingFacade);
+  void createManualJournal_delegatesToJournalEntryService() {
 
     ManualJournalRequest request =
         new ManualJournalRequest(
@@ -81,38 +88,11 @@ class AccountingServiceTest {
                     "Credit",
                     ManualJournalRequest.EntryType.CREDIT)));
     JournalEntryDto expected = journalEntryDto(1002L, "MANUAL-1002");
-    when(accountingFacade.createManualJournal(request)).thenReturn(expected);
+    when(journalEntryService.createManualJournal(request)).thenReturn(expected);
 
     assertThat(accountingService.createManualJournal(request)).isSameAs(expected);
 
-    verify(accountingFacade).createManualJournal(request);
-  }
-
-  @Test
-  void createManualJournal_requiresAccountingFacadeWhenProviderIsEmpty() {
-    when(accountingFacadeProvider.getIfAvailable()).thenReturn(null);
-
-    assertThatThrownBy(
-            () ->
-                accountingService.createManualJournal(
-                    new ManualJournalRequest(
-                        LocalDate.of(2026, 4, 1),
-                        "Manual entry",
-                        null,
-                        Boolean.FALSE,
-                        List.of(
-                            new ManualJournalRequest.LineRequest(
-                                11L,
-                                new BigDecimal("10.00"),
-                                "Debit",
-                                ManualJournalRequest.EntryType.DEBIT),
-                            new ManualJournalRequest.LineRequest(
-                                12L,
-                                new BigDecimal("10.00"),
-                                "Credit",
-                                ManualJournalRequest.EntryType.CREDIT)))))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("AccountingFacade is required");
+    verify(journalEntryService).createManualJournal(request);
   }
 
   @Test

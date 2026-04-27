@@ -38,14 +38,14 @@ public interface SalesOrderRepository
       Company company, String status, Pageable pageable);
 
   @Query(
-      "select o.id from SalesOrder o where o.company = :company and (o.status is null or upper(trim(o.status)) <> 'DELETED') order by o.createdAt desc, o.id"
-          + " desc")
+      "select o.id from SalesOrder o where o.company = :company and (o.status is null or"
+          + " upper(trim(o.status)) <> 'DELETED') order by o.createdAt desc, o.id desc")
   Page<Long> findIdsByCompanyOrderByCreatedAtDescIdDesc(
       @Param("company") Company company, Pageable pageable);
 
   @Query(
-      "select o.id from SalesOrder o where o.company = :company and o.status = :status and upper(trim(o.status)) <> 'DELETED' order by"
-          + " o.createdAt desc, o.id desc")
+      "select o.id from SalesOrder o where o.company = :company and o.status = :status and"
+          + " upper(trim(o.status)) <> 'DELETED' order by o.createdAt desc, o.id desc")
   Page<Long> findIdsByCompanyAndStatusOrderByCreatedAtDescIdDesc(
       @Param("company") Company company, @Param("status") String status, Pageable pageable);
 
@@ -74,14 +74,16 @@ public interface SalesOrderRepository
       @Param("company") Company company, Pageable pageable);
 
   @Query(
-      "select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer and (o.status is null or upper(trim(o.status)) <> 'DELETED') order by"
-          + " o.createdAt desc, o.id desc")
+      "select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer and"
+          + " (o.status is null or upper(trim(o.status)) <> 'DELETED') order by o.createdAt desc,"
+          + " o.id desc")
   Page<Long> findIdsByCompanyAndDealerOrderByCreatedAtDescIdDesc(
       @Param("company") Company company, @Param("dealer") Dealer dealer, Pageable pageable);
 
   @Query(
       "select o.id from SalesOrder o where o.company = :company and o.dealer = :dealer and o.status"
-          + " = :status and upper(trim(o.status)) <> 'DELETED' order by o.createdAt desc, o.id desc")
+          + " = :status and upper(trim(o.status)) <> 'DELETED' order by o.createdAt desc, o.id"
+          + " desc")
   Page<Long> findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(
       @Param("company") Company company,
       @Param("dealer") Dealer dealer,

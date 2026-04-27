@@ -2,6 +2,18 @@
 
 Last reviewed: 2026-04-16
 
+## 2026-04-26 — `accounting-centralization-v2-schema-hard-cut`
+
+- **Scope:** revert the accounting centralization backend packet together with `erp-domain/src/main/resources/db/migration_v2/V184__accounting_truth_rls_hard_cut.sql` through `V189__reconciliation_discrepancy_resolution_alignment.sql`.
+- **Application rollback:** do not redeploy a pre-accounting-centralization backend against a database where `V184` through `V189` have already run. Keep the compatible backend live unless the database is restored to a pre-`V184` point.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V184`. Ad hoc reverse SQL is intentionally unsupported because this migration set installs forced accounting RLS, fail-closed session binding, account-code uniqueness, partner payment-event truth, purchase due-date backfill, and reconciliation resolution constraints that runtime code depends on as one contract.
+- **Guard note:** if rollback is abandoned and the deployment stays forward, rerun the new High-Risk Change Control and PR parity checks against the remote default branch.
+- **Verification:** after restore or coordinated rollback, rerun:
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='AccountingTenantIsolationRlsIT,CrossModuleAccountingTenantFailClosedIT,AccountCodeCaseInsensitiveUniquenessIT,CR_DealerReceiptSettlementAuditTrailTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest' test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='OpenApiSnapshotIT,AccountingEndpointContractTest,CriticalAccountingAxesIT,SettlementControllerIdempotencyHeaderParityTest' test`
+  - `bash ci/check-high-risk-changes.sh`
+  - `python3 scripts/pr_ci_parity.py --base origin/main --head HEAD`
+
 ## 2026-04-16 — `tenant-admin.pending-status-normalized-index-hardening`
 
 - **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V183__credit_pending_status_norm_indexes.sql` and the paired normalized pending-status query hardening in tenant-admin approval repositories.

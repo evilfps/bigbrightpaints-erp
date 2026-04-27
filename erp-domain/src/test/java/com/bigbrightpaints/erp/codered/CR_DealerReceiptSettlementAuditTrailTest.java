@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
+import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -553,6 +554,27 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             .distinct()
             .toList();
     assertThat(journalIds).as("single settlement journal").hasSize(1);
+    Long journalId = journalIds.getFirst();
+    String journalReference =
+        jdbcTemplate.queryForObject(
+            "select reference_number from journal_entries where id = ?", String.class, journalId);
+    assertThat(journalReference).isNotBlank();
+    assertThat(journalReference).doesNotStartWith("RESERVED-");
+
+    List<String> paymentEventReferences =
+        jdbcTemplate.queryForList(
+            """
+            select reference_number
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            String.class,
+            company.getId(),
+            idempotencyKey);
+    assertThat(paymentEventReferences).containsExactly(journalReference);
   }
 
   @Test
@@ -627,6 +649,331 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
         .as("invoice allocation plus future-application row")
         .hasSize(2);
+  }
+
+  @Test
+  void dealerSettlement_paymentEventFirst_linksJournalAndAllocations() {
+    String companyCode = "CR-SET-PE-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice invoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("90.00"),
+            LocalDate.now().minusDays(7),
+            LocalDate.now().plusDays(10),
+            "CR-SET-PE");
+    BigDecimal outstanding = invoice.getOutstandingAmount();
+    String referenceNumber = "DS-PE-" + UUID.randomUUID();
+    String idempotencyKey = "DS-PE-IDEMP-" + UUID.randomUUID();
+    PartnerSettlementRequest request =
+        new PartnerSettlementRequest(
+            PartnerType.DEALER,
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            referenceNumber,
+            "CODE-RED payment-event settlement",
+            idempotencyKey,
+            Boolean.FALSE,
+            List.of(
+                new SettlementAllocationRequest(
+                    invoice.getId(),
+                    null,
+                    outstanding,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null,
+                    "Apply to invoice")));
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first = accountingService.settleDealerInvoices(request);
+      PartnerSettlementResponse replay = accountingService.settleDealerInvoices(request);
+      journalId = first.journalEntry().id();
+      assertThat(replay.journalEntry().id()).isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Long paymentEventId =
+        jdbcTemplate.queryForObject(
+            """
+            select id
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/settlements/dealers'
+              and lower(reference_number) = lower(?)
+            """,
+            Long.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventId).isNotNull();
+
+    Integer paymentEventCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/settlements/dealers'
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventCount).isEqualTo(1);
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    Instant paymentEventCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from partner_payment_events where id = ?",
+            Instant.class,
+            paymentEventId);
+    Instant journalCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from journal_entries where id = ?", Instant.class, journalId);
+    assertThat(paymentEventCreatedAt).isNotNull();
+    assertThat(journalCreatedAt).isNotNull();
+    assertThat(paymentEventCreatedAt).isBeforeOrEqualTo(journalCreatedAt);
+
+    List<Long> allocationPaymentEventIds =
+        jdbcTemplate.queryForList(
+            """
+            select payment_event_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            Long.class,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationPaymentEventIds).isNotEmpty();
+    assertThat(allocationPaymentEventIds).allMatch(id -> id != null && id.equals(paymentEventId));
+  }
+
+  @Test
+  void dealerAutoSettle_usesSettlementPaymentFlow_andAllocatesOldestFirst() {
+    String companyCode = "CR-AUTO-SET-PE-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice earliestDue =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(12),
+            LocalDate.now().plusDays(1),
+            "CR-AUTO-SET-1");
+    Invoice sameDueOlderInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("30.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-2");
+    Invoice sameDueNewerInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("25.00"),
+            LocalDate.now().minusDays(3),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-3");
+
+    String referenceNumber = "DAS-PE-" + UUID.randomUUID();
+    String idempotencyKey = "DAS-PE-IDEMP-" + UUID.randomUUID();
+    AutoSettlementRequest request =
+        new AutoSettlementRequest(
+            accounts.get("BANK").getId(),
+            new BigDecimal("20.00"),
+            referenceNumber,
+            "CODE-RED auto settlement",
+            idempotencyKey);
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first = accountingService.autoSettleDealer(dealer.getId(), request);
+      PartnerSettlementResponse replay =
+          accountingService.autoSettleDealer(dealer.getId(), request);
+      journalId = first.journalEntry().id();
+      assertThat(replay.journalEntry().id()).isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Long paymentEventId =
+        jdbcTemplate.queryForObject(
+            """
+            select id
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_SETTLEMENT'
+              and source_route = '/api/v1/accounting/dealers/{dealerId}/auto-settle'
+              and lower(reference_number) = lower(?)
+            """,
+            Long.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventId).isNotNull();
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select invoice_id, allocation_amount, payment_event_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationRows).hasSize(1);
+
+    assertThat(((Number) allocationRows.get(0).get("invoice_id")).longValue())
+        .isEqualTo(earliestDue.getId());
+    assertThat(new BigDecimal(allocationRows.get(0).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("20.00"));
+
+    assertThat(allocationRows)
+        .allSatisfy(
+            row ->
+                assertThat(((Number) row.get("payment_event_id")).longValue())
+                    .isEqualTo(paymentEventId));
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueOlderInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(new BigDecimal("30.00"));
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueNewerInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(new BigDecimal("25.00"));
+  }
+
+  @Test
+  void dealerAutoSettle_keylessSuccessiveSameAmount_settlesNextOldestInvoice() {
+    String companyCode = "CR-AUTO-SET-KEYLESS-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice oldestInvoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(14),
+            LocalDate.now().plusDays(1),
+            "CR-AUTO-SET-KEYLESS-1");
+    Invoice nextOldestInvoice =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-AUTO-SET-KEYLESS-2");
+
+    AutoSettlementRequest keylessRequest =
+        new AutoSettlementRequest(
+            accounts.get("BANK").getId(),
+            new BigDecimal("20.00"),
+            null,
+            "CODE-RED keyless dealer auto-settlement",
+            null);
+
+    Long firstJournalId;
+    Long secondJournalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      PartnerSettlementResponse first =
+          accountingService.autoSettleDealer(dealer.getId(), keylessRequest);
+      PartnerSettlementResponse second =
+          accountingService.autoSettleDealer(dealer.getId(), keylessRequest);
+
+      firstJournalId = first.journalEntry().id();
+      secondJournalId = second.journalEntry().id();
+      assertThat(firstJournalId).isNotNull();
+      assertThat(secondJournalId).isNotNull();
+      assertThat(secondJournalId).isNotEqualTo(firstJournalId);
+      assertThat(first.allocations()).hasSize(1);
+      assertThat(second.allocations()).hasSize(1);
+      assertThat(first.allocations().get(0).invoiceId()).isEqualTo(oldestInvoice.getId());
+      assertThat(second.allocations().get(0).invoiceId()).isEqualTo(nextOldestInvoice.getId());
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select invoice_id, idempotency_key
+            from partner_settlement_allocations
+            where company_id = ?
+              and dealer_id = ?
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            dealer.getId());
+    assertThat(allocationRows).hasSize(2);
+    assertThat(((Number) allocationRows.get(0).get("invoice_id")).longValue())
+        .isEqualTo(oldestInvoice.getId());
+    assertThat(((Number) allocationRows.get(1).get("invoice_id")).longValue())
+        .isEqualTo(nextOldestInvoice.getId());
+    assertThat(allocationRows.get(0).get("idempotency_key").toString())
+        .isNotEqualToIgnoringCase(allocationRows.get(1).get("idempotency_key").toString());
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, oldestInvoice.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, nextOldestInvoice.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test
@@ -887,10 +1234,579 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         .isEmpty();
     assertThat(
             settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
-        .as("zero-allocation split receipt does not create allocation rows")
-        .isEmpty();
+        .as("zero-allocation split receipt records explicit unapplied allocation truth")
+        .hasSize(1);
     CoderedDbAssertions.assertBalancedJournal(journalEntryRepository, journalId);
     CoderedDbAssertions.assertAuditLogRecordedForJournal(jdbcTemplate, journalId);
+  }
+
+  @Test
+  void dealerReceipt_paymentEventFirst_linksJournalAndExplicitOnAccountAllocation() {
+    String companyCode = "CR-DR-PAYMENT-EVENT-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    String referenceNumber = "DR-PE-" + UUID.randomUUID();
+    String idempotencyKey = "DR-PE-IDEMP-" + UUID.randomUUID();
+    BigDecimal receiptAmount = new BigDecimal("125.00");
+    DealerReceiptRequest request =
+        new DealerReceiptRequest(
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            receiptAmount,
+            referenceNumber,
+            "CODE-RED payment-event receipt",
+            idempotencyKey,
+            List.of());
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceipt(request);
+      JournalEntryDto replay = accountingService.recordDealerReceipt(request);
+      journalId = first.id();
+      assertThat(replay.id()).isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Long paymentEventId =
+        jdbcTemplate.queryForObject(
+            """
+            select id
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_RECEIPT'
+              and lower(reference_number) = lower(?)
+            """,
+            Long.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventId).isNotNull();
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    Integer paymentEventCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from partner_payment_events
+            where company_id = ?
+              and payment_flow = 'DEALER_RECEIPT'
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(paymentEventCount).isEqualTo(1);
+
+    Instant paymentEventCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from partner_payment_events where id = ?",
+            Instant.class,
+            paymentEventId);
+    Instant journalCreatedAt =
+        jdbcTemplate.queryForObject(
+            "select created_at from journal_entries where id = ?", Instant.class, journalId);
+    assertThat(paymentEventCreatedAt).isNotNull();
+    assertThat(journalCreatedAt).isNotNull();
+    assertThat(paymentEventCreatedAt).isBeforeOrEqualTo(journalCreatedAt);
+
+    BigDecimal unappliedAmount =
+        jdbcTemplate.queryForObject(
+            """
+            select allocation_amount
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+              and invoice_id is null
+              and payment_event_id = ?
+            """,
+            BigDecimal.class,
+            company.getId(),
+            idempotencyKey,
+            paymentEventId);
+    assertThat(unappliedAmount).isEqualByComparingTo(receiptAmount);
+  }
+
+  @Test
+  void dealerReceipt_replayFailsClosed_whenAllocationRowsAreMissing() {
+    String companyCode = "CR-DR-MISSING-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    String referenceNumber = "DR-MISSING-" + UUID.randomUUID();
+    String idempotencyKey = "DR-MISSING-IDEMP-" + UUID.randomUUID();
+    DealerReceiptRequest request =
+        new DealerReceiptRequest(
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            new BigDecimal("125.00"),
+            referenceNumber,
+            "CODE-RED degraded replay receipt",
+            idempotencyKey,
+            List.of());
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceipt(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("first write persists explicit allocation truth")
+        .hasSize(1);
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded replay fixture has no allocation rows")
+        .isEmpty();
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceipt(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation not found")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+  }
+
+  @Test
+  void dealerReceiptSplit_replayFailsClosed_whenAllocationRowsAreMissing() {
+    String companyCode = "CR-DRS-MISSING-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    String referenceNumber = "DRS-MISSING-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-MISSING-IDEMP-" + UUID.randomUUID();
+    DealerReceiptSplitRequest request =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), new BigDecimal("125.00"))),
+            referenceNumber,
+            "CODE-RED degraded replay split receipt",
+            idempotencyKey);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceiptSplit(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("first split receipt write persists explicit allocation truth")
+        .hasSize(1);
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded split replay fixture has no allocation rows")
+        .isEmpty();
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceiptSplit(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation not found")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+  }
+
+  @Test
+  void dealerReceiptSplit_replayFailsClosed_whenOnlySubsetOfAllocationRowsSurvives() {
+    String companyCode = "CR-DRS-SUBSET-ALLOC-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice earliestDue =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(12),
+            LocalDate.now().plusDays(1),
+            "CR-DRS-SUBSET-1");
+    Invoice sameDueOlderInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("30.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-SUBSET-2");
+    Invoice sameDueNewerInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("25.00"),
+            LocalDate.now().minusDays(3),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-SUBSET-3");
+
+    String referenceNumber = "DRS-SUBSET-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-SUBSET-IDEMP-" + UUID.randomUUID();
+    DealerReceiptSplitRequest request =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), new BigDecimal("100.00")),
+                new DealerReceiptSplitRequest.IncomingLine(cash.getId(), new BigDecimal("5.00"))),
+            referenceNumber,
+            "CODE-RED degraded subset split receipt",
+            idempotencyKey);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto first = accountingService.recordDealerReceiptSplit(request);
+      assertThat(first.id()).isNotNull();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select id, invoice_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationRows).hasSize(4);
+
+    Integer deleted =
+        jdbcTemplate.update(
+            """
+            delete from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+              and invoice_id = ?
+            """,
+            company.getId(),
+            idempotencyKey,
+            sameDueOlderInvoiceDate.getId());
+    assertThat(deleted).isEqualTo(1);
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("degraded split replay fixture keeps only a subset of canonical allocation rows")
+        .hasSize(3);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceiptSplit(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("allocation")
+          .satisfies(
+              error ->
+                  org.assertj.core.api.Assertions.assertThat(
+                          ((com.bigbrightpaints.erp.core.exception.ApplicationException) error)
+                              .getErrorCode())
+                      .isEqualTo(
+                          com.bigbrightpaints.erp.core.exception.ErrorCode
+                              .INTERNAL_CONCURRENCY_FAILURE));
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer journalCount =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(journalCount).isEqualTo(1);
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueOlderInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueNewerInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
+  void dealerReceipt_rejectsCrossDealerInvoiceAllocation() {
+    String companyCode = "CR-DR-CROSS-DEALER-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"), "CR-DEALER-A", "Code-Red Dealer A");
+    Dealer foreignDealer =
+        ensureDealer(company, accounts.get("AR"), "CR-DEALER-B", "Code-Red Dealer B");
+
+    Invoice foreignInvoice =
+        createStandaloneInvoice(
+            company,
+            foreignDealer,
+            new BigDecimal("90.00"),
+            LocalDate.now().minusDays(5),
+            LocalDate.now().plusDays(10),
+            "CR-DR-CROSS");
+    String referenceNumber = "DR-CROSS-" + UUID.randomUUID();
+    String idempotencyKey = "DR-CROSS-IDEMP-" + UUID.randomUUID();
+    DealerReceiptRequest request =
+        new DealerReceiptRequest(
+            dealer.getId(),
+            accounts.get("BANK").getId(),
+            new BigDecimal("90.00"),
+            referenceNumber,
+            "CODE-RED cross dealer receipt",
+            idempotencyKey,
+            List.of(
+                new SettlementAllocationRequest(
+                    foreignInvoice.getId(),
+                    null,
+                    new BigDecimal("90.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null,
+                    "Cross dealer allocation")));
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(
+              () -> accountingService.recordDealerReceipt(request))
+          .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+          .hasMessageContaining("Invoice does not belong to the dealer");
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    Integer persistedJournals =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+            from journal_entries
+            where company_id = ?
+              and lower(reference_number) = lower(?)
+            """,
+            Integer.class,
+            company.getId(),
+            referenceNumber);
+    assertThat(persistedJournals).isZero();
+  }
+
+  @Test
+  void dealerReceiptSplit_autoAllocatesDeterministically_andPersistsUnappliedRemainder() {
+    String companyCode = "CR-DRS-FIFO-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    Invoice earliestDue =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("20.00"),
+            LocalDate.now().minusDays(12),
+            LocalDate.now().plusDays(1),
+            "CR-DRS-FIFO-1");
+    Invoice sameDueOlderInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("30.00"),
+            LocalDate.now().minusDays(10),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-FIFO-2");
+    Invoice sameDueNewerInvoiceDate =
+        createStandaloneInvoice(
+            company,
+            dealer,
+            new BigDecimal("25.00"),
+            LocalDate.now().minusDays(3),
+            LocalDate.now().plusDays(2),
+            "CR-DRS-FIFO-3");
+
+    String referenceNumber = "DRS-FIFO-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-FIFO-IDEMP-" + UUID.randomUUID();
+    DealerReceiptSplitRequest request =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), new BigDecimal("100.00")),
+                new DealerReceiptSplitRequest.IncomingLine(cash.getId(), new BigDecimal("5.00"))),
+            referenceNumber,
+            "CODE-RED FIFO split receipt",
+            idempotencyKey);
+
+    Long journalId;
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto response = accountingService.recordDealerReceiptSplit(request);
+      journalId = response.id();
+    } finally {
+      CompanyContextHolder.clear();
+    }
+
+    List<Map<String, Object>> allocationRows =
+        jdbcTemplate.queryForList(
+            """
+            select invoice_id, allocation_amount, payment_event_id
+            from partner_settlement_allocations
+            where company_id = ?
+              and lower(idempotency_key) = lower(?)
+            order by created_at asc, id asc
+            """,
+            company.getId(),
+            idempotencyKey);
+    assertThat(allocationRows).hasSize(4);
+
+    assertThat(((Number) allocationRows.get(0).get("invoice_id")).longValue())
+        .isEqualTo(earliestDue.getId());
+    assertThat(new BigDecimal(allocationRows.get(0).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("20.00"));
+
+    assertThat(((Number) allocationRows.get(1).get("invoice_id")).longValue())
+        .isEqualTo(sameDueOlderInvoiceDate.getId());
+    assertThat(new BigDecimal(allocationRows.get(1).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("30.00"));
+
+    assertThat(((Number) allocationRows.get(2).get("invoice_id")).longValue())
+        .isEqualTo(sameDueNewerInvoiceDate.getId());
+    assertThat(new BigDecimal(allocationRows.get(2).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("25.00"));
+
+    assertThat(allocationRows.get(3).get("invoice_id")).isNull();
+    assertThat(new BigDecimal(allocationRows.get(3).get("allocation_amount").toString()))
+        .isEqualByComparingTo(new BigDecimal("30.00"));
+
+    Long paymentEventId = ((Number) allocationRows.get(0).get("payment_event_id")).longValue();
+    assertThat(paymentEventId).isNotNull();
+    assertThat(allocationRows)
+        .allSatisfy(
+            row ->
+                assertThat(((Number) row.get("payment_event_id")).longValue())
+                    .isEqualTo(paymentEventId));
+
+    Long linkedJournalId =
+        jdbcTemplate.queryForObject(
+            "select journal_entry_id from partner_payment_events where id = ?",
+            Long.class,
+            paymentEventId);
+    assertThat(linkedJournalId).isEqualTo(journalId);
+
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, earliestDue.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueOlderInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(
+            invoiceRepository
+                .findByCompanyAndId(company, sameDueNewerInvoiceDate.getId())
+                .orElseThrow()
+                .getOutstandingAmount())
+        .isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test
@@ -1150,8 +2066,12 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
   }
 
   private Dealer ensureDealer(Company company, Account arAccount) {
+    return ensureDealer(company, arAccount, "CR-DEALER", "Code-Red Dealer");
+  }
+
+  private Dealer ensureDealer(Company company, Account arAccount, String code, String name) {
     return dealerRepository
-        .findByCompanyAndCodeIgnoreCase(company, "CR-DEALER")
+        .findByCompanyAndCodeIgnoreCase(company, code)
         .map(
             existing -> {
               if (existing.getReceivableAccount() == null) {
@@ -1164,8 +2084,8 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             () -> {
               Dealer dealer = new Dealer();
               dealer.setCompany(company);
-              dealer.setCode("CR-DEALER");
-              dealer.setName("Code-Red Dealer");
+              dealer.setCode(code);
+              dealer.setName(name);
               dealer.setStatus("ACTIVE");
               dealer.setReceivableAccount(arAccount);
               return dealerRepository.save(dealer);
@@ -1282,6 +2202,29 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     fallback.setOutstandingAmount(totalAmount);
     fallback.setInvoiceNumber("TEST-INV-" + order.getId());
     return invoiceRepository.save(fallback);
+  }
+
+  private Invoice createStandaloneInvoice(
+      Company company,
+      Dealer dealer,
+      BigDecimal amount,
+      LocalDate issueDate,
+      LocalDate dueDate,
+      String invoicePrefix) {
+    Invoice invoice = new Invoice();
+    invoice.setCompany(company);
+    invoice.setDealer(dealer);
+    invoice.setStatus("POSTED");
+    invoice.setCurrency(company.getBaseCurrency() != null ? company.getBaseCurrency() : "INR");
+    invoice.setIssueDate(issueDate);
+    invoice.setDueDate(dueDate);
+    invoice.setSubtotal(amount);
+    invoice.setTaxTotal(BigDecimal.ZERO);
+    invoice.setTotalAmount(amount);
+    invoice.setOutstandingAmount(amount);
+    invoice.setInvoiceNumber(invoicePrefix + "-" + UUID.randomUUID().toString().substring(0, 8));
+    invoice.setNotes("Code-red standalone invoice");
+    return invoiceRepository.saveAndFlush(invoice);
   }
 
   private static String shortId() {

@@ -140,6 +140,27 @@ class ReportControllerFinancialEndpointsIT extends AbstractIntegrationTest {
 
     Map<String, Object> gstReturnData = fetchDataMap("/api/v1/reports/gst-return");
     assertThat(gstReturnData).containsKeys("outputTax", "inputTaxCredit", "netLiability");
+
+    Map<String, Object> gstReconciliationData =
+        fetchDataMap("/api/v1/accounting/gst/reconciliation");
+    assertThat(gstReconciliationData).containsKeys("collected", "inputTaxCredit", "netLiability");
+
+    Map<String, Object> accountingGstReturnData = fetchDataMap("/api/v1/accounting/gst/return");
+    assertThat(accountingGstReturnData).containsKeys("outputTax", "inputTax", "netPayable");
+
+    assertThat(componentTotal(gstReturnData.get("outputTax")))
+        .isEqualByComparingTo(componentTotal(gstReconciliationData.get("collected")));
+    assertThat(componentTotal(gstReturnData.get("inputTaxCredit")))
+        .isEqualByComparingTo(componentTotal(gstReconciliationData.get("inputTaxCredit")));
+    assertThat(componentTotal(gstReturnData.get("netLiability")))
+        .isEqualByComparingTo(componentTotal(gstReconciliationData.get("netLiability")));
+
+    assertThat(decimal(accountingGstReturnData.get("outputTax")))
+        .isEqualByComparingTo(componentTotal(gstReturnData.get("outputTax")));
+    assertThat(decimal(accountingGstReturnData.get("inputTax")))
+        .isEqualByComparingTo(componentTotal(gstReturnData.get("inputTaxCredit")));
+    assertThat(decimal(accountingGstReturnData.get("netPayable")))
+        .isEqualByComparingTo(componentTotal(gstReturnData.get("netLiability")));
   }
 
   @Test
@@ -319,6 +340,10 @@ class ReportControllerFinancialEndpointsIT extends AbstractIntegrationTest {
 
   private BigDecimal decimal(Object value) {
     return value == null ? BigDecimal.ZERO : new BigDecimal(String.valueOf(value));
+  }
+
+  private BigDecimal componentTotal(Object value) {
+    return decimal(castMap(value).get("total"));
   }
 
   private HttpHeaders authHeaders() {

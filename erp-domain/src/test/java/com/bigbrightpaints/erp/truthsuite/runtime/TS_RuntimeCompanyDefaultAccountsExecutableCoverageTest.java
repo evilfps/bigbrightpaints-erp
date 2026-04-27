@@ -277,7 +277,8 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
             invokeAccountPredicate(
                 service,
                 "isReceivableAccount",
-                account(96L, company(501L, "DEF7"), "AR-CTRL", AccountType.ASSET, "Receivable", true)))
+                account(
+                    96L, company(501L, "DEF7"), "AR-CTRL", AccountType.ASSET, "Receivable", true)))
         .isTrue();
     assertThat(
             invokeAccountPredicate(
@@ -397,7 +398,8 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
     }
   }
 
-  private RuntimeException propagateInvocationTarget(String methodName, InvocationTargetException ex) {
+  private RuntimeException propagateInvocationTarget(
+      String methodName, InvocationTargetException ex) {
     Throwable cause = ex.getCause();
     if (cause instanceof RuntimeException runtimeException) {
       return runtimeException;

@@ -85,8 +85,8 @@ class InventoryValuationPostingService {
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Landed cost for purchase " + purchase.getInvoiceNumber();
-    JournalEntryDto journalEntry =
-        journalEntryService.createJournalEntry(
+    JournalEntryMutationOutcome outcome =
+        journalEntryService.createJournalEntryWithOutcome(
             new JournalEntryRequest(
                 reference,
                 entryDate,
@@ -99,8 +99,10 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, request.amount(), BigDecimal.ZERO),
                     new JournalEntryRequest.JournalLineRequest(
                         request.offsetAccountId(), memo, BigDecimal.ZERO, request.amount()))));
-    adjustLandedCostValuation(purchase, request.amount());
-    return journalEntry;
+    if (!outcome.replayed()) {
+      adjustLandedCostValuation(purchase, request.amount());
+    }
+    return outcome.journalEntry();
   }
 
   @Transactional
@@ -121,8 +123,8 @@ class InventoryValuationPostingService {
     BigDecimal delta = request.deltaAmount();
     BigDecimal debit = delta.compareTo(BigDecimal.ZERO) >= 0 ? delta : BigDecimal.ZERO;
     BigDecimal credit = delta.compareTo(BigDecimal.ZERO) < 0 ? delta.abs() : BigDecimal.ZERO;
-    JournalEntryDto journalEntry =
-        journalEntryService.createJournalEntry(
+    JournalEntryMutationOutcome outcome =
+        journalEntryService.createJournalEntryWithOutcome(
             new JournalEntryRequest(
                 reference,
                 entryDate,
@@ -135,11 +137,13 @@ class InventoryValuationPostingService {
                         request.inventoryAccountId(), memo, debit, credit),
                     new JournalEntryRequest.JournalLineRequest(
                         request.revaluationAccountId(), memo, credit, debit))));
-    revalueFinishedBatches(
-        finishedGoodBatchRepository.findByCompanyAndValuationAccountId(
-            company, request.inventoryAccountId()),
-        delta);
-    return journalEntry;
+    if (!outcome.replayed()) {
+      revalueFinishedBatches(
+          finishedGoodBatchRepository.findByCompanyAndValuationAccountId(
+              company, request.inventoryAccountId()),
+          delta);
+    }
+    return outcome.journalEntry();
   }
 
   @Transactional
